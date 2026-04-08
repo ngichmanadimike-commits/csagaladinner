@@ -14,7 +14,7 @@ const TicketsSection = () => {
   const [selected, setSelected] = useState<typeof packages[0] | null>(null);
 
   return (
-    <section id="tickets" className="py-24 relative">
+    <section id="tickets" className="py-24 relative bg-secondary/30">
       <div className="container mx-auto px-4">
         <motion.div
           initial={{ opacity: 0, y: 30 }}

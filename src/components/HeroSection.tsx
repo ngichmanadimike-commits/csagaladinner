@@ -47,11 +47,11 @@ const HeroSection = () => {
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
           transition={{ delay: 0.3 }}
-          className="flex flex-wrap justify-center gap-6 text-sm text-muted-foreground mb-10"
+          className="flex flex-wrap justify-center gap-6 md:gap-10 text-base md:text-xl text-foreground mb-10 font-semibold"
         >
-          <span className="flex items-center gap-2"><CalendarDays size={16} className="text-primary" /> 05 June 2026</span>
-          <span className="flex items-center gap-2"><Clock size={16} className="text-primary" /> 7:00 PM – 11:00 PM</span>
-          <span className="flex items-center gap-2"><MapPin size={16} className="text-primary" /> Utalii House</span>
+          <span className="flex items-center gap-2"><CalendarDays size={22} className="text-primary" /> 05 June 2026</span>
+          <span className="flex items-center gap-2"><Clock size={22} className="text-primary" /> 7:00 PM – 11:00 PM</span>
+          <span className="flex items-center gap-2"><MapPin size={22} className="text-primary" /> Utalii House</span>
         </motion.div>
 
         <CountdownTimer targetDate="2026-06-05T19:00:00+03:00" />
@@ -63,13 +63,21 @@ const HeroSection = () => {
           className="flex flex-wrap justify-center gap-4 mt-10"
         >
           <a href="#tickets" className="px-8 py-3.5 rounded-lg bg-primary text-primary-foreground font-bold hover:scale-105 glow-primary transition-all duration-300">
-            🎟️ Buy Ticket
+            Buy Ticket
           </a>
           <a href="#partner-form" className="px-8 py-3.5 rounded-lg border-2 border-primary text-primary font-bold hover:bg-primary hover:text-primary-foreground transition-all duration-300">
-            🤝 Become a Partner
+            Become a Partner
           </a>
           <a href="#sponsor" className="px-8 py-3.5 rounded-lg border-2 border-foreground/30 text-foreground font-bold hover:border-primary hover:text-primary transition-all duration-300">
-            🎓 Sponsor a Student
+            Sponsor a Student
+          </a>
+          <a
+            href="https://forms.gle/VL4Sk37Cjji64PVf6"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="px-8 py-3.5 rounded-lg border-2 border-primary/60 text-primary font-bold hover:bg-primary/10 transition-all duration-300"
+          >
+            Awards Nomination
           </a>
         </motion.div>
       </div>
