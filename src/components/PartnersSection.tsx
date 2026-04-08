@@ -1,14 +1,17 @@
 import { motion } from "framer-motion";
+import gbaLogo from "@/assets/gba_logo.png";
+import decoLogo from "@/assets/deco_logo.png";
+import iqskLogo from "@/assets/iqsk_logo.png";
 
 const partners = [
-  { name: "Green Build Academy", url: "https://greenbuildhub.co.ke/" },
-  { name: "Deco Roofing Systems", url: "https://decoroofing.co.ke/" },
-  { name: "IQSK", url: "https://iqskenya.org/" },
+  { name: "Green Build Academy", url: "https://greenbuildhub.co.ke/", logo: gbaLogo },
+  { name: "Deco Roofing Systems", url: "https://decoroofing.co.ke/", logo: decoLogo },
+  { name: "IQSK", url: "https://iqskenya.org/", logo: iqskLogo },
 ];
 
 const PartnersSection = () => {
   return (
-    <section id="partners" className="py-24">
+    <section id="partners" className="py-24 bg-secondary/30">
       <div className="container mx-auto px-4">
         <motion.div
           initial={{ opacity: 0, y: 30 }}
@@ -33,10 +36,17 @@ const PartnersSection = () => {
               whileInView={{ opacity: 1, y: 0 }}
               viewport={{ once: true }}
               transition={{ delay: i * 0.1 }}
-              className="glass rounded-2xl px-8 py-6 min-w-[200px] text-center hover:border-primary/50 hover:glow-sm transition-all duration-300 group"
+              className="glass rounded-2xl px-8 py-6 min-w-[200px] flex flex-col items-center justify-center hover:border-primary/50 hover:glow-sm transition-all duration-300 group"
             >
-              <p className="font-display text-lg font-bold group-hover:text-primary transition-colors">{p.name}</p>
-              <p className="text-xs text-muted-foreground mt-1">Visit Website →</p>
+              <div className="w-28 h-28 flex items-center justify-center mb-3 rounded-xl bg-white/90 p-3">
+                <img
+                  src={p.logo}
+                  alt={p.name}
+                  className="max-w-full max-h-full object-contain"
+                />
+              </div>
+              <p className="font-display text-lg font-bold group-hover:text-primary transition-colors text-center">{p.name}</p>
+              <p className="text-xs text-muted-foreground mt-1">Visit Website &rarr;</p>
             </motion.a>
           ))}
         </div>
@@ -46,7 +56,7 @@ const PartnersSection = () => {
             href="#partner-form"
             className="inline-flex items-center gap-2 px-8 py-3 rounded-lg border-2 border-primary text-primary font-bold hover:bg-primary hover:text-primary-foreground transition-all duration-300"
           >
-            🤝 Become a Partner
+            Become a Partner
           </a>
         </div>
       </div>

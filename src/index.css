@@ -1,4 +1,4 @@
-@import url('https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;500;600;700;800&family=Inter:wght@300;400;500;600;700&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;500;600;700;800&family=DM+Sans:wght@300;400;500;600;700&display=swap');
 
 @tailwind base;
 @tailwind components;
@@ -22,7 +22,7 @@
     --secondary-foreground: 210 40% 98%;
 
     --muted: 215 30% 15%;
-    --muted-foreground: 215 20% 60%;
+    --muted-foreground: 215 20% 65%;
 
     --accent: 33 90% 55%;
     --accent-foreground: 220 30% 6%;
@@ -58,9 +58,12 @@
   }
   body {
     @apply bg-background text-foreground font-body antialiased;
+    font-size: 16px;
+    line-height: 1.7;
   }
   h1, h2, h3, h4, h5, h6 {
     @apply font-display;
+    line-height: 1.2;
   }
 }
 

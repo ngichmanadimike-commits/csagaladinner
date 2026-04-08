@@ -13,7 +13,7 @@ const PartnerForm = () => {
   };
 
   return (
-    <section id="partner-form" className="py-24">
+    <section id="partner-form" className="py-24 bg-secondary/30">
       <div className="container mx-auto px-4 max-w-xl">
         <motion.div
           initial={{ opacity: 0, y: 30 }}
@@ -67,7 +67,9 @@ const PartnerForm = () => {
               <p className="text-sm text-muted-foreground">You can now view the official dinner proposal for more details.</p>
               <div className="flex flex-col sm:flex-row gap-3 justify-center pt-2">
                 <a
-                  href="#"
+                  href="https://drive.google.com/file/d/1VxxT5PVtTGSyHMbS4G4RR5_-iRMVo8mE/view?usp=sharing"
+                  target="_blank"
+                  rel="noopener noreferrer"
                   className="px-6 py-2.5 rounded-lg bg-primary text-primary-foreground font-semibold flex items-center justify-center gap-2 hover:scale-105 transition-transform"
                 >
                   <FileText size={16} /> View Dinner Proposal
