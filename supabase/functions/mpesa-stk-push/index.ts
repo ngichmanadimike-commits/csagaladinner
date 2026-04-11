@@ -55,8 +55,9 @@ Deno.serve(async (req) => {
     }
 
     const token = await getAccessToken();
-    const shortcode = Deno.env.get("MPESA_SHORTCODE")!;
+    const shortcode = Deno.env.get("MPESA_SHORTCODE")!; // BusinessShortCode (174379 for sandbox)
     const passkey = Deno.env.get("MPESA_PASSKEY")!;
+    const tillNumber = Deno.env.get("MPESA_TILL_NUMBER") || shortcode; // Till/PartyB
 
     const now = new Date();
     const timestamp = now.getFullYear().toString() +
@@ -67,6 +68,8 @@ Deno.serve(async (req) => {
       String(now.getSeconds()).padStart(2, "0");
 
     const password = btoa(shortcode + passkey + timestamp);
+
+    console.log("STK Push request:", { shortcode, tillNumber, formattedPhone, amount: Math.round(Number(amount)) });
 
     const stkRes = await fetch(
       `${MPESA_BASE_URL}/mpesa/stkpush/v1/processrequest`,
@@ -83,7 +86,7 @@ Deno.serve(async (req) => {
           TransactionType: "CustomerBuyGoodsOnline",
           Amount: Math.round(Number(amount)),
           PartyA: formattedPhone,
-          PartyB: shortcode,
+          PartyB: tillNumber,
           PhoneNumber: formattedPhone,
           CallBackURL: "https://example.com/callback",
           AccountReference: "CSAGala2026",
