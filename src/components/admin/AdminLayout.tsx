@@ -1,0 +1,115 @@
+import { ReactNode } from "react";
+import { useNavigate, useLocation } from "react-router-dom";
+import { useAuth } from "@/hooks/useAuth";
+import {
+  LayoutDashboard,
+  CreditCard,
+  Users,
+  Calendar,
+  LogOut,
+  Menu,
+} from "lucide-react";
+import { useState } from "react";
+
+const navItems = [
+  { label: "Overview", icon: LayoutDashboard, path: "/admin" },
+  { label: "Payments", icon: CreditCard, path: "/admin/payments" },
+  { label: "Registrations", icon: Users, path: "/admin/registrations" },
+  { label: "Event Config", icon: Calendar, path: "/admin/event" },
+];
+
+const AdminLayout = ({ children }: { children: ReactNode }) => {
+  const { user, signOut, loading, isAdmin } = useAuth();
+  const navigate = useNavigate();
+  const location = useLocation();
+  const [sidebarOpen, setSidebarOpen] = useState(false);
+
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-background flex items-center justify-center">
+        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary" />
+      </div>
+    );
+  }
+
+  if (!user) {
+    navigate("/login");
+    return null;
+  }
+
+  if (!isAdmin) {
+    return (
+      <div className="min-h-screen bg-background flex items-center justify-center p-4">
+        <div className="glass rounded-2xl p-8 text-center max-w-md">
+          <h2 className="font-display text-xl font-bold text-foreground mb-2">Access Denied</h2>
+          <p className="text-muted-foreground text-sm mb-4">You don't have admin privileges.</p>
+          <div className="flex gap-3 justify-center">
+            <a href="/" className="px-4 py-2 rounded-lg border border-border text-foreground hover:border-primary transition-colors text-sm">
+              Back to site
+            </a>
+            <button onClick={signOut} className="px-4 py-2 rounded-lg bg-primary text-primary-foreground text-sm font-semibold">
+              Sign out
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="min-h-screen bg-background flex">
+      {/* Sidebar */}
+      <aside className={`fixed inset-y-0 left-0 z-40 w-64 bg-card border-r border-border transform transition-transform duration-200 ${sidebarOpen ? "translate-x-0" : "-translate-x-full"} md:translate-x-0 md:static`}>
+        <div className="p-4 border-b border-border">
+          <h2 className="font-display text-lg font-bold text-foreground">CSA Admin</h2>
+          <p className="text-xs text-muted-foreground truncate">{user.email}</p>
+        </div>
+        <nav className="p-2 space-y-1">
+          {navItems.map((item) => (
+            <button
+              key={item.path}
+              onClick={() => { navigate(item.path); setSidebarOpen(false); }}
+              className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm transition-colors ${
+                location.pathname === item.path
+                  ? "bg-primary/10 text-primary font-semibold"
+                  : "text-muted-foreground hover:text-foreground hover:bg-muted"
+              }`}
+            >
+              <item.icon size={18} />
+              {item.label}
+            </button>
+          ))}
+        </nav>
+        <div className="absolute bottom-0 left-0 right-0 p-2 border-t border-border">
+          <button
+            onClick={signOut}
+            className="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm text-muted-foreground hover:text-destructive hover:bg-destructive/10 transition-colors"
+          >
+            <LogOut size={18} />
+            Sign Out
+          </button>
+        </div>
+      </aside>
+
+      {/* Overlay */}
+      {sidebarOpen && (
+        <div className="fixed inset-0 z-30 bg-background/50 md:hidden" onClick={() => setSidebarOpen(false)} />
+      )}
+
+      {/* Main */}
+      <div className="flex-1 flex flex-col min-h-screen">
+        <header className="h-14 border-b border-border flex items-center px-4 md:hidden">
+          <button onClick={() => setSidebarOpen(true)} className="text-foreground">
+            <Menu size={24} />
+          </button>
+          <span className="ml-3 font-display font-bold text-foreground">CSA Admin</span>
+        </header>
+        <main className="flex-1 p-4 md:p-6 overflow-auto">
+          {children}
+        </main>
+      </div>
+    </div>
+  );
+};
+
+export default AdminLayout;
