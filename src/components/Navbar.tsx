@@ -10,6 +10,7 @@ const navLinks = [
   { label: "Event Insights", href: "/event-insights" },
   { label: "Gallery", href: "/gallery" },
   { label: "Contact", href: "/#connect" },
+  { label: "Admin", href: "/login" },
 ];
 
 const Navbar = () => {
