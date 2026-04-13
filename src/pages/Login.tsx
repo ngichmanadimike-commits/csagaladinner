@@ -7,19 +7,33 @@ import { Loader2 } from "lucide-react";
 
 const Login = () => {
   const navigate = useNavigate();
+  const [isSignUp, setIsSignUp] = useState(false);
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
 
-  const handleLogin = async (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
-    const { error } = await supabase.auth.signInWithPassword({ email, password });
-    setLoading(false);
-    if (error) {
-      toast.error(error.message);
+
+    if (isSignUp) {
+      const { error } = await supabase.auth.signUp({ email, password });
+      setLoading(false);
+      if (error) {
+        toast.error(error.message);
+      } else {
+        toast.success("Account created! You can now sign in.");
+        setIsSignUp(false);
+        setPassword("");
+      }
     } else {
-      navigate("/admin");
+      const { error } = await supabase.auth.signInWithPassword({ email, password });
+      setLoading(false);
+      if (error) {
+        toast.error(error.message);
+      } else {
+        navigate("/admin");
+      }
     }
   };
 
@@ -39,11 +53,13 @@ const Login = () => {
     <div className="min-h-screen bg-background flex items-center justify-center p-4">
       <div className="glass rounded-2xl max-w-md w-full p-8 space-y-6">
         <div className="text-center">
-          <h1 className="font-display text-2xl font-bold text-foreground">Admin Login</h1>
+          <h1 className="font-display text-2xl font-bold text-foreground">
+            {isSignUp ? "Create Account" : "Admin Login"}
+          </h1>
           <p className="text-muted-foreground text-sm mt-1">CSA Gala Dashboard</p>
         </div>
 
-        <form onSubmit={handleLogin} className="space-y-4">
+        <form onSubmit={handleSubmit} className="space-y-4">
           <div>
             <label className="text-sm text-muted-foreground mb-1 block">Email</label>
             <input
@@ -59,6 +75,7 @@ const Login = () => {
             <input
               type="password"
               required
+              minLength={6}
               value={password}
               onChange={(e) => setPassword(e.target.value)}
               className="w-full px-4 py-2.5 rounded-lg bg-muted border border-border text-foreground text-sm focus:outline-none focus:ring-2 focus:ring-primary/50"
@@ -70,7 +87,7 @@ const Login = () => {
             className="w-full py-3 rounded-lg bg-primary text-primary-foreground font-bold hover:scale-[1.02] transition-transform disabled:opacity-50 flex items-center justify-center gap-2"
           >
             {loading && <Loader2 size={18} className="animate-spin" />}
-            Sign In
+            {isSignUp ? "Sign Up" : "Sign In"}
           </button>
         </form>
 
@@ -95,6 +112,18 @@ const Login = () => {
           </svg>
           Sign in with Google
         </button>
+
+        <p className="text-center text-sm text-muted-foreground">
+          {isSignUp ? (
+            <>Already have an account?{" "}
+              <button onClick={() => setIsSignUp(false)} className="text-primary hover:underline font-semibold">Sign In</button>
+            </>
+          ) : (
+            <>Don't have an account?{" "}
+              <button onClick={() => setIsSignUp(true)} className="text-primary hover:underline font-semibold">Sign Up</button>
+            </>
+          )}
+        </p>
 
         <p className="text-center text-xs text-muted-foreground">
           <a href="/" className="text-primary hover:underline">← Back to site</a>
