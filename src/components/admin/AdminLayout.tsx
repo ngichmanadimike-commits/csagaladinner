@@ -8,6 +8,8 @@ import {
   Calendar,
   LogOut,
   Menu,
+  Shield,
+  FileText,
 } from "lucide-react";
 import { useState } from "react";
 
@@ -16,6 +18,8 @@ const navItems = [
   { label: "Payments", icon: CreditCard, path: "/admin/payments" },
   { label: "Registrations", icon: Users, path: "/admin/registrations" },
   { label: "Event Config", icon: Calendar, path: "/admin/event" },
+  { label: "Content", icon: FileText, path: "/admin/content" },
+  { label: "Users & Roles", icon: Shield, path: "/admin/users" },
 ];
 
 const AdminLayout = ({ children }: { children: ReactNode }) => {
