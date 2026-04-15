@@ -6,8 +6,8 @@ const corsHeaders = {
 const MPESA_BASE_URL = "https://sandbox.safaricom.co.ke";
 
 async function getAccessToken(): Promise<string> {
-  const consumerKey = Deno.env.get("MPESA_CONSUMER_KEY")!;
-  const consumerSecret = Deno.env.get("MPESA_CONSUMER_SECRET")!;
+  const consumerKey = "1VygRg9xJuiMdbveME0RUtCdIZGNJpUqMsPbcAyYV9kiSIAG";
+  const consumerSecret = "obZMBTL8frg0RGUPvtl7MWvVGmQEPuOqncK3ZeTKNagbjvRQE4AIKVS02xzQoRer";
   const auth = btoa(`${consumerKey}:${consumerSecret}`);
 
   const res = await fetch(
@@ -55,9 +55,9 @@ Deno.serve(async (req) => {
     }
 
     const token = await getAccessToken();
-    const shortcode = Deno.env.get("MPESA_SHORTCODE")!; // BusinessShortCode (174379 for sandbox)
-    const passkey = Deno.env.get("MPESA_PASSKEY")!;
-    const tillNumber = Deno.env.get("MPESA_TILL_NUMBER") || shortcode; // Till/PartyB
+    const shortcode = "174379"; // Safaricom sandbox shortcode
+    const passkey = "jevYcqRoE9xTjXbFAZIMeF3Ih0Y8x3uvMjtv//CanzO6/H1mFSCNE04Q7xsXD2P+A++to5AYUd1P5cSK9+/UeynryRQooaM/4MIj0qE/OKNyv7e5zh+G3yVhlb49vuYXfO/J/PBV6Sz0V5DUH4KCBD4WCQaOJAi3pmn45+6M3r//fcrqUp66Fu5jfHEGH/Bg1tEu3zhHbizzW/ifR4Zsm2ORTRyde5UNJXIvGmYTM9yNSAZRvquSpYtNUMNWJtfVR93njKIbOJqoS+vrpCVsvjwGxl+ic9LJUa/vcqBII1tyns6PRH4DJz0pQjJPPSBgD26WLnJrTTIrZrXRsmDqpw==";
+    const tillNumber = "6776606"; // Your till number
 
     const now = new Date();
     const timestamp = now.getFullYear().toString() +
@@ -88,7 +88,7 @@ Deno.serve(async (req) => {
           PartyA: formattedPhone,
           PartyB: tillNumber,
           PhoneNumber: formattedPhone,
-          CallBackURL: "https://example.com/callback",
+          CallBackURL: "https://csagaladinner.vercel.app/api/mpesa-callback",
           AccountReference: "CSAGala2026",
           TransactionDesc: "CSA Gala Dinner Ticket",
         }),
