@@ -1,23 +1,32 @@
-// M-PESA Callback Handler
+import { corsHeaders } from "../_shared/cors.ts";
+import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
-import { NextApiRequest, NextApiResponse } from 'next';
+Deno.serve(async (req) => {
+  if (req.method === "OPTIONS") {
+    return new Response("ok", { headers: corsHeaders });
+  }
 
-export default async function handler(req: NextApiRequest, res: NextApiResponse) {
-    if (req.method !== 'POST') {
-        return res.status(405).json({ message: 'Method Not Allowed' });
-    }
+  if (req.method !== "POST") {
+    return new Response(JSON.stringify({ message: "Method Not Allowed" }), {
+      status: 405,
+      headers: { ...corsHeaders, "Content-Type": "application/json" },
+    });
+  }
 
-    try {
-        const paymentData = req.body;
+  try {
+    const paymentData = await req.json();
+    console.log("M-PESA Callback:", JSON.stringify(paymentData));
 
-        // Process payment confirmation
-        console.log('Payment Confirmation:', paymentData);
-
-        // TODO: Add logic to save confirmation to database
-
-        return res.status(200).json({ message: 'Payment confirmation received' });
-    } catch (error) {
-        console.error('Error processing payment confirmation:', error);
-        return res.status(500).json({ message: 'Internal Server Error' });
-    }
-}
+    // TODO: Save payment confirmation to database
+    return new Response(JSON.stringify({ message: "Payment confirmation received" }), {
+      status: 200,
+      headers: { ...corsHeaders, "Content-Type": "application/json" },
+    });
+  } catch (error) {
+    console.error("Error processing callback:", error);
+    return new Response(JSON.stringify({ message: "Internal Server Error" }), {
+      status: 500,
+      headers: { ...corsHeaders, "Content-Type": "application/json" },
+    });
+  }
+});
