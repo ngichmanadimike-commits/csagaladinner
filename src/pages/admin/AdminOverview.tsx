@@ -1,13 +1,14 @@
 import { useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import AdminLayout from "@/components/admin/AdminLayout";
-import { Users, CreditCard, CheckCircle2, Clock } from "lucide-react";
+import { Users, CreditCard, CheckCircle2, Clock, Image } from "lucide-react";
 
 interface Stats {
   totalRegistrations: number;
   totalRevenue: number;
   verifiedPayments: number;
   pendingPayments: number;
+  totalGalleryImages: number;
 }
 
 const AdminOverview = () => {
@@ -16,15 +17,16 @@ const AdminOverview = () => {
     totalRevenue: 0,
     verifiedPayments: 0,
     pendingPayments: 0,
-  });
+    totalGalleryImages: 0,
   const [recentPayments, setRecentPayments] = useState<any[]>([]);
 
   useEffect(() => {
     const fetchStats = async () => {
-      const [regRes, payRes, recentRes] = await Promise.all([
+      const [regRes, payRes, recentRes, galleryRes] = await Promise.all([
         supabase.from("registrations").select("id, total_cost, total_paid, payment_status"),
         supabase.from("payments").select("id, amount, verified"),
         supabase.from("payments").select("*, registrations(name, email)").order("created_at", { ascending: false }).limit(10),
+        supabase.from("gallery_images").select("id", { count: "exact", head: true }),
       ]);
 
       const regs = regRes.data || [];
@@ -35,7 +37,7 @@ const AdminOverview = () => {
         totalRevenue: pays.filter((p) => p.verified).reduce((s, p) => s + Number(p.amount), 0),
         verifiedPayments: pays.filter((p) => p.verified).length,
         pendingPayments: pays.filter((p) => !p.verified).length,
-      });
+        totalGalleryImages: galleryRes.count || 0,
 
       setRecentPayments(recentRes.data || []);
     };
@@ -56,6 +58,7 @@ const AdminOverview = () => {
     { label: "Revenue (KES)", value: stats.totalRevenue.toLocaleString(), icon: CreditCard, color: "text-emerald-400" },
     { label: "Verified", value: stats.verifiedPayments, icon: CheckCircle2, color: "text-emerald-400" },
     { label: "Pending", value: stats.pendingPayments, icon: Clock, color: "text-yellow-400" },
+    { label: "Gallery", value: stats.totalGalleryImages, icon: Image, color: "text-primary" },
   ];
 
   return (
