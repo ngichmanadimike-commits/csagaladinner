@@ -11,6 +11,20 @@ const Login = () => {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
+  const [forgotMode, setForgotMode] = useState(false);
+  const [resetSent, setResetSent] = useState(false);
+
+  const handleForgotPassword = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!email) { toast.error("Enter your email"); return; }
+    setLoading(true);
+    const { error } = await supabase.auth.resetPasswordForEmail(email, {
+      redirectTo: `${window.location.origin}/reset-password`,
+    });
+    setLoading(false);
+    if (error) toast.error(error.message);
+    else { setResetSent(true); toast.success("Check your email for the reset link"); }
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -113,14 +127,44 @@ const Login = () => {
           Sign in with Google
         </button>
 
+        {!forgotMode && (
+          <button
+            onClick={() => setForgotMode(true)}
+            className="block mx-auto text-sm text-muted-foreground hover:text-primary transition-colors"
+          >
+            Forgot password?
+          </button>
+        )}
+
+        {forgotMode && !resetSent && (
+          <form onSubmit={handleForgotPassword} className="space-y-3">
+            <p className="text-sm text-muted-foreground text-center">Enter your email to receive a reset link</p>
+            <button
+              type="submit"
+              disabled={loading}
+              className="w-full py-3 rounded-lg bg-primary text-primary-foreground font-bold flex items-center justify-center gap-2 disabled:opacity-50"
+            >
+              {loading && <Loader2 size={18} className="animate-spin" />}
+              Send Reset Link
+            </button>
+            <button type="button" onClick={() => setForgotMode(false)} className="block mx-auto text-xs text-muted-foreground hover:text-primary">
+              ← Back to login
+            </button>
+          </form>
+        )}
+
+        {resetSent && (
+          <p className="text-center text-sm text-emerald-400">Reset link sent! Check your inbox.</p>
+        )}
+
         <p className="text-center text-sm text-muted-foreground">
           {isSignUp ? (
             <>Already have an account?{" "}
-              <button onClick={() => setIsSignUp(false)} className="text-primary hover:underline font-semibold">Sign In</button>
+              <button onClick={() => { setIsSignUp(false); setForgotMode(false); setResetSent(false); }} className="text-primary hover:underline font-semibold">Sign In</button>
             </>
           ) : (
             <>Don't have an account?{" "}
-              <button onClick={() => setIsSignUp(true)} className="text-primary hover:underline font-semibold">Sign Up</button>
+              <button onClick={() => { setIsSignUp(true); setForgotMode(false); setResetSent(false); }} className="text-primary hover:underline font-semibold">Sign Up</button>
             </>
           )}
         </p>
