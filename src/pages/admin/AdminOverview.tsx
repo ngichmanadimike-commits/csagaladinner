@@ -18,6 +18,7 @@ const AdminOverview = () => {
     verifiedPayments: 0,
     pendingPayments: 0,
     totalGalleryImages: 0,
+  });
   const [recentPayments, setRecentPayments] = useState<any[]>([]);
 
   useEffect(() => {
@@ -38,6 +39,7 @@ const AdminOverview = () => {
         verifiedPayments: pays.filter((p) => p.verified).length,
         pendingPayments: pays.filter((p) => !p.verified).length,
         totalGalleryImages: galleryRes.count || 0,
+      });
 
       setRecentPayments(recentRes.data || []);
     };
