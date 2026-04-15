@@ -14,6 +14,8 @@ import AdminRegistrations from "./pages/admin/AdminRegistrations.tsx";
 import AdminEventConfig from "./pages/admin/AdminEventConfig.tsx";
 import AdminUsers from "./pages/admin/AdminUsers.tsx";
 import AdminContent from "./pages/admin/AdminContent.tsx";
+import AdminGallery from "./pages/admin/AdminGallery.tsx";
+import ResetPassword from "./pages/ResetPassword.tsx";
 import NotFound from "./pages/NotFound.tsx";
 
 const queryClient = new QueryClient();
@@ -36,6 +38,8 @@ const App = () => (
             <Route path="/admin/event" element={<AdminEventConfig />} />
             <Route path="/admin/users" element={<AdminUsers />} />
             <Route path="/admin/content" element={<AdminContent />} />
+            <Route path="/admin/gallery" element={<AdminGallery />} />
+            <Route path="/reset-password" element={<ResetPassword />} />
             {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
             <Route path="*" element={<NotFound />} />
           </Routes>

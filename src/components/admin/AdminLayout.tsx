@@ -10,6 +10,7 @@ import {
   Menu,
   Shield,
   FileText,
+  Image,
 } from "lucide-react";
 import { useState } from "react";
 
@@ -19,6 +20,7 @@ const navItems = [
   { label: "Registrations", icon: Users, path: "/admin/registrations" },
   { label: "Event Config", icon: Calendar, path: "/admin/event" },
   { label: "Content", icon: FileText, path: "/admin/content" },
+  { label: "Gallery", icon: Image, path: "/admin/gallery" },
   { label: "Users & Roles", icon: Shield, path: "/admin/users" },
 ];
 
