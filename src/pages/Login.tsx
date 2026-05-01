@@ -1,7 +1,6 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
-import { lovable } from "@/integrations/lovable/index";
 import { toast } from "sonner";
 import { Loader2 } from "lucide-react";
 
@@ -67,15 +66,27 @@ const Login = () => {
   };
 
   const handleGoogle = async () => {
-    const result = await lovable.auth.signInWithOAuth("google", {
-      redirect_uri: window.location.origin,
-    });
-    if (result.error) {
-      toast.error("Google sign-in failed");
-      return;
+    try {
+      // Try Lovable Cloud auth first (works on lovable.app domains)
+      const { lovable } = await import("@/integrations/lovable/index");
+      const result = await lovable.auth.signInWithOAuth("google", {
+        redirect_uri: window.location.origin,
+      });
+      if (result.error) {
+        throw result.error;
+      }
+      if (result.redirected) return;
+      navigate("/admin");
+    } catch {
+      // Fallback to native Supabase OAuth (works on Vercel/other deployments)
+      const { error } = await supabase.auth.signInWithOAuth({
+        provider: "google",
+        options: { redirectTo: window.location.origin },
+      });
+      if (error) {
+        toast.error("Google sign-in failed: " + error.message);
+      }
     }
-    if (result.redirected) return;
-    navigate("/admin");
   };
 
   return (
