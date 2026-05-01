@@ -83,30 +83,6 @@ const Login = () => {
     }
   };
 
-  const handleGoogle = async () => {
-    try {
-      // Try Lovable Cloud auth first (works on lovable.app domains)
-      const { lovable } = await import("@/integrations/lovable/index");
-      const result = await lovable.auth.signInWithOAuth("google", {
-        redirect_uri: window.location.origin,
-      });
-      if (result.error) {
-        throw result.error;
-      }
-      if (result.redirected) return;
-      navigate("/admin");
-    } catch {
-      // Fallback to native Supabase OAuth (works on Vercel/other deployments)
-      const { error } = await supabase.auth.signInWithOAuth({
-        provider: "google",
-        options: { redirectTo: window.location.origin },
-      });
-      if (error) {
-        toast.error("Google sign-in failed: " + error.message);
-      }
-    }
-  };
-
   return (
     <div className="min-h-screen bg-background flex items-center justify-center p-4">
       <div className="glass rounded-2xl max-w-md w-full p-8 space-y-6">
