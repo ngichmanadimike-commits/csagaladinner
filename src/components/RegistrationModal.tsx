@@ -19,11 +19,12 @@ const RegistrationModal = ({ pkg, onClose }: { pkg: Pkg; onClose: () => void }) 
   const [form, setForm] = useState({ name: "", email: "", phone: "", institution: "" });
   const [paymentType, setPaymentType] = useState<"full" | "partial">("full");
   const [installment, setInstallment] = useState(0);
+  const [quantity, setQuantity] = useState(1);
 
   const amount =
     paymentType === "full"
-      ? pkg.price
-      : (partialSchedule[pkg.id]?.[installment] ?? pkg.price);
+      ? pkg.price * quantity
+      : (partialSchedule[pkg.id]?.[installment] ?? pkg.price) * quantity;
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -39,7 +40,32 @@ const RegistrationModal = ({ pkg, onClose }: { pkg: Pkg; onClose: () => void }) 
         </button>
 
         <h3 className="font-display text-xl font-bold mb-1">{pkg.name} Ticket</h3>
-        <p className="text-primary font-semibold mb-6">KES {pkg.price.toLocaleString()}</p>
+        <p className="text-primary font-semibold mb-4">KES {pkg.price.toLocaleString()} each</p>
+
+        {/* Quantity Selector */}
+        <div className="flex items-center gap-3 mb-6">
+          <label className="text-sm text-muted-foreground">Quantity:</label>
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={() => setQuantity(Math.max(1, quantity - 1))}
+              className="w-8 h-8 rounded-lg bg-muted border border-border text-foreground flex items-center justify-center hover:border-primary transition-colors"
+            >
+              −
+            </button>
+            <span className="w-10 text-center font-bold text-foreground">{quantity}</span>
+            <button
+              type="button"
+              onClick={() => setQuantity(quantity + 1)}
+              className="w-8 h-8 rounded-lg bg-muted border border-border text-foreground flex items-center justify-center hover:border-primary transition-colors"
+            >
+              +
+            </button>
+          </div>
+          <span className="text-sm font-semibold text-primary ml-auto">
+            Total: KES {(pkg.price * quantity).toLocaleString()}
+          </span>
+        </div>
 
         {step === "form" && (
           <form onSubmit={handleSubmit} className="space-y-4">
@@ -73,7 +99,7 @@ const RegistrationModal = ({ pkg, onClose }: { pkg: Pkg; onClose: () => void }) 
                 onClick={() => { setPaymentType("full"); setStep("mpesa"); }}
                 className="w-full py-3 rounded-lg bg-primary text-primary-foreground font-bold hover:scale-[1.02] transition-transform"
               >
-                Full Payment – KES {pkg.price.toLocaleString()}
+                Full Payment – KES {(pkg.price * quantity).toLocaleString()}
               </button>
 
               {pkg.partial && (
@@ -85,7 +111,7 @@ const RegistrationModal = ({ pkg, onClose }: { pkg: Pkg; onClose: () => void }) 
                       onClick={() => { setPaymentType("partial"); setInstallment(i); setStep("mpesa"); }}
                       className="w-full py-3 rounded-lg border border-border text-foreground font-semibold hover:border-primary hover:text-primary transition-all"
                     >
-                      Installment {i + 1} – KES {amt.toLocaleString()}
+                      Installment {i + 1} – KES {(amt * quantity).toLocaleString()}
                     </button>
                   ))}
                 </>
