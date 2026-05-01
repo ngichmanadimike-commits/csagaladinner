@@ -13,12 +13,21 @@ interface UserRole {
   email?: string;
 }
 
+interface Profile {
+  id: string;
+  user_id: string;
+  email: string | null;
+  display_name: string | null;
+  created_at: string;
+}
+
 const AdminUsers = () => {
   const { user } = useAuth();
   const [roles, setRoles] = useState<UserRole[]>([]);
   const [loading, setLoading] = useState(true);
   const [newEmail, setNewEmail] = useState("");
   const [adding, setAdding] = useState(false);
+  const [allUsers, setAllUsers] = useState<Profile[]>([]);
 
   const fetchRoles = async () => {
     const { data } = await supabase.from("user_roles").select("*");
@@ -39,7 +48,12 @@ const AdminUsers = () => {
     setLoading(false);
   };
 
-  useEffect(() => { fetchRoles(); }, []);
+  const fetchAllUsers = async () => {
+    const { data } = await supabase.from("profiles").select("*");
+    setAllUsers((data as Profile[]) || []);
+  };
+
+  useEffect(() => { fetchRoles(); fetchAllUsers(); }, []);
 
   const handleAddAdmin = async () => {
     if (!newEmail.trim()) return;
@@ -77,6 +91,25 @@ const AdminUsers = () => {
       toast.success(`${newEmail} is now an admin`);
       setNewEmail("");
       fetchRoles();
+      fetchAllUsers();
+    }
+  };
+
+  const handlePromoteUser = async (userId: string, email: string) => {
+    const existing = roles.find((r) => r.user_id === userId && r.role === "admin");
+    if (existing) {
+      toast.error("User is already an admin.");
+      return;
+    }
+    const { error } = await supabase
+      .from("user_roles")
+      .insert({ user_id: userId, role: "admin" as any });
+    if (error) {
+      toast.error("Failed to promote user: " + error.message);
+    } else {
+      toast.success(`${email} is now an admin`);
+      fetchRoles();
+      fetchAllUsers();
     }
   };
 
@@ -92,8 +125,11 @@ const AdminUsers = () => {
     } else {
       toast.success("Role removed");
       fetchRoles();
+      fetchAllUsers();
     }
   };
+
+  const adminUserIds = roles.map((r) => r.user_id);
 
   return (
     <AdminLayout>
@@ -172,6 +208,37 @@ const AdminUsers = () => {
                     title="Remove admin"
                   >
                     <Trash2 size={16} />
+                  </button>
+                )}
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+
+      {/* All Registered Users */}
+      <div className="glass rounded-xl p-5 mt-6">
+        <h2 className="font-display text-lg font-bold text-foreground mb-3">All Registered Users</h2>
+        <p className="text-xs text-muted-foreground mb-3">Users who have signed up. Promote them to admin to grant access.</p>
+        {allUsers.length === 0 ? (
+          <p className="text-sm text-muted-foreground">No registered users yet.</p>
+        ) : (
+          <div className="space-y-2">
+            {allUsers.map((u) => (
+              <div key={u.id} className="flex items-center justify-between bg-muted/50 rounded-lg px-4 py-3">
+                <div>
+                  <p className="text-sm font-medium text-foreground">{u.email || "No email"}</p>
+                  <p className="text-xs text-muted-foreground">
+                    {u.display_name || "—"} · Joined {new Date(u.created_at).toLocaleDateString()}
+                    {adminUserIds.includes(u.user_id) && <span className="ml-2 text-primary font-semibold">Admin</span>}
+                  </p>
+                </div>
+                {!adminUserIds.includes(u.user_id) && (
+                  <button
+                    onClick={() => handlePromoteUser(u.user_id, u.email || "")}
+                    className="px-3 py-1.5 rounded-lg bg-primary/10 text-primary text-xs font-semibold hover:bg-primary hover:text-primary-foreground transition-all"
+                  >
+                    Make Admin
                   </button>
                 )}
               </div>

@@ -36,7 +36,7 @@ const Login = () => {
       if (error) {
         toast.error(error.message);
       } else {
-        toast.success("Account created! You can now sign in.");
+        toast.success("Account created! Sign in to access the site. Admin access requires approval from an existing admin.");
         setIsSignUp(false);
         setPassword("");
       }
@@ -46,7 +46,22 @@ const Login = () => {
       if (error) {
         toast.error(error.message);
       } else {
-        navigate("/admin");
+        // Check if user is admin
+        const { data: { user: currentUser } } = await supabase.auth.getUser();
+        if (currentUser) {
+          const { data: role } = await supabase
+            .from("user_roles")
+            .select("role")
+            .eq("user_id", currentUser.id)
+            .eq("role", "admin")
+            .maybeSingle();
+          if (role) {
+            navigate("/admin");
+          } else {
+            toast.info("You're signed in. Admin access requires approval from an existing admin.");
+            navigate("/");
+          }
+        }
       }
     }
   };
