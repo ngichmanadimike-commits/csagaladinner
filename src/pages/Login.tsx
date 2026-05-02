@@ -58,27 +58,30 @@ const Login = () => {
         setDisplayName("");
       }
     } else {
-      const { error } = await supabase.auth.signInWithPassword({ email, password });
-      setLoading(false);
+      const { data, error } = await supabase.auth.signInWithPassword({ email, password });
       if (error) {
+        setLoading(false);
         toast.error(error.message);
+        return;
+      }
+      // Check admin role using the session we already have — no extra getUser() round-trip
+      const userId = data.user?.id;
+      let isAdmin = false;
+      if (userId) {
+        const { data: role } = await supabase
+          .from("user_roles")
+          .select("role")
+          .eq("user_id", userId)
+          .eq("role", "admin")
+          .maybeSingle();
+        isAdmin = !!role;
+      }
+      setLoading(false);
+      if (isAdmin) {
+        navigate("/admin", { replace: true });
       } else {
-        // Check if user is admin
-        const { data: { user: currentUser } } = await supabase.auth.getUser();
-        if (currentUser) {
-          const { data: role } = await supabase
-            .from("user_roles")
-            .select("role")
-            .eq("user_id", currentUser.id)
-            .eq("role", "admin")
-            .maybeSingle();
-          if (role) {
-            navigate("/admin");
-          } else {
-            toast.info("You're signed in. Admin access requires approval from an existing admin.");
-            navigate("/");
-          }
-        }
+        toast.info("Signed in. Admin access requires approval from an existing admin.");
+        navigate("/", { replace: true });
       }
     }
   };
