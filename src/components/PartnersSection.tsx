@@ -1,15 +1,32 @@
+import { useEffect, useState } from "react";
 import { motion } from "framer-motion";
+import { supabase } from "@/integrations/supabase/client";
 import gbaLogo from "@/assets/gba_logo.png";
 import decoLogo from "@/assets/deco_logo.png";
 import iqskLogo from "@/assets/iqsk_logo.png";
 
-const partners = [
+const fallbackPartners = [
   { name: "Green Build Academy", url: "https://greenbuildhub.co.ke/", logo: gbaLogo },
   { name: "Deco Roofing Systems", url: "https://decoroofing.co.ke/", logo: decoLogo },
   { name: "IQSK", url: "https://iqskenya.org/", logo: iqskLogo },
 ];
 
 const PartnersSection = () => {
+  const [partners, setPartners] = useState<Array<{ name: string; url: string; logo: string }>>(fallbackPartners);
+
+  useEffect(() => {
+    supabase
+      .from("partners")
+      .select("name, website_url, logo_url")
+      .eq("active", true)
+      .order("display_order", { ascending: true })
+      .then(({ data }) => {
+        if (data && data.length > 0) {
+          setPartners(data.map((p) => ({ name: p.name, url: p.website_url || "#", logo: p.logo_url || "" })));
+        }
+      });
+  }, []);
+
   return (
     <section id="partners" className="py-24 bg-secondary/30">
       <div className="container mx-auto px-4">
