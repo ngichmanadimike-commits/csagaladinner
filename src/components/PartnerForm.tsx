@@ -1,14 +1,31 @@
 import { useState } from "react";
 import { motion } from "framer-motion";
 import { Handshake, FileText, Home } from "lucide-react";
+import { supabase } from "@/integrations/supabase/client";
+import { toast } from "sonner";
 
 const PartnerForm = () => {
-  const [form, setForm] = useState({ name: "", email: "", phone: "", company: "" });
+  const [form, setForm] = useState({ name: "", email: "", phone: "", company: "", proposal: "" });
   const [submitted, setSubmitted] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!form.name || !form.email || !form.phone || !form.company) return;
+    setSubmitting(true);
+    const { error } = await supabase.from("partner_inquiries").insert({
+      name: form.name,
+      email: form.email,
+      phone: form.phone,
+      company: form.company,
+      proposal: form.proposal || null,
+    });
+    setSubmitting(false);
+    if (error) {
+      toast.error("Failed to submit: " + error.message);
+      return;
+    }
+    toast.success("Inquiry submitted — we'll be in touch.");
     setSubmitted(true);
   };
 
@@ -50,11 +67,21 @@ const PartnerForm = () => {
                   />
                 </div>
               ))}
+              <div>
+                <label className="text-sm text-muted-foreground mb-1 block">Partnership Proposal (optional)</label>
+                <textarea
+                  rows={3}
+                  value={form.proposal}
+                  onChange={(e) => setForm({ ...form, proposal: e.target.value })}
+                  className="w-full px-4 py-2.5 rounded-lg bg-muted border border-border text-foreground text-sm focus:outline-none focus:ring-2 focus:ring-primary/50 resize-none"
+                />
+              </div>
               <button
                 type="submit"
-                className="w-full py-3 rounded-lg bg-primary text-primary-foreground font-bold hover:scale-[1.02] glow-primary transition-all duration-300"
+                disabled={submitting}
+                className="w-full py-3 rounded-lg bg-primary text-primary-foreground font-bold hover:scale-[1.02] glow-primary transition-all duration-300 disabled:opacity-50"
               >
-                Submit Partnership Interest
+                {submitting ? "Submitting..." : "Submit Partnership Interest"}
               </button>
             </form>
           ) : (
