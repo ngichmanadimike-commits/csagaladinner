@@ -2,12 +2,20 @@ import { useState } from "react";
 import { ArrowLeft, CheckCircle2, Loader2 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 
-const MpesaPayment = ({ amount, onBack }: { amount: number; onBack: () => void }) => {
+interface MpesaPaymentProps {
+  amount: number;
+  onBack: () => void;
+  /** Called when the user submits a manual M-PESA code or STK completes. Should persist payment. */
+  onPaymentSubmitted?: (info: { mpesaCode: string; phone: string; source: "stk" | "manual" }) => Promise<void> | void;
+}
+
+const MpesaPayment = ({ amount, onBack, onPaymentSubmitted }: MpesaPaymentProps) => {
   const [phone, setPhone] = useState("");
   const [txCode, setTxCode] = useState("");
   const [step, setStep] = useState<"phone" | "waiting" | "confirm" | "done">("phone");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
+  const [submitting, setSubmitting] = useState(false);
 
   const handleStkPush = async () => {
     if (!phone) return;
@@ -142,11 +150,24 @@ const MpesaPayment = ({ amount, onBack }: { amount: number; onBack: () => void }
               className="w-full px-4 py-2.5 rounded-lg bg-muted border border-border text-foreground text-sm focus:outline-none focus:ring-2 focus:ring-primary/50 mb-3"
             />
             <button
-              onClick={() => txCode && setStep("done")}
-              disabled={!txCode}
+              onClick={async () => {
+                if (!txCode) return;
+                setSubmitting(true);
+                try {
+                  if (onPaymentSubmitted) {
+                    await onPaymentSubmitted({ mpesaCode: txCode, phone, source: "manual" });
+                  }
+                  setStep("done");
+                } catch (e: any) {
+                  setError(e?.message || "Could not save payment. Please try again.");
+                } finally {
+                  setSubmitting(false);
+                }
+              }}
+              disabled={!txCode || submitting}
               className="w-full py-3 rounded-lg bg-primary text-primary-foreground font-bold hover:scale-[1.02] transition-transform disabled:opacity-50 disabled:hover:scale-100"
             >
-              Confirm Payment
+              {submitting ? "Saving..." : "Confirm Payment"}
             </button>
           </div>
         </div>
