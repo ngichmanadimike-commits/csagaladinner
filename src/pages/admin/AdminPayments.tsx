@@ -1,8 +1,9 @@
 import { useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import AdminLayout from "@/components/admin/AdminLayout";
-import { Search, CheckCircle2, XCircle } from "lucide-react";
+import { Search, CheckCircle2, XCircle, Download } from "lucide-react";
 import { toast } from "sonner";
+import { exportToXlsx } from "@/lib/exportXlsx";
 
 const AdminPayments = () => {
   const [payments, setPayments] = useState<any[]>([]);
@@ -56,15 +57,39 @@ const AdminPayments = () => {
     <AdminLayout>
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">
         <h1 className="font-display text-2xl font-bold text-foreground">Payments</h1>
-        <div className="relative">
-          <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
-          <input
-            type="text"
-            placeholder="Search by name, email, or code..."
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            className="pl-9 pr-4 py-2 rounded-lg bg-muted border border-border text-foreground text-sm focus:outline-none focus:ring-2 focus:ring-primary/50 w-full sm:w-72"
-          />
+        <div className="flex flex-col sm:flex-row gap-2 sm:items-center">
+          <div className="relative">
+            <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
+            <input
+              type="text"
+              placeholder="Search by name, email, or code..."
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              className="pl-9 pr-4 py-2 rounded-lg bg-muted border border-border text-foreground text-sm focus:outline-none focus:ring-2 focus:ring-primary/50 w-full sm:w-72"
+            />
+          </div>
+          <button
+            onClick={() =>
+              exportToXlsx(
+                filtered.map((p: any) => ({
+                  Name: p.registrations?.name,
+                  Email: p.registrations?.email,
+                  Phone: p.registrations?.phone,
+                  Amount: Number(p.amount),
+                  "M-Pesa Code": p.mpesa_code,
+                  Source: p.source,
+                  Verified: p.verified ? "Yes" : "No",
+                  "Verified At": p.verified_at,
+                  Created: p.created_at,
+                })),
+                "payments",
+                "Payments"
+              )
+            }
+            className="flex items-center gap-2 px-3 py-2 rounded-lg bg-primary text-primary-foreground text-sm font-semibold"
+          >
+            <Download size={16} /> Export
+          </button>
         </div>
       </div>
 
