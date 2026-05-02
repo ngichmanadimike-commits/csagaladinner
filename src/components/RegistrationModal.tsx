@@ -1,6 +1,8 @@
 import { useState } from "react";
 import { X } from "lucide-react";
 import MpesaPayment from "./MpesaPayment";
+import { supabase } from "@/integrations/supabase/client";
+import { toast } from "sonner";
 
 interface Pkg {
   id: string;
@@ -20,16 +22,69 @@ const RegistrationModal = ({ pkg, onClose }: { pkg: Pkg; onClose: () => void }) 
   const [paymentType, setPaymentType] = useState<"full" | "partial">("full");
   const [installment, setInstallment] = useState(0);
   const [quantity, setQuantity] = useState(1);
+  const [registrationId, setRegistrationId] = useState<string | null>(null);
 
   const amount =
     paymentType === "full"
       ? pkg.price * quantity
       : (partialSchedule[pkg.id]?.[installment] ?? pkg.price) * quantity;
 
+  const totalCost = pkg.price * quantity;
+
+  const ensureRegistration = async (): Promise<string | null> => {
+    if (registrationId) return registrationId;
+    const { data: ev } = await supabase
+      .from("events")
+      .select("id")
+      .order("created_at", { ascending: false })
+      .limit(1)
+      .maybeSingle();
+    const { data, error } = await supabase
+      .from("registrations")
+      .insert({
+        event_id: ev?.id ?? "00000000-0000-0000-0000-000000000000",
+        name: form.name,
+        email: form.email,
+        phone: form.phone,
+        institution: form.institution,
+        package_type: pkg.id,
+        quantity,
+        payment_type: paymentType,
+        total_cost: totalCost,
+      })
+      .select("id")
+      .single();
+    if (error) {
+      toast.error("Failed to save registration: " + error.message);
+      return null;
+    }
+    setRegistrationId(data.id);
+    return data.id;
+  };
+
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (!form.name || !form.email || !form.phone || !form.institution) return;
     setStep("payment-choice");
+  };
+
+  const handlePaymentSubmitted = async (info: { mpesaCode: string; phone: string; source: "stk" | "manual" }) => {
+    const regId = await ensureRegistration();
+    if (!regId) return;
+    const { error } = await supabase.from("payments").insert({
+      registration_id: regId,
+      amount,
+      mpesa_code: info.mpesaCode,
+      phone: info.phone,
+      source: info.source,
+      verified: info.source === "stk",
+      verified_at: info.source === "stk" ? new Date().toISOString() : null,
+    });
+    if (error) {
+      toast.error("Failed to save payment: " + error.message);
+      throw error;
+    }
+    toast.success("Payment recorded — pending verification");
   };
 
   return (
@@ -121,7 +176,11 @@ const RegistrationModal = ({ pkg, onClose }: { pkg: Pkg; onClose: () => void }) 
         )}
 
         {step === "mpesa" && (
-          <MpesaPayment amount={amount} onBack={() => setStep("payment-choice")} />
+          <MpesaPayment
+            amount={amount}
+            onBack={() => setStep("payment-choice")}
+            onPaymentSubmitted={handlePaymentSubmitted}
+          />
         )}
       </div>
     </div>
