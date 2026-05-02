@@ -15,6 +15,12 @@ import AdminEventConfig from "./pages/admin/AdminEventConfig.tsx";
 import AdminUsers from "./pages/admin/AdminUsers.tsx";
 import AdminContent from "./pages/admin/AdminContent.tsx";
 import AdminGallery from "./pages/admin/AdminGallery.tsx";
+import AdminPartners from "./pages/admin/AdminPartners.tsx";
+import AdminSponsorships from "./pages/admin/AdminSponsorships.tsx";
+import AdminInquiries from "./pages/admin/AdminInquiries.tsx";
+import AdminDocuments from "./pages/admin/AdminDocuments.tsx";
+import AdminSpeakers from "./pages/admin/AdminSpeakers.tsx";
+import AdminSettings from "./pages/admin/AdminSettings.tsx";
 import ResetPassword from "./pages/ResetPassword.tsx";
 import NotFound from "./pages/NotFound.tsx";
 
@@ -39,6 +45,12 @@ const App = () => (
             <Route path="/admin/users" element={<AdminUsers />} />
             <Route path="/admin/content" element={<AdminContent />} />
             <Route path="/admin/gallery" element={<AdminGallery />} />
+            <Route path="/admin/partners" element={<AdminPartners />} />
+            <Route path="/admin/sponsorships" element={<AdminSponsorships />} />
+            <Route path="/admin/inquiries" element={<AdminInquiries />} />
+            <Route path="/admin/documents" element={<AdminDocuments />} />
+            <Route path="/admin/speakers" element={<AdminSpeakers />} />
+            <Route path="/admin/settings" element={<AdminSettings />} />
             <Route path="/reset-password" element={<ResetPassword />} />
             {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
             <Route path="*" element={<NotFound />} />
