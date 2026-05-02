@@ -14,6 +14,42 @@ export type Database = {
   }
   public: {
     Tables: {
+      documents: {
+        Row: {
+          active: boolean
+          category: string | null
+          created_at: string
+          description: string | null
+          file_type: string | null
+          file_url: string
+          id: string
+          title: string
+          uploaded_by: string | null
+        }
+        Insert: {
+          active?: boolean
+          category?: string | null
+          created_at?: string
+          description?: string | null
+          file_type?: string | null
+          file_url: string
+          id?: string
+          title: string
+          uploaded_by?: string | null
+        }
+        Update: {
+          active?: boolean
+          category?: string | null
+          created_at?: string
+          description?: string | null
+          file_type?: string | null
+          file_url?: string
+          id?: string
+          title?: string
+          uploaded_by?: string | null
+        }
+        Relationships: []
+      }
       events: {
         Row: {
           created_at: string
@@ -86,6 +122,72 @@ export type Database = {
         }
         Relationships: []
       }
+      partner_inquiries: {
+        Row: {
+          company: string
+          created_at: string
+          email: string
+          id: string
+          name: string
+          phone: string
+          proposal: string | null
+          status: string
+        }
+        Insert: {
+          company: string
+          created_at?: string
+          email: string
+          id?: string
+          name: string
+          phone: string
+          proposal?: string | null
+          status?: string
+        }
+        Update: {
+          company?: string
+          created_at?: string
+          email?: string
+          id?: string
+          name?: string
+          phone?: string
+          proposal?: string | null
+          status?: string
+        }
+        Relationships: []
+      }
+      partners: {
+        Row: {
+          active: boolean
+          created_at: string
+          display_order: number
+          id: string
+          logo_url: string | null
+          name: string
+          updated_at: string
+          website_url: string | null
+        }
+        Insert: {
+          active?: boolean
+          created_at?: string
+          display_order?: number
+          id?: string
+          logo_url?: string | null
+          name: string
+          updated_at?: string
+          website_url?: string | null
+        }
+        Update: {
+          active?: boolean
+          created_at?: string
+          display_order?: number
+          id?: string
+          logo_url?: string | null
+          name?: string
+          updated_at?: string
+          website_url?: string | null
+        }
+        Relationships: []
+      }
       payments: {
         Row: {
           amount: number
@@ -93,7 +195,9 @@ export type Database = {
           id: string
           mpesa_code: string | null
           payment_method: string
+          phone: string | null
           registration_id: string
+          source: string
           verified: boolean
           verified_at: string | null
           verified_by: string | null
@@ -104,7 +208,9 @@ export type Database = {
           id?: string
           mpesa_code?: string | null
           payment_method?: string
+          phone?: string | null
           registration_id: string
+          source?: string
           verified?: boolean
           verified_at?: string | null
           verified_by?: string | null
@@ -115,7 +221,9 @@ export type Database = {
           id?: string
           mpesa_code?: string | null
           payment_method?: string
+          phone?: string | null
           registration_id?: string
+          source?: string
           verified?: boolean
           verified_at?: string | null
           verified_by?: string | null
@@ -164,7 +272,9 @@ export type Database = {
           name: string
           package_type: string
           payment_status: string
+          payment_type: string
           phone: string
+          quantity: number
           ticket_code: string | null
           ticket_issued: boolean
           total_cost: number
@@ -180,7 +290,9 @@ export type Database = {
           name: string
           package_type: string
           payment_status?: string
+          payment_type?: string
           phone: string
+          quantity?: number
           ticket_code?: string | null
           ticket_issued?: boolean
           total_cost?: number
@@ -196,7 +308,9 @@ export type Database = {
           name?: string
           package_type?: string
           payment_status?: string
+          payment_type?: string
           phone?: string
+          quantity?: number
           ticket_code?: string | null
           ticket_issued?: boolean
           total_cost?: number
@@ -240,6 +354,114 @@ export type Database = {
           title?: string | null
           updated_at?: string
           updated_by?: string | null
+        }
+        Relationships: []
+      }
+      site_settings: {
+        Row: {
+          key: string
+          updated_at: string
+          updated_by: string | null
+          value: string | null
+        }
+        Insert: {
+          key: string
+          updated_at?: string
+          updated_by?: string | null
+          value?: string | null
+        }
+        Update: {
+          key?: string
+          updated_at?: string
+          updated_by?: string | null
+          value?: string | null
+        }
+        Relationships: []
+      }
+      speakers: {
+        Row: {
+          active: boolean
+          bio: string | null
+          created_at: string
+          display_order: number
+          id: string
+          name: string
+          photo_url: string | null
+          role: string | null
+          updated_at: string
+        }
+        Insert: {
+          active?: boolean
+          bio?: string | null
+          created_at?: string
+          display_order?: number
+          id?: string
+          name: string
+          photo_url?: string | null
+          role?: string | null
+          updated_at?: string
+        }
+        Update: {
+          active?: boolean
+          bio?: string | null
+          created_at?: string
+          display_order?: number
+          id?: string
+          name?: string
+          photo_url?: string | null
+          role?: string | null
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      sponsorships: {
+        Row: {
+          amount: number
+          created_at: string
+          id: string
+          level: string
+          mpesa_code: string | null
+          num_students: number
+          payment_method: string
+          payment_status: string
+          sponsor_email: string | null
+          sponsor_name: string
+          sponsor_phone: string
+          verified: boolean
+          verified_at: string | null
+          verified_by: string | null
+        }
+        Insert: {
+          amount: number
+          created_at?: string
+          id?: string
+          level: string
+          mpesa_code?: string | null
+          num_students?: number
+          payment_method?: string
+          payment_status?: string
+          sponsor_email?: string | null
+          sponsor_name: string
+          sponsor_phone: string
+          verified?: boolean
+          verified_at?: string | null
+          verified_by?: string | null
+        }
+        Update: {
+          amount?: number
+          created_at?: string
+          id?: string
+          level?: string
+          mpesa_code?: string | null
+          num_students?: number
+          payment_method?: string
+          payment_status?: string
+          sponsor_email?: string | null
+          sponsor_name?: string
+          sponsor_phone?: string
+          verified?: boolean
+          verified_at?: string | null
+          verified_by?: string | null
         }
         Relationships: []
       }

@@ -1,5 +1,7 @@
+import { useEffect, useState } from "react";
 import { motion } from "framer-motion";
 import { Mail, Phone, Linkedin, Instagram } from "lucide-react";
+import { supabase } from "@/integrations/supabase/client";
 
 const XIcon = () => (
   <svg viewBox="0 0 24 24" className="w-6 h-6 fill-current" aria-hidden="true">
@@ -13,14 +15,39 @@ const TikTokIcon = () => (
   </svg>
 );
 
-const socials = [
-  { label: "X (Twitter)", url: "https://x.com/csa_tuk", icon: <XIcon /> },
-  { label: "LinkedIn", url: "https://www.linkedin.com/company/csatuk/", icon: <Linkedin className="w-6 h-6" /> },
-  { label: "Instagram", url: "https://www.instagram.com/csa_tuk?utm_source=ig_web_button_share_sheet&igsh=ZDNlZDc0MzIxNw%3D%3D", icon: <Instagram className="w-6 h-6" /> },
-  { label: "TikTok", url: "https://www.tiktok.com/@csa_tuk?_r=1&_t=ZM-924WfzrLNAe", icon: <TikTokIcon /> },
-];
+const defaults = {
+  social_x: "https://x.com/csa_tuk",
+  social_linkedin: "https://www.linkedin.com/company/csatuk/",
+  social_instagram: "https://www.instagram.com/csa_tuk",
+  social_tiktok: "https://www.tiktok.com/@csa_tuk",
+  contact_email: "csa@students.tukenya.ac.ke",
+  contact_phone: "0758647130",
+};
 
 const SocialSection = () => {
+  const [settings, setSettings] = useState(defaults);
+
+  useEffect(() => {
+    supabase
+      .from("site_settings")
+      .select("key, value")
+      .then(({ data }) => {
+        if (!data) return;
+        const map = { ...defaults };
+        for (const row of data) {
+          if (row.key in map && row.value) (map as any)[row.key] = row.value;
+        }
+        setSettings(map);
+      });
+  }, []);
+
+  const socials = [
+    { label: "X (Twitter)", url: settings.social_x, icon: <XIcon /> },
+    { label: "LinkedIn", url: settings.social_linkedin, icon: <Linkedin className="w-6 h-6" /> },
+    { label: "Instagram", url: settings.social_instagram, icon: <Instagram className="w-6 h-6" /> },
+    { label: "TikTok", url: settings.social_tiktok, icon: <TikTokIcon /> },
+  ].filter((s) => s.url);
+
   return (
     <section id="connect" className="py-24">
       <div className="container mx-auto px-4 text-center">
@@ -55,11 +82,11 @@ const SocialSection = () => {
         </div>
 
         <div className="flex flex-wrap justify-center gap-6 text-sm text-muted-foreground">
-          <a href="mailto:csa@students.tukenya.ac.ke" className="flex items-center gap-2 hover:text-primary transition-colors">
-            <Mail size={16} /> csa@students.tukenya.ac.ke
+          <a href={`mailto:${settings.contact_email}`} className="flex items-center gap-2 hover:text-primary transition-colors">
+            <Mail size={16} /> {settings.contact_email}
           </a>
-          <a href="tel:0758647130" className="flex items-center gap-2 hover:text-primary transition-colors">
-            <Phone size={16} /> 0758647130
+          <a href={`tel:${settings.contact_phone}`} className="flex items-center gap-2 hover:text-primary transition-colors">
+            <Phone size={16} /> {settings.contact_phone}
           </a>
         </div>
       </div>

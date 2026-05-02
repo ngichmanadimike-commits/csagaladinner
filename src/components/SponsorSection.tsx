@@ -2,6 +2,8 @@ import { useState } from "react";
 import { motion } from "framer-motion";
 import { GraduationCap } from "lucide-react";
 import MpesaPayment from "./MpesaPayment";
+import { supabase } from "@/integrations/supabase/client";
+import { toast } from "sonner";
 
 const levels = [
   { label: "Half Sponsorship", multiplier: 0.5 },
@@ -15,8 +17,31 @@ const SponsorSection = () => {
   const [students, setStudents] = useState(1);
   const [levelIdx, setLevelIdx] = useState(2);
   const [showPayment, setShowPayment] = useState(false);
+  const [sponsor, setSponsor] = useState({ name: "", email: "", phone: "" });
 
   const total = Math.round(students * COST_PER_STUDENT * levels[levelIdx].multiplier);
+
+  const handlePaymentSubmitted = async (info: { mpesaCode: string; phone: string; source: "stk" | "manual" }) => {
+    const { error } = await supabase.from("sponsorships").insert({
+      sponsor_name: sponsor.name,
+      sponsor_email: sponsor.email || null,
+      sponsor_phone: sponsor.phone || info.phone,
+      num_students: students,
+      level: levels[levelIdx].label,
+      amount: total,
+      mpesa_code: info.mpesaCode,
+      payment_status: info.source === "stk" ? "verified" : "pending",
+      verified: info.source === "stk",
+      verified_at: info.source === "stk" ? new Date().toISOString() : null,
+    });
+    if (error) {
+      toast.error("Failed to save sponsorship: " + error.message);
+      throw error;
+    }
+    toast.success("Sponsorship recorded — thank you!");
+  };
+
+  const canProceed = sponsor.name.trim() && sponsor.phone.trim();
 
   return (
     <section id="sponsor" className="py-24">
@@ -54,6 +79,36 @@ const SponsorSection = () => {
               />
             </div>
 
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <div>
+                <label className="text-sm text-muted-foreground mb-2 block">Your Name</label>
+                <input
+                  type="text"
+                  value={sponsor.name}
+                  onChange={(e) => setSponsor({ ...sponsor, name: e.target.value })}
+                  className="w-full px-4 py-2.5 rounded-lg bg-muted border border-border text-foreground text-sm focus:outline-none focus:ring-2 focus:ring-primary/50"
+                />
+              </div>
+              <div>
+                <label className="text-sm text-muted-foreground mb-2 block">Phone</label>
+                <input
+                  type="tel"
+                  value={sponsor.phone}
+                  onChange={(e) => setSponsor({ ...sponsor, phone: e.target.value })}
+                  className="w-full px-4 py-2.5 rounded-lg bg-muted border border-border text-foreground text-sm focus:outline-none focus:ring-2 focus:ring-primary/50"
+                />
+              </div>
+              <div className="sm:col-span-2">
+                <label className="text-sm text-muted-foreground mb-2 block">Email (optional)</label>
+                <input
+                  type="email"
+                  value={sponsor.email}
+                  onChange={(e) => setSponsor({ ...sponsor, email: e.target.value })}
+                  className="w-full px-4 py-2.5 rounded-lg bg-muted border border-border text-foreground text-sm focus:outline-none focus:ring-2 focus:ring-primary/50"
+                />
+              </div>
+            </div>
+
             <div>
               <label className="text-sm text-muted-foreground mb-2 block">Sponsorship Level</label>
               <div className="grid grid-cols-3 gap-2">
@@ -80,15 +135,20 @@ const SponsorSection = () => {
             </div>
 
             <button
-              onClick={() => setShowPayment(true)}
-              className="w-full py-3 rounded-lg bg-primary text-primary-foreground font-bold hover:scale-[1.02] glow-primary transition-all duration-300"
+              onClick={() => canProceed && setShowPayment(true)}
+              disabled={!canProceed}
+              className="w-full py-3 rounded-lg bg-primary text-primary-foreground font-bold hover:scale-[1.02] glow-primary transition-all duration-300 disabled:opacity-50 disabled:hover:scale-100"
             >
               Proceed to Payment
             </button>
           </motion.div>
         ) : (
           <div className="glass rounded-2xl p-6">
-            <MpesaPayment amount={total} onBack={() => setShowPayment(false)} />
+            <MpesaPayment
+              amount={total}
+              onBack={() => setShowPayment(false)}
+              onPaymentSubmitted={handlePaymentSubmitted}
+            />
           </div>
         )}
       </div>

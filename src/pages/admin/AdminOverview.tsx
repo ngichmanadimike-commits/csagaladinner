@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useNavigate } from "react-router-dom";
 import AdminLayout from "@/components/admin/AdminLayout";
-import { Users, CreditCard, CheckCircle2, Clock, Image, FileText, Calendar, Shield, ArrowRight } from "lucide-react";
+import { Users, CreditCard, CheckCircle2, Clock, Image, FileText, Calendar, Shield, ArrowRight, Handshake, GraduationCap, Mail, Mic, Settings } from "lucide-react";
 
 interface Stats {
   totalRegistrations: number;
@@ -13,6 +13,13 @@ interface Stats {
   totalContentSections: number;
   totalEvents: number;
   totalAdmins: number;
+  totalSponsorships: number;
+  pendingSponsorships: number;
+  totalInquiries: number;
+  newInquiries: number;
+  totalPartners: number;
+  totalSpeakers: number;
+  totalDocuments: number;
 }
 
 const AdminOverview = () => {
@@ -26,12 +33,19 @@ const AdminOverview = () => {
     totalContentSections: 0,
     totalEvents: 0,
     totalAdmins: 0,
+    totalSponsorships: 0,
+    pendingSponsorships: 0,
+    totalInquiries: 0,
+    newInquiries: 0,
+    totalPartners: 0,
+    totalSpeakers: 0,
+    totalDocuments: 0,
   });
   const [recentPayments, setRecentPayments] = useState<any[]>([]);
 
   useEffect(() => {
     const fetchStats = async () => {
-      const [regRes, payRes, recentRes, galleryRes, contentRes, eventsRes, adminsRes] = await Promise.all([
+      const [regRes, payRes, recentRes, galleryRes, contentRes, eventsRes, adminsRes, sponRes, inqRes, partRes, spkRes, docRes] = await Promise.all([
         supabase.from("registrations").select("id, total_cost, total_paid, payment_status"),
         supabase.from("payments").select("id, amount, verified"),
         supabase.from("payments").select("*, registrations(name, email)").order("created_at", { ascending: false }).limit(10),
@@ -39,9 +53,16 @@ const AdminOverview = () => {
         supabase.from("site_content").select("id", { count: "exact", head: true }),
         supabase.from("events").select("id", { count: "exact", head: true }),
         supabase.from("user_roles").select("id", { count: "exact", head: true }),
+        supabase.from("sponsorships").select("id, verified"),
+        supabase.from("partner_inquiries").select("id, status"),
+        supabase.from("partners").select("id", { count: "exact", head: true }),
+        supabase.from("speakers").select("id", { count: "exact", head: true }),
+        supabase.from("documents").select("id", { count: "exact", head: true }),
       ]);
 
       const pays = payRes.data || [];
+      const spons = sponRes.data || [];
+      const inqs = inqRes.data || [];
 
       setStats({
         totalRegistrations: (regRes.data || []).length,
@@ -52,6 +73,13 @@ const AdminOverview = () => {
         totalContentSections: contentRes.count || 0,
         totalEvents: eventsRes.count || 0,
         totalAdmins: adminsRes.count || 0,
+        totalSponsorships: spons.length,
+        pendingSponsorships: spons.filter((s: any) => !s.verified).length,
+        totalInquiries: inqs.length,
+        newInquiries: inqs.filter((i: any) => i.status === "new").length,
+        totalPartners: partRes.count || 0,
+        totalSpeakers: spkRes.count || 0,
+        totalDocuments: docRes.count || 0,
       });
 
       setRecentPayments(recentRes.data || []);
@@ -63,6 +91,8 @@ const AdminOverview = () => {
       .channel("admin-realtime")
       .on("postgres_changes", { event: "*", schema: "public", table: "payments" }, fetchStats)
       .on("postgres_changes", { event: "*", schema: "public", table: "registrations" }, fetchStats)
+      .on("postgres_changes", { event: "*", schema: "public", table: "sponsorships" }, fetchStats)
+      .on("postgres_changes", { event: "*", schema: "public", table: "partner_inquiries" }, fetchStats)
       .subscribe();
 
     return () => { supabase.removeChannel(channel); };
@@ -73,18 +103,29 @@ const AdminOverview = () => {
     { label: "Revenue (KES)", value: stats.totalRevenue.toLocaleString(), icon: CreditCard, color: "text-emerald-400" },
     { label: "Verified", value: stats.verifiedPayments, icon: CheckCircle2, color: "text-emerald-400" },
     { label: "Pending", value: stats.pendingPayments, icon: Clock, color: "text-yellow-400" },
+    { label: "Sponsorships", value: stats.totalSponsorships, icon: GraduationCap, color: "text-primary" },
+    { label: "Pending Sponsors", value: stats.pendingSponsorships, icon: Clock, color: "text-yellow-400" },
+    { label: "New Inquiries", value: stats.newInquiries, icon: Mail, color: "text-primary" },
+    { label: "Partners", value: stats.totalPartners, icon: Handshake, color: "text-primary" },
+    { label: "Speakers", value: stats.totalSpeakers, icon: Mic, color: "text-primary" },
+    { label: "Documents", value: stats.totalDocuments, icon: FileText, color: "text-muted-foreground" },
     { label: "Gallery", value: stats.totalGalleryImages, icon: Image, color: "text-primary" },
-    { label: "Content", value: stats.totalContentSections, icon: FileText, color: "text-muted-foreground" },
     { label: "Events", value: stats.totalEvents, icon: Calendar, color: "text-primary" },
     { label: "Admins", value: stats.totalAdmins, icon: Shield, color: "text-primary" },
   ];
 
   const quickActions = [
+    { label: "Registrations", desc: "View and export attendees", path: "/admin/registrations", icon: Users },
     { label: "Manage Payments", desc: "View and verify M-Pesa payments", path: "/admin/payments", icon: CreditCard },
-    { label: "View Registrations", desc: "See all event registrations", path: "/admin/registrations", icon: Users },
+    { label: "Sponsorships", desc: "Verify sponsor-a-student payments", path: "/admin/sponsorships", icon: GraduationCap },
+    { label: "Partner Inquiries", desc: "Review partnership requests", path: "/admin/inquiries", icon: Mail },
+    { label: "Manage Partners", desc: "Logos, links and ordering", path: "/admin/partners", icon: Handshake },
+    { label: "Speakers", desc: "Add speaker profiles & photos", path: "/admin/speakers", icon: Mic },
+    { label: "Documents", desc: "Upload program PDFs", path: "/admin/documents", icon: FileText },
     { label: "Edit Content", desc: "Update website text and images", path: "/admin/content", icon: FileText },
     { label: "Gallery Management", desc: "Upload and manage gallery images", path: "/admin/gallery", icon: Image },
     { label: "Event Configuration", desc: "Create and configure events", path: "/admin/event", icon: Calendar },
+    { label: "Site Settings", desc: "Contact info & social links", path: "/admin/settings", icon: Settings },
     { label: "Users & Roles", desc: "Manage admins and user roles", path: "/admin/users", icon: Shield },
   ];
 

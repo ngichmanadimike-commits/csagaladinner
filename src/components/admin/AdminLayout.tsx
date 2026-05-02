@@ -11,16 +11,27 @@ import {
   Shield,
   FileText,
   Image,
+  Handshake,
+  GraduationCap,
+  Mail,
+  Mic,
+  Settings,
 } from "lucide-react";
 import { useState } from "react";
 
 const navItems = [
   { label: "Overview", icon: LayoutDashboard, path: "/admin" },
-  { label: "Payments", icon: CreditCard, path: "/admin/payments" },
   { label: "Registrations", icon: Users, path: "/admin/registrations" },
+  { label: "Payments", icon: CreditCard, path: "/admin/payments" },
+  { label: "Sponsorships", icon: GraduationCap, path: "/admin/sponsorships" },
+  { label: "Partner Inquiries", icon: Mail, path: "/admin/inquiries" },
+  { label: "Partners", icon: Handshake, path: "/admin/partners" },
+  { label: "Speakers", icon: Mic, path: "/admin/speakers" },
+  { label: "Documents", icon: FileText, path: "/admin/documents" },
   { label: "Event Config", icon: Calendar, path: "/admin/event" },
   { label: "Content", icon: FileText, path: "/admin/content" },
   { label: "Gallery", icon: Image, path: "/admin/gallery" },
+  { label: "Site Settings", icon: Settings, path: "/admin/settings" },
   { label: "Users & Roles", icon: Shield, path: "/admin/users" },
 ];
 
@@ -76,7 +87,7 @@ const AdminLayout = ({ children }: { children: ReactNode }) => {
           <h2 className="font-display text-lg font-bold text-foreground">CSA Admin</h2>
           <p className="text-xs text-muted-foreground truncate">{user.email}</p>
         </div>
-        <nav className="p-2 space-y-1">
+        <nav className="p-2 space-y-1 overflow-y-auto" style={{ maxHeight: "calc(100vh - 8rem)" }}>
           {navItems.map((item) => (
             <button
               key={item.path}
