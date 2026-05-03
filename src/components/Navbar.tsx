@@ -10,6 +10,7 @@ const baseLinks = [
   { label: "Partners", href: "/#partners" },
   { label: "Event Insights", href: "/event-insights" },
   { label: "Gallery", href: "/gallery" },
+  { label: "Lookup", href: "/lookup" },
   { label: "Contact", href: "/#connect" },
 ];
 
