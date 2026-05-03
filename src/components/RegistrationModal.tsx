@@ -23,6 +23,7 @@ const RegistrationModal = ({ pkg, onClose }: { pkg: Pkg; onClose: () => void }) 
   const [installment, setInstallment] = useState(0);
   const [quantity, setQuantity] = useState(1);
   const [registrationId, setRegistrationId] = useState<string | null>(null);
+  const [ticketCode, setTicketCode] = useState<string | null>(null);
 
   const amount =
     paymentType === "full"
@@ -52,13 +53,17 @@ const RegistrationModal = ({ pkg, onClose }: { pkg: Pkg; onClose: () => void }) 
         payment_type: paymentType,
         total_cost: totalCost,
       })
-      .select("id")
+      .select("id, ticket_code")
       .single();
     if (error) {
       toast.error("Failed to save registration: " + error.message);
       return null;
     }
     setRegistrationId(data.id);
+    setTicketCode(data.ticket_code);
+    if (data.ticket_code) {
+      toast.success(`Booking code: ${data.ticket_code} — keep it to track your payments`);
+    }
     return data.id;
   };
 
@@ -96,6 +101,12 @@ const RegistrationModal = ({ pkg, onClose }: { pkg: Pkg; onClose: () => void }) 
 
         <h3 className="font-display text-xl font-bold mb-1">{pkg.name} Ticket</h3>
         <p className="text-primary font-semibold mb-4">KES {pkg.price.toLocaleString()} each</p>
+        {ticketCode && (
+          <div className="mb-4 p-3 rounded-lg bg-primary/10 border border-primary/30">
+            <p className="text-xs text-muted-foreground">Your booking code (keep it for partial payments)</p>
+            <p className="font-mono font-bold text-primary text-lg">{ticketCode}</p>
+          </div>
+        )}
 
         {/* Quantity Selector */}
         <div className="flex items-center gap-3 mb-6">
