@@ -129,23 +129,28 @@ const EventInsights = () => {
           </motion.div>
 
           <div className="grid md:grid-cols-2 gap-6 mb-8">
-            {/* Guest Speaker Placeholder */}
-            <div className="glass rounded-2xl p-8 text-center">
-              <div className="w-20 h-20 rounded-full bg-primary/10 flex items-center justify-center mx-auto mb-4">
-                <Mic2 className="text-primary" size={32} />
+            {speakers.length === 0 ? (
+              <div className="glass rounded-2xl p-8 text-center md:col-span-2">
+                <div className="w-20 h-20 rounded-full bg-primary/10 flex items-center justify-center mx-auto mb-4">
+                  <Mic2 className="text-primary" size={32} />
+                </div>
+                <h3 className="font-display text-xl font-bold mb-1">Speakers</h3>
+                <p className="text-muted-foreground text-sm">Stay tuned for our speaker announcements!</p>
               </div>
-              <h3 className="font-display text-xl font-bold mb-1">Guest Speaker</h3>
-              <p className="text-muted-foreground text-sm">Stay tuned for our speaker announcements!</p>
-            </div>
-
-            {/* Other Speakers Placeholder */}
-            <div className="glass rounded-2xl p-8 text-center">
-              <div className="w-20 h-20 rounded-full bg-primary/10 flex items-center justify-center mx-auto mb-4">
-                <Users className="text-primary" size={32} />
+            ) : speakers.map((sp) => (
+              <div key={sp.id} className="glass rounded-2xl p-6 text-center">
+                {sp.photo_url ? (
+                  <img src={sp.photo_url} alt={sp.name} className="w-20 h-20 rounded-full mx-auto mb-4 object-cover" />
+                ) : (
+                  <div className="w-20 h-20 rounded-full bg-primary/10 flex items-center justify-center mx-auto mb-4">
+                    <Mic2 className="text-primary" size={32} />
+                  </div>
+                )}
+                <h3 className="font-display text-xl font-bold mb-1">{sp.name}</h3>
+                {sp.role && <p className="text-primary text-sm mb-2">{sp.role}</p>}
+                {sp.bio && <p className="text-muted-foreground text-sm">{sp.bio}</p>}
               </div>
-              <h3 className="font-display text-xl font-bold mb-1">Other Speakers</h3>
-              <p className="text-muted-foreground text-sm">Stay tuned for our speaker announcements!</p>
-            </div>
+            ))}
           </div>
         </div>
       </section>
