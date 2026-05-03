@@ -1,9 +1,31 @@
+import { useEffect, useState } from "react";
 import { motion } from "framer-motion";
 import { CalendarDays, Clock, MapPin } from "lucide-react";
 import heroImg from "@/assets/hero-gala.jpg";
 import CountdownTimer from "./CountdownTimer";
+import { supabase } from "@/integrations/supabase/client";
 
 const HeroSection = () => {
+  const [s, setS] = useState<Record<string, string>>({
+    hero_eyebrow: "Construction Students Association",
+    hero_title: "CSA Gala Dinner 2026",
+    hero_subtitle: "Laying the First Stone: Honoring the Past, Empowering the Present, and Inspiring the Future of Construction",
+    hero_date: "05 June 2026",
+    hero_time: "7:00 PM – 11:00 PM",
+    hero_venue: "Utalii House",
+    hero_countdown: "2026-06-05T19:00:00+03:00",
+  });
+
+  useEffect(() => {
+    supabase.from("site_settings").select("key, value").then(({ data }) => {
+      if (!data) return;
+      const map = { ...s };
+      data.forEach((r: any) => { if (r.value) map[r.key] = r.value; });
+      setS(map);
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   return (
     <section className="relative min-h-screen flex items-center justify-center overflow-hidden">
       <img
@@ -22,7 +44,7 @@ const HeroSection = () => {
           transition={{ duration: 0.6 }}
           className="text-primary font-semibold tracking-widest uppercase text-sm mb-4"
         >
-          Construction Students Association
+          {s.hero_eyebrow}
         </motion.p>
 
         <motion.h1
@@ -31,7 +53,7 @@ const HeroSection = () => {
           transition={{ duration: 0.7, delay: 0.1 }}
           className="font-display text-4xl sm:text-5xl md:text-7xl font-bold text-foreground mb-6 leading-tight"
         >
-          CSA Gala Dinner <span className="text-gradient">2026</span>
+          {s.hero_title}
         </motion.h1>
 
         <motion.p
@@ -40,7 +62,7 @@ const HeroSection = () => {
           transition={{ duration: 0.6, delay: 0.2 }}
           className="text-muted-foreground text-base md:text-lg max-w-2xl mx-auto mb-8 italic font-display"
         >
-          "Laying the First Stone: Honoring the Past, Empowering the Present, and Inspiring the Future of Construction"
+          "{s.hero_subtitle}"
         </motion.p>
 
         <motion.div
@@ -49,12 +71,12 @@ const HeroSection = () => {
           transition={{ delay: 0.3 }}
           className="flex flex-wrap justify-center gap-6 md:gap-10 text-base md:text-xl text-foreground mb-10 font-semibold"
         >
-          <span className="flex items-center gap-2"><CalendarDays size={22} className="text-primary" /> 05 June 2026</span>
-          <span className="flex items-center gap-2"><Clock size={22} className="text-primary" /> 7:00 PM – 11:00 PM</span>
-          <span className="flex items-center gap-2"><MapPin size={22} className="text-primary" /> Utalii House</span>
+          <span className="flex items-center gap-2"><CalendarDays size={22} className="text-primary" /> {s.hero_date}</span>
+          <span className="flex items-center gap-2"><Clock size={22} className="text-primary" /> {s.hero_time}</span>
+          <span className="flex items-center gap-2"><MapPin size={22} className="text-primary" /> {s.hero_venue}</span>
         </motion.div>
 
-        <CountdownTimer targetDate="2026-06-05T19:00:00+03:00" />
+        <CountdownTimer targetDate={s.hero_countdown} />
 
         <motion.div
           initial={{ opacity: 0, y: 20 }}

@@ -1,21 +1,25 @@
 import { useState } from "react";
 import { Menu, X } from "lucide-react";
 import { useLocation } from "react-router-dom";
+import { useAuth } from "@/hooks/useAuth";
 import logo from "@/assets/white_logo.jpg";
 
-const navLinks = [
+const baseLinks = [
   { label: "Tickets", href: "/#tickets" },
   { label: "Sponsor", href: "/#sponsor" },
   { label: "Partners", href: "/#partners" },
   { label: "Event Insights", href: "/event-insights" },
   { label: "Gallery", href: "/gallery" },
   { label: "Contact", href: "/#connect" },
-  { label: "Admin", href: "/login" },
 ];
 
 const Navbar = () => {
   const [open, setOpen] = useState(false);
   const location = useLocation();
+  const { isAdmin } = useAuth();
+  const navLinks = isAdmin
+    ? [...baseLinks, { label: "Admin", href: "/admin" }]
+    : baseLinks;
 
   const handleNavClick = (href: string) => {
     setOpen(false);

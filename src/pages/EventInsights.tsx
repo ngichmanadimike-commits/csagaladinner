@@ -1,12 +1,20 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { motion } from "framer-motion";
 import { FileText, Download, Search, Mic2, Users } from "lucide-react";
 import Navbar from "@/components/Navbar";
 import Footer from "@/components/Footer";
+import { supabase } from "@/integrations/supabase/client";
 
 const EventInsights = () => {
   const [name, setName] = useState("");
   const [searched, setSearched] = useState(false);
+  const [speakers, setSpeakers] = useState<any[]>([]);
+  const [documents, setDocuments] = useState<any[]>([]);
+
+  useEffect(() => {
+    supabase.from("speakers").select("*").eq("active", true).order("display_order").then(({ data }) => setSpeakers(data || []));
+    supabase.from("documents").select("*").eq("active", true).order("created_at", { ascending: false }).then(({ data }) => setDocuments(data || []));
+  }, []);
 
   const handleSearch = (e: React.FormEvent) => {
     e.preventDefault();
@@ -85,22 +93,20 @@ const EventInsights = () => {
             <div className="mt-6 border-t border-border/50 pt-6">
               <h4 className="font-display font-bold mb-3 text-sm text-muted-foreground uppercase tracking-wider">Downloadable Materials</h4>
               <div className="grid gap-3">
-                {[
-                  { label: "Event Program", desc: "Full program schedule" },
-                  { label: "Dinner Documents", desc: "Official event documents" },
-                ].map((doc) => (
-                  <div key={doc.label} className="flex items-center justify-between glass rounded-lg px-4 py-3">
+                {documents.length === 0 ? (
+                  <p className="text-xs text-muted-foreground text-center italic">Materials will be available closer to the event date</p>
+                ) : documents.map((doc) => (
+                  <div key={doc.id} className="flex items-center justify-between glass rounded-lg px-4 py-3">
                     <div>
-                      <p className="font-semibold text-sm">{doc.label}</p>
-                      <p className="text-xs text-muted-foreground">{doc.desc}</p>
+                      <p className="font-semibold text-sm">{doc.title}</p>
+                      <p className="text-xs text-muted-foreground">{doc.description || doc.category}</p>
                     </div>
-                    <button className="text-primary hover:text-primary/80 transition-colors" title="Download">
+                    <a href={doc.file_url} target="_blank" rel="noopener noreferrer" className="text-primary hover:text-primary/80 transition-colors" title="Download">
                       <Download size={18} />
-                    </button>
+                    </a>
                   </div>
                 ))}
               </div>
-              <p className="text-xs text-muted-foreground mt-3 text-center italic">Materials will be available closer to the event date</p>
             </div>
           </div>
         </div>
@@ -123,23 +129,28 @@ const EventInsights = () => {
           </motion.div>
 
           <div className="grid md:grid-cols-2 gap-6 mb-8">
-            {/* Guest Speaker Placeholder */}
-            <div className="glass rounded-2xl p-8 text-center">
-              <div className="w-20 h-20 rounded-full bg-primary/10 flex items-center justify-center mx-auto mb-4">
-                <Mic2 className="text-primary" size={32} />
+            {speakers.length === 0 ? (
+              <div className="glass rounded-2xl p-8 text-center md:col-span-2">
+                <div className="w-20 h-20 rounded-full bg-primary/10 flex items-center justify-center mx-auto mb-4">
+                  <Mic2 className="text-primary" size={32} />
+                </div>
+                <h3 className="font-display text-xl font-bold mb-1">Speakers</h3>
+                <p className="text-muted-foreground text-sm">Stay tuned for our speaker announcements!</p>
               </div>
-              <h3 className="font-display text-xl font-bold mb-1">Guest Speaker</h3>
-              <p className="text-muted-foreground text-sm">Stay tuned for our speaker announcements!</p>
-            </div>
-
-            {/* Other Speakers Placeholder */}
-            <div className="glass rounded-2xl p-8 text-center">
-              <div className="w-20 h-20 rounded-full bg-primary/10 flex items-center justify-center mx-auto mb-4">
-                <Users className="text-primary" size={32} />
+            ) : speakers.map((sp) => (
+              <div key={sp.id} className="glass rounded-2xl p-6 text-center">
+                {sp.photo_url ? (
+                  <img src={sp.photo_url} alt={sp.name} className="w-20 h-20 rounded-full mx-auto mb-4 object-cover" />
+                ) : (
+                  <div className="w-20 h-20 rounded-full bg-primary/10 flex items-center justify-center mx-auto mb-4">
+                    <Mic2 className="text-primary" size={32} />
+                  </div>
+                )}
+                <h3 className="font-display text-xl font-bold mb-1">{sp.name}</h3>
+                {sp.role && <p className="text-primary text-sm mb-2">{sp.role}</p>}
+                {sp.bio && <p className="text-muted-foreground text-sm">{sp.bio}</p>}
               </div>
-              <h3 className="font-display text-xl font-bold mb-1">Other Speakers</h3>
-              <p className="text-muted-foreground text-sm">Stay tuned for our speaker announcements!</p>
-            </div>
+            ))}
           </div>
         </div>
       </section>
