@@ -1,12 +1,20 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { motion } from "framer-motion";
 import { FileText, Download, Search, Mic2, Users } from "lucide-react";
 import Navbar from "@/components/Navbar";
 import Footer from "@/components/Footer";
+import { supabase } from "@/integrations/supabase/client";
 
 const EventInsights = () => {
   const [name, setName] = useState("");
   const [searched, setSearched] = useState(false);
+  const [speakers, setSpeakers] = useState<any[]>([]);
+  const [documents, setDocuments] = useState<any[]>([]);
+
+  useEffect(() => {
+    supabase.from("speakers").select("*").eq("active", true).order("display_order").then(({ data }) => setSpeakers(data || []));
+    supabase.from("documents").select("*").eq("active", true).order("created_at", { ascending: false }).then(({ data }) => setDocuments(data || []));
+  }, []);
 
   const handleSearch = (e: React.FormEvent) => {
     e.preventDefault();
@@ -85,22 +93,20 @@ const EventInsights = () => {
             <div className="mt-6 border-t border-border/50 pt-6">
               <h4 className="font-display font-bold mb-3 text-sm text-muted-foreground uppercase tracking-wider">Downloadable Materials</h4>
               <div className="grid gap-3">
-                {[
-                  { label: "Event Program", desc: "Full program schedule" },
-                  { label: "Dinner Documents", desc: "Official event documents" },
-                ].map((doc) => (
-                  <div key={doc.label} className="flex items-center justify-between glass rounded-lg px-4 py-3">
+                {documents.length === 0 ? (
+                  <p className="text-xs text-muted-foreground text-center italic">Materials will be available closer to the event date</p>
+                ) : documents.map((doc) => (
+                  <div key={doc.id} className="flex items-center justify-between glass rounded-lg px-4 py-3">
                     <div>
-                      <p className="font-semibold text-sm">{doc.label}</p>
-                      <p className="text-xs text-muted-foreground">{doc.desc}</p>
+                      <p className="font-semibold text-sm">{doc.title}</p>
+                      <p className="text-xs text-muted-foreground">{doc.description || doc.category}</p>
                     </div>
-                    <button className="text-primary hover:text-primary/80 transition-colors" title="Download">
+                    <a href={doc.file_url} target="_blank" rel="noopener noreferrer" className="text-primary hover:text-primary/80 transition-colors" title="Download">
                       <Download size={18} />
-                    </button>
+                    </a>
                   </div>
                 ))}
               </div>
-              <p className="text-xs text-muted-foreground mt-3 text-center italic">Materials will be available closer to the event date</p>
             </div>
           </div>
         </div>
