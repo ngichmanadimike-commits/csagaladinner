@@ -424,6 +424,7 @@ export type Database = {
           num_students: number
           payment_method: string
           payment_status: string
+          sponsor_code: string | null
           sponsor_email: string | null
           sponsor_name: string
           sponsor_phone: string
@@ -440,6 +441,7 @@ export type Database = {
           num_students?: number
           payment_method?: string
           payment_status?: string
+          sponsor_code?: string | null
           sponsor_email?: string | null
           sponsor_name: string
           sponsor_phone: string
@@ -456,6 +458,7 @@ export type Database = {
           num_students?: number
           payment_method?: string
           payment_status?: string
+          sponsor_code?: string | null
           sponsor_email?: string | null
           sponsor_name?: string
           sponsor_phone?: string
