@@ -2,11 +2,19 @@ import { useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useNavigate } from "react-router-dom";
 import AdminLayout from "@/components/admin/AdminLayout";
-import { Users, CreditCard, CheckCircle2, Clock, Image, FileText, Calendar, Shield, ArrowRight, Handshake, GraduationCap, Mail, Mic, Settings } from "lucide-react";
+import { Users, CreditCard, CheckCircle2, Clock, Image, FileText, Calendar, Shield, ArrowRight, Handshake, GraduationCap, Mail, Mic, Settings, Download, TrendingUp } from "lucide-react";
+import { exportToXlsx } from "@/lib/exportXlsx";
 
 interface Stats {
   totalRegistrations: number;
   totalRevenue: number;
+  sponsorRevenue: number;
+  combinedRevenue: number;
+  pendingRevenue: number;
+  ticketsIssued: number;
+  fullyPaid: number;
+  partialPaid: number;
+  avgTicket: number;
   verifiedPayments: number;
   pendingPayments: number;
   totalGalleryImages: number;
@@ -27,6 +35,13 @@ const AdminOverview = () => {
   const [stats, setStats] = useState<Stats>({
     totalRegistrations: 0,
     totalRevenue: 0,
+    sponsorRevenue: 0,
+    combinedRevenue: 0,
+    pendingRevenue: 0,
+    ticketsIssued: 0,
+    fullyPaid: 0,
+    partialPaid: 0,
+    avgTicket: 0,
     verifiedPayments: 0,
     pendingPayments: 0,
     totalGalleryImages: 0,
@@ -42,6 +57,7 @@ const AdminOverview = () => {
     totalDocuments: 0,
   });
   const [recentPayments, setRecentPayments] = useState<any[]>([]);
+  const [chartData, setChartData] = useState<{ day: string; verified: number; pending: number }[]>([]);
 
   useEffect(() => {
     const fetchStats = async () => {
@@ -63,10 +79,23 @@ const AdminOverview = () => {
       const pays = payRes.data || [];
       const spons = sponRes.data || [];
       const inqs = inqRes.data || [];
+      const regs = regRes.data || [];
+      const verifiedAmt = pays.filter((p) => p.verified).reduce((s, p) => s + Number(p.amount), 0);
+      const pendingAmt = pays.filter((p) => !p.verified).reduce((s, p) => s + Number(p.amount), 0);
+      const sponsorAmt = spons.filter((s: any) => s.verified).reduce((s, p: any) => s + Number(p.amount), 0);
+      const fullyPaid = regs.filter((r: any) => r.payment_status === "paid").length;
+      const partialPaid = regs.filter((r: any) => r.payment_status === "partial").length;
 
       setStats({
-        totalRegistrations: (regRes.data || []).length,
-        totalRevenue: pays.filter((p) => p.verified).reduce((s, p) => s + Number(p.amount), 0),
+        totalRegistrations: regs.length,
+        totalRevenue: verifiedAmt,
+        sponsorRevenue: sponsorAmt,
+        combinedRevenue: verifiedAmt + sponsorAmt,
+        pendingRevenue: pendingAmt,
+        ticketsIssued: regs.filter((r: any) => r.ticket_issued).length,
+        fullyPaid,
+        partialPaid,
+        avgTicket: regs.length ? Math.round(verifiedAmt / regs.length) : 0,
         verifiedPayments: pays.filter((p) => p.verified).length,
         pendingPayments: pays.filter((p) => !p.verified).length,
         totalGalleryImages: galleryRes.count || 0,
@@ -83,6 +112,21 @@ const AdminOverview = () => {
       });
 
       setRecentPayments(recentRes.data || []);
+
+      // Build last-7-day chart
+      const buckets: Record<string, { verified: number; pending: number }> = {};
+      for (let i = 6; i >= 0; i--) {
+        const d = new Date(); d.setDate(d.getDate() - i);
+        buckets[d.toISOString().slice(0, 10)] = { verified: 0, pending: 0 };
+      }
+      pays.forEach((p: any) => {
+        const k = (p.created_at || "").slice(0, 10);
+        if (buckets[k]) {
+          if (p.verified) buckets[k].verified += Number(p.amount);
+          else buckets[k].pending += Number(p.amount);
+        }
+      });
+      setChartData(Object.entries(buckets).map(([day, v]) => ({ day: day.slice(5), ...v })));
     };
 
     fetchStats();
@@ -100,7 +144,14 @@ const AdminOverview = () => {
 
   const statCards = [
     { label: "Registrations", value: stats.totalRegistrations, icon: Users, color: "text-primary" },
-    { label: "Revenue (KES)", value: stats.totalRevenue.toLocaleString(), icon: CreditCard, color: "text-emerald-400" },
+    { label: "Total Revenue", value: `KES ${stats.combinedRevenue.toLocaleString()}`, icon: TrendingUp, color: "text-emerald-400" },
+    { label: "Tickets Revenue", value: `KES ${stats.totalRevenue.toLocaleString()}`, icon: CreditCard, color: "text-emerald-400" },
+    { label: "Sponsor Revenue", value: `KES ${stats.sponsorRevenue.toLocaleString()}`, icon: GraduationCap, color: "text-emerald-400" },
+    { label: "Pending Revenue", value: `KES ${stats.pendingRevenue.toLocaleString()}`, icon: Clock, color: "text-yellow-400" },
+    { label: "Tickets Issued", value: stats.ticketsIssued, icon: CheckCircle2, color: "text-emerald-400" },
+    { label: "Fully Paid", value: stats.fullyPaid, icon: CheckCircle2, color: "text-emerald-400" },
+    { label: "Partial Paid", value: stats.partialPaid, icon: Clock, color: "text-yellow-400" },
+    { label: "Avg Ticket KES", value: stats.avgTicket.toLocaleString(), icon: TrendingUp, color: "text-primary" },
     { label: "Verified", value: stats.verifiedPayments, icon: CheckCircle2, color: "text-emerald-400" },
     { label: "Pending", value: stats.pendingPayments, icon: Clock, color: "text-yellow-400" },
     { label: "Sponsorships", value: stats.totalSponsorships, icon: GraduationCap, color: "text-primary" },
@@ -129,9 +180,27 @@ const AdminOverview = () => {
     { label: "Users & Roles", desc: "Manage admins and user roles", path: "/admin/users", icon: Shield },
   ];
 
+  const downloadAll = async () => {
+    const [reg, pay, spon, inq] = await Promise.all([
+      supabase.from("registrations").select("*"),
+      supabase.from("payments").select("*, registrations(name,email,phone)"),
+      supabase.from("sponsorships").select("*"),
+      supabase.from("partner_inquiries").select("*"),
+    ]);
+    exportToXlsx((reg.data as any) || [], "registrations", "Registrations");
+    exportToXlsx(((pay.data as any) || []).map((p: any) => ({ ...p, name: p.registrations?.name, email: p.registrations?.email })), "payments", "Payments");
+    exportToXlsx((spon.data as any) || [], "sponsorships", "Sponsorships");
+    exportToXlsx((inq.data as any) || [], "inquiries", "Inquiries");
+  };
+
   return (
     <AdminLayout>
-      <h1 className="font-display text-2xl font-bold text-foreground mb-6">Dashboard Overview</h1>
+      <div className="flex items-center justify-between mb-6">
+        <h1 className="font-display text-2xl font-bold text-foreground">Dashboard Overview</h1>
+        <button onClick={downloadAll} className="flex items-center gap-2 px-3 py-2 rounded-lg bg-primary text-primary-foreground text-sm font-semibold">
+          <Download size={16} /> Download All
+        </button>
+      </div>
 
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
         {statCards.map((card) => (
@@ -143,6 +212,31 @@ const AdminOverview = () => {
             <p className="text-2xl font-bold text-foreground">{card.value}</p>
           </div>
         ))}
+      </div>
+
+      {/* Revenue Chart (last 7 days) */}
+      <div className="glass rounded-xl p-4 mb-8">
+        <h2 className="font-display text-lg font-bold text-foreground mb-4">Revenue — Last 7 Days</h2>
+        <div className="flex items-end gap-2 h-40">
+          {chartData.map((d) => {
+            const max = Math.max(1, ...chartData.map((x) => x.verified + x.pending));
+            const vH = (d.verified / max) * 100;
+            const pH = (d.pending / max) * 100;
+            return (
+              <div key={d.day} className="flex-1 flex flex-col items-center gap-1">
+                <div className="w-full flex flex-col-reverse gap-px h-32">
+                  <div className="bg-emerald-400/70 rounded-sm" style={{ height: `${vH}%` }} title={`Verified: ${d.verified}`} />
+                  <div className="bg-yellow-400/70 rounded-sm" style={{ height: `${pH}%` }} title={`Pending: ${d.pending}`} />
+                </div>
+                <span className="text-[10px] text-muted-foreground">{d.day}</span>
+              </div>
+            );
+          })}
+        </div>
+        <div className="flex gap-4 mt-3 text-xs text-muted-foreground">
+          <span className="flex items-center gap-1"><span className="w-3 h-3 rounded bg-emerald-400/70" /> Verified</span>
+          <span className="flex items-center gap-1"><span className="w-3 h-3 rounded bg-yellow-400/70" /> Pending</span>
+        </div>
       </div>
 
       {/* Quick Actions */}
