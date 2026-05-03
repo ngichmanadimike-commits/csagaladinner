@@ -38,7 +38,7 @@ const PaymentStatusLookup = () => {
     const { data, error } = await supabase
       .from("registrations")
       .select("id, name, email, package_type, total_cost, total_paid, payment_status, ticket_issued, ticket_code")
-      .or(`name.ilike.%${trimmed}%,email.ilike.%${trimmed}%`);
+      .or(`name.ilike.%${trimmed}%,email.ilike.%${trimmed}%,ticket_code.ilike.%${trimmed}%`);
 
     setLoading(false);
 
@@ -69,7 +69,7 @@ const PaymentStatusLookup = () => {
               type="text"
               value={query}
               onChange={(e) => setQuery(e.target.value)}
-              placeholder="Your name or email..."
+              placeholder="Booking code, name, or email..."
               className="w-full pl-10 pr-4 py-3 rounded-xl bg-muted border border-border text-foreground text-sm focus:outline-none focus:ring-2 focus:ring-primary/50"
             />
           </div>
