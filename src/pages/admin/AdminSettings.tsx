@@ -48,13 +48,25 @@ const AdminSettings = () => {
     <AdminLayout>
       <h1 className="font-display text-2xl font-bold text-foreground mb-6">Site Settings</h1>
       <div className="glass rounded-xl p-5 space-y-4 max-w-2xl">
-        {FIELDS.map((f) => (
-          <div key={f.key}>
-            <label className="text-sm text-muted-foreground mb-1 block">{f.label}</label>
-            <input value={values[f.key] || ""} onChange={(e) => setValues({ ...values, [f.key]: e.target.value })}
-              className="w-full px-3 py-2 rounded-lg bg-muted border border-border text-sm" />
-          </div>
-        ))}
+        {FIELDS.map((f) => {
+          const big = f.key === "hero_subtitle" || f.key === "ticket_packages";
+          return (
+            <div key={f.key}>
+              <label className="text-sm text-muted-foreground mb-1 block">{f.label}</label>
+              {big ? (
+                <textarea
+                  value={values[f.key] || ""}
+                  onChange={(e) => setValues({ ...values, [f.key]: e.target.value })}
+                  rows={f.key === "ticket_packages" ? 8 : 3}
+                  className="w-full px-3 py-2 rounded-lg bg-muted border border-border text-sm font-mono"
+                />
+              ) : (
+                <input value={values[f.key] || ""} onChange={(e) => setValues({ ...values, [f.key]: e.target.value })}
+                  className="w-full px-3 py-2 rounded-lg bg-muted border border-border text-sm" />
+              )}
+            </div>
+          );
+        })}
         <button onClick={save} disabled={saving} className="flex items-center gap-2 px-4 py-2 rounded-lg bg-primary text-primary-foreground text-sm font-semibold disabled:opacity-50">
           {saving ? <Loader2 size={14} className="animate-spin" /> : <Save size={14} />} Save
         </button>
