@@ -11,6 +11,14 @@ const FIELDS = [
   { key: "social_linkedin", label: "LinkedIn URL" },
   { key: "social_instagram", label: "Instagram URL" },
   { key: "social_tiktok", label: "TikTok URL" },
+  { key: "hero_eyebrow", label: "Hero Eyebrow Text" },
+  { key: "hero_title", label: "Hero Title" },
+  { key: "hero_subtitle", label: "Hero Subtitle / Theme" },
+  { key: "hero_date", label: "Hero Date Display" },
+  { key: "hero_time", label: "Hero Time Display" },
+  { key: "hero_venue", label: "Hero Venue Display" },
+  { key: "hero_countdown", label: "Countdown Target (ISO date, e.g. 2026-06-05T19:00:00+03:00)" },
+  { key: "ticket_packages", label: "Ticket Packages (JSON array)" },
 ];
 
 const AdminSettings = () => {
