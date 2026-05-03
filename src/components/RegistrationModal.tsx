@@ -102,9 +102,15 @@ const RegistrationModal = ({ pkg, onClose }: { pkg: Pkg; onClose: () => void }) 
         <h3 className="font-display text-xl font-bold mb-1">{pkg.name} Ticket</h3>
         <p className="text-primary font-semibold mb-4">KES {pkg.price.toLocaleString()} each</p>
         {ticketCode && (
-          <div className="mb-4 p-3 rounded-lg bg-primary/10 border border-primary/30">
-            <p className="text-xs text-muted-foreground">Your booking code (keep it for partial payments)</p>
-            <p className="font-mono font-bold text-primary text-lg">{ticketCode}</p>
+          <div className="mb-4 p-4 rounded-xl bg-gradient-to-br from-primary/20 to-primary/5 border-2 border-primary/40 text-center">
+            <p className="text-xs uppercase tracking-wider text-primary/80 mb-1">Your Booking Code</p>
+            <p className="font-mono font-extrabold text-primary text-2xl tracking-widest">{ticketCode}</p>
+            <p className="text-xs text-muted-foreground mt-2">Save this — use it on the lookup page to track payment & ticket status.</p>
+            <button
+              type="button"
+              onClick={() => { navigator.clipboard.writeText(ticketCode); toast.success("Code copied"); }}
+              className="mt-2 text-xs px-3 py-1 rounded-md bg-primary/20 text-primary hover:bg-primary/30"
+            >Copy code</button>
           </div>
         )}
 

@@ -15,6 +15,19 @@ interface RegistrationResult {
   ticket_code: string | null;
 }
 
+interface SponsorResult {
+  id: string;
+  sponsor_name: string;
+  sponsor_email: string | null;
+  sponsor_phone: string;
+  num_students: number;
+  level: string;
+  amount: number;
+  verified: boolean;
+  payment_status: string;
+  sponsor_code: string | null;
+}
+
 const statusConfig: Record<string, { icon: typeof CheckCircle; label: string; class: string }> = {
   paid: { icon: CheckCircle, label: "Fully Paid", class: "text-green-400" },
   partial: { icon: Clock, label: "Partial Payment", class: "text-yellow-400" },
@@ -24,6 +37,7 @@ const statusConfig: Record<string, { icon: typeof CheckCircle; label: string; cl
 const PaymentStatusLookup = () => {
   const [query, setQuery] = useState("");
   const [results, setResults] = useState<RegistrationResult[]>([]);
+  const [sponsorResults, setSponsorResults] = useState<SponsorResult[]>([]);
   const [loading, setLoading] = useState(false);
   const [searched, setSearched] = useState(false);
 
@@ -35,10 +49,16 @@ const PaymentStatusLookup = () => {
     setLoading(true);
     setSearched(true);
 
-    const { data, error } = await supabase
+    const [{ data, error }, sponsorRes] = await Promise.all([
+      supabase
       .from("registrations")
       .select("id, name, email, package_type, total_cost, total_paid, payment_status, ticket_issued, ticket_code")
-      .or(`name.ilike.%${trimmed}%,email.ilike.%${trimmed}%,ticket_code.ilike.%${trimmed}%`);
+      .or(`name.ilike.%${trimmed}%,email.ilike.%${trimmed}%,ticket_code.ilike.%${trimmed}%`),
+      supabase
+        .from("sponsorships")
+        .select("id, sponsor_name, sponsor_email, sponsor_phone, num_students, level, amount, verified, payment_status, sponsor_code")
+        .or(`sponsor_name.ilike.%${trimmed}%,sponsor_email.ilike.%${trimmed}%,sponsor_code.ilike.%${trimmed}%`),
+    ]);
 
     setLoading(false);
 
@@ -48,6 +68,7 @@ const PaymentStatusLookup = () => {
     }
 
     setResults(data ?? []);
+    setSponsorResults((sponsorRes.data as any) ?? []);
   };
 
   return (
@@ -82,9 +103,9 @@ const PaymentStatusLookup = () => {
           </button>
         </form>
 
-        {searched && !loading && results.length === 0 && (
+        {searched && !loading && results.length === 0 && sponsorResults.length === 0 && (
           <div className="text-center py-8 text-muted-foreground">
-            No registration found. Please check your name or email and try again.
+            No registration or sponsorship found. Try your booking/sponsor code, name, or email.
           </div>
         )}
 
@@ -137,6 +158,30 @@ const PaymentStatusLookup = () => {
               </div>
             );
           })}
+          {sponsorResults.map((s) => (
+            <div key={s.id} className="glass rounded-2xl p-5 space-y-3">
+              <div className="flex items-start justify-between gap-3">
+                <div>
+                  <h3 className="font-display font-bold text-foreground">{s.sponsor_name}</h3>
+                  <p className="text-xs text-muted-foreground">Sponsor • {s.level}</p>
+                </div>
+                <span className={`text-sm font-semibold ${s.verified ? "text-green-400" : "text-yellow-400"}`}>
+                  {s.verified ? "Verified" : "Pending"}
+                </span>
+              </div>
+              <div className="grid grid-cols-3 gap-3 text-sm">
+                <div><p className="text-xs text-muted-foreground">Students</p><p className="font-semibold">{s.num_students}</p></div>
+                <div><p className="text-xs text-muted-foreground">Amount</p><p className="font-semibold">KSh {Number(s.amount).toLocaleString()}</p></div>
+                <div><p className="text-xs text-muted-foreground">Phone</p><p className="font-semibold">{s.sponsor_phone}</p></div>
+              </div>
+              {s.sponsor_code && (
+                <div className="pt-2 border-t border-border">
+                  <p className="text-xs text-muted-foreground">Sponsor Code</p>
+                  <p className="font-mono font-bold text-primary">{s.sponsor_code}</p>
+                </div>
+              )}
+            </div>
+          ))}
         </div>
       </div>
     </section>

@@ -8,6 +8,7 @@ import Index from "./pages/Index.tsx";
 import EventInsights from "./pages/EventInsights.tsx";
 import Gallery from "./pages/Gallery.tsx";
 import Login from "./pages/Login.tsx";
+import Lookup from "./pages/Lookup.tsx";
 import AdminOverview from "./pages/admin/AdminOverview.tsx";
 import AdminPayments from "./pages/admin/AdminPayments.tsx";
 import AdminRegistrations from "./pages/admin/AdminRegistrations.tsx";
@@ -38,6 +39,7 @@ const App = () => (
             <Route path="/event-insights" element={<EventInsights />} />
             <Route path="/gallery" element={<Gallery />} />
             <Route path="/login" element={<Login />} />
+            <Route path="/lookup" element={<Lookup />} />
             <Route path="/admin" element={<AdminOverview />} />
             <Route path="/admin/payments" element={<AdminPayments />} />
             <Route path="/admin/registrations" element={<AdminRegistrations />} />

@@ -18,11 +18,12 @@ const SponsorSection = () => {
   const [levelIdx, setLevelIdx] = useState(2);
   const [showPayment, setShowPayment] = useState(false);
   const [sponsor, setSponsor] = useState({ name: "", email: "", phone: "" });
+  const [sponsorCode, setSponsorCode] = useState<string | null>(null);
 
   const total = Math.round(students * COST_PER_STUDENT * levels[levelIdx].multiplier);
 
   const handlePaymentSubmitted = async (info: { mpesaCode: string; phone: string; source: "stk" | "manual" }) => {
-    const { error } = await supabase.from("sponsorships").insert({
+    const { data, error } = await supabase.from("sponsorships").insert({
       sponsor_name: sponsor.name,
       sponsor_email: sponsor.email || null,
       sponsor_phone: sponsor.phone || info.phone,
@@ -33,10 +34,14 @@ const SponsorSection = () => {
       payment_status: info.source === "stk" ? "verified" : "pending",
       verified: info.source === "stk",
       verified_at: info.source === "stk" ? new Date().toISOString() : null,
-    });
+    }).select("sponsor_code").single();
     if (error) {
       toast.error("Failed to save sponsorship: " + error.message);
       throw error;
+    }
+    if (data?.sponsor_code) {
+      setSponsorCode(data.sponsor_code);
+      toast.success(`Sponsor code: ${data.sponsor_code}`);
     }
     toast.success("Sponsorship recorded — thank you!");
   };
@@ -144,6 +149,12 @@ const SponsorSection = () => {
           </motion.div>
         ) : (
           <div className="glass rounded-2xl p-6">
+            {sponsorCode && (
+              <div className="mb-4 p-3 rounded-lg bg-primary/10 border border-primary/30">
+                <p className="text-xs text-muted-foreground">Your sponsor code (save it to track verification)</p>
+                <p className="font-mono font-bold text-primary text-lg">{sponsorCode}</p>
+              </div>
+            )}
             <MpesaPayment
               amount={total}
               onBack={() => setShowPayment(false)}
