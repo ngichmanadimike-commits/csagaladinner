@@ -22,6 +22,9 @@ import AdminInquiries from "./pages/admin/AdminInquiries.tsx";
 import AdminDocuments from "./pages/admin/AdminDocuments.tsx";
 import AdminSpeakers from "./pages/admin/AdminSpeakers.tsx";
 import AdminSettings from "./pages/admin/AdminSettings.tsx";
+import AdminPackages from "./pages/admin/AdminPackages.tsx";
+import AdminActivity from "./pages/admin/AdminActivity.tsx";
+import AdminCodes from "./pages/admin/AdminCodes.tsx";
 import ResetPassword from "./pages/ResetPassword.tsx";
 import NotFound from "./pages/NotFound.tsx";
 
@@ -53,6 +56,9 @@ const App = () => (
             <Route path="/admin/documents" element={<AdminDocuments />} />
             <Route path="/admin/speakers" element={<AdminSpeakers />} />
             <Route path="/admin/settings" element={<AdminSettings />} />
+            <Route path="/admin/packages" element={<AdminPackages />} />
+            <Route path="/admin/codes" element={<AdminCodes />} />
+            <Route path="/admin/activity" element={<AdminActivity />} />
             <Route path="/reset-password" element={<ResetPassword />} />
             {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
             <Route path="*" element={<NotFound />} />

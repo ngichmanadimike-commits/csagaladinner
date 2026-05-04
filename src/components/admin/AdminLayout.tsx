@@ -16,13 +16,18 @@ import {
   Mail,
   Mic,
   Settings,
+  Ticket,
+  Activity,
+  Package,
 } from "lucide-react";
 import { useState } from "react";
 
-const navItems = [
+const navItems: { label: string; icon: any; path: string; superOnly?: boolean }[] = [
   { label: "Overview", icon: LayoutDashboard, path: "/admin" },
   { label: "Registrations", icon: Users, path: "/admin/registrations" },
   { label: "Payments", icon: CreditCard, path: "/admin/payments" },
+  { label: "Booking Codes", icon: Ticket, path: "/admin/codes" },
+  { label: "Ticket Packages", icon: Package, path: "/admin/packages" },
   { label: "Sponsorships", icon: GraduationCap, path: "/admin/sponsorships" },
   { label: "Partner Inquiries", icon: Mail, path: "/admin/inquiries" },
   { label: "Partners", icon: Handshake, path: "/admin/partners" },
@@ -33,10 +38,11 @@ const navItems = [
   { label: "Gallery", icon: Image, path: "/admin/gallery" },
   { label: "Site Settings", icon: Settings, path: "/admin/settings" },
   { label: "Users & Roles", icon: Shield, path: "/admin/users" },
+  { label: "Admin Activity", icon: Activity, path: "/admin/activity", superOnly: true },
 ];
 
 const AdminLayout = ({ children }: { children: ReactNode }) => {
-  const { user, signOut, loading, isAdmin } = useAuth();
+  const { user, signOut, loading, isAdmin, isSuperAdmin } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
   const [sidebarOpen, setSidebarOpen] = useState(false);
@@ -88,7 +94,7 @@ const AdminLayout = ({ children }: { children: ReactNode }) => {
           <p className="text-xs text-muted-foreground truncate">{user.email}</p>
         </div>
         <nav className="p-2 space-y-1 overflow-y-auto" style={{ maxHeight: "calc(100vh - 8rem)" }}>
-          {navItems.map((item) => (
+          {navItems.filter((it) => !it.superOnly || isSuperAdmin).map((item) => (
             <button
               key={item.path}
               onClick={() => { navigate(item.path); setSidebarOpen(false); }}

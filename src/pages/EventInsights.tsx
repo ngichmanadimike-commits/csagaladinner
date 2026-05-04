@@ -128,7 +128,7 @@ const EventInsights = () => {
             <p className="text-muted-foreground text-sm">Meet the voices shaping the future of construction</p>
           </motion.div>
 
-          <div className="grid md:grid-cols-2 gap-6 mb-8">
+          <div className="grid md:grid-cols-2 gap-8 mb-8">
             {speakers.length === 0 ? (
               <div className="glass rounded-2xl p-8 text-center md:col-span-2">
                 <div className="w-20 h-20 rounded-full bg-primary/10 flex items-center justify-center mx-auto mb-4">
@@ -140,14 +140,14 @@ const EventInsights = () => {
             ) : speakers.map((sp) => (
               <div key={sp.id} className="glass rounded-2xl p-6 text-center">
                 {sp.photo_url ? (
-                  <img src={sp.photo_url} alt={sp.name} className="w-20 h-20 rounded-full mx-auto mb-4 object-cover" />
+                  <img src={sp.photo_url} alt={sp.name} className="w-44 h-44 md:w-56 md:h-56 rounded-2xl mx-auto mb-5 object-cover ring-2 ring-primary/30 shadow-lg" />
                 ) : (
-                  <div className="w-20 h-20 rounded-full bg-primary/10 flex items-center justify-center mx-auto mb-4">
-                    <Mic2 className="text-primary" size={32} />
+                  <div className="w-44 h-44 md:w-56 md:h-56 rounded-2xl bg-primary/10 flex items-center justify-center mx-auto mb-5">
+                    <Mic2 className="text-primary" size={64} />
                   </div>
                 )}
-                <h3 className="font-display text-xl font-bold mb-1">{sp.name}</h3>
-                {sp.role && <p className="text-primary text-sm mb-2">{sp.role}</p>}
+                <h3 className="font-display text-2xl font-bold mb-1">{sp.name}</h3>
+                {sp.role && <p className="text-primary text-sm font-semibold mb-2">{sp.role}</p>}
                 {sp.bio && <p className="text-muted-foreground text-sm">{sp.bio}</p>}
               </div>
             ))}

@@ -2,6 +2,7 @@ import { useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { Search, Loader2, CheckCircle, Clock, AlertCircle } from "lucide-react";
 import { toast } from "sonner";
+import { maskName, maskEmail, maskTicketToken } from "@/lib/mask";
 
 interface RegistrationResult {
   id: string;
@@ -13,6 +14,7 @@ interface RegistrationResult {
   payment_status: string;
   ticket_issued: boolean;
   ticket_code: string | null;
+  secure_ticket_token: string | null;
 }
 
 interface SponsorResult {
@@ -52,7 +54,7 @@ const PaymentStatusLookup = () => {
     const [{ data, error }, sponsorRes] = await Promise.all([
       supabase
       .from("registrations")
-      .select("id, name, email, package_type, total_cost, total_paid, payment_status, ticket_issued, ticket_code")
+      .select("id, name, email, package_type, total_cost, total_paid, payment_status, ticket_issued, ticket_code, secure_ticket_token")
       .or(`name.ilike.%${trimmed}%,email.ilike.%${trimmed}%,ticket_code.ilike.%${trimmed}%`),
       supabase
         .from("sponsorships")
@@ -119,8 +121,8 @@ const PaymentStatusLookup = () => {
               <div key={r.id} className="glass rounded-2xl p-5 space-y-3">
                 <div className="flex items-start justify-between gap-3">
                   <div>
-                    <h3 className="font-display font-bold text-foreground">{r.name}</h3>
-                    <p className="text-xs text-muted-foreground">{r.email}</p>
+                    <h3 className="font-display font-bold text-foreground">{maskName(r.name)}</h3>
+                    <p className="text-xs text-muted-foreground">{maskEmail(r.email)}</p>
                   </div>
                   <span className={`flex items-center gap-1.5 text-sm font-semibold ${config.class}`}>
                     <StatusIcon size={16} />
@@ -149,12 +151,29 @@ const PaymentStatusLookup = () => {
                   </div>
                 </div>
 
-                {r.ticket_issued && r.ticket_code && (
-                  <div className="pt-2 border-t border-border">
-                    <p className="text-xs text-muted-foreground">Ticket Code</p>
-                    <p className="font-mono font-bold text-primary">{r.ticket_code}</p>
-                  </div>
-                )}
+                <div className="pt-2 border-t border-border">
+                  <p className="text-xs text-muted-foreground">Booking Code</p>
+                  <p className="font-mono font-bold text-primary">{r.ticket_code || "—"}</p>
+                  {r.payment_status === "paid" && r.secure_ticket_token ? (
+                    <>
+                      <p className="text-xs text-muted-foreground mt-2">Your Ticket (fully paid)</p>
+                      <p className="font-mono text-xs break-all text-emerald-400">{r.secure_ticket_token}</p>
+                      <a
+                        href={`data:text/plain;charset=utf-8,${encodeURIComponent(`CSA Gala Dinner 2026\nName: ${r.name}\nBooking Code: ${r.ticket_code}\nTicket: ${r.secure_ticket_token}\nStatus: PAID`)}`}
+                        download={`csa-ticket-${r.ticket_code}.txt`}
+                        className="inline-block mt-2 px-3 py-1 rounded bg-primary/20 text-primary text-xs font-semibold hover:bg-primary/30"
+                      >Download ticket</a>
+                    </>
+                  ) : r.payment_status === "partial" ? (
+                    <>
+                      <p className="text-xs text-muted-foreground mt-2">Ticket (locked until full payment)</p>
+                      <p className="font-mono text-xs text-yellow-400">{maskTicketToken(r.secure_ticket_token)}</p>
+                      <p className="text-xs text-muted-foreground mt-1">Pay the remaining balance to unlock the full ticket.</p>
+                    </>
+                  ) : (
+                    <p className="text-xs text-muted-foreground mt-2">Complete a payment to receive your ticket.</p>
+                  )}
+                </div>
               </div>
             );
           })}
@@ -162,7 +181,7 @@ const PaymentStatusLookup = () => {
             <div key={s.id} className="glass rounded-2xl p-5 space-y-3">
               <div className="flex items-start justify-between gap-3">
                 <div>
-                  <h3 className="font-display font-bold text-foreground">{s.sponsor_name}</h3>
+                  <h3 className="font-display font-bold text-foreground">{maskName(s.sponsor_name)}</h3>
                   <p className="text-xs text-muted-foreground">Sponsor • {s.level}</p>
                 </div>
                 <span className={`text-sm font-semibold ${s.verified ? "text-green-400" : "text-yellow-400"}`}>

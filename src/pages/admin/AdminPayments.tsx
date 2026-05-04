@@ -4,6 +4,7 @@ import AdminLayout from "@/components/admin/AdminLayout";
 import { Search, CheckCircle2, XCircle, Download } from "lucide-react";
 import { toast } from "sonner";
 import { exportToXlsx } from "@/lib/exportXlsx";
+import { logAdminAction } from "@/lib/adminLog";
 
 const AdminPayments = () => {
   const [payments, setPayments] = useState<any[]>([]);
@@ -31,6 +32,7 @@ const AdminPayments = () => {
   }, []);
 
   const handleVerify = async (paymentId: string, verified: boolean) => {
+    const target = payments.find((p) => p.id === paymentId);
     const { error } = await supabase
       .from("payments")
       .update({ verified, verified_at: verified ? new Date().toISOString() : null })
@@ -38,8 +40,10 @@ const AdminPayments = () => {
 
     if (error) {
       toast.error("Failed to update payment");
+      logAdminAction({ actionType: verified ? "VERIFY_PAYMENT" : "REJECT_PAYMENT", description: `Failed to ${verified ? "verify" : "reject"} payment`, targetType: "payment", targetId: paymentId, status: "failed", metadata: { error: error.message } });
     } else {
       toast.success(verified ? "Payment verified" : "Payment rejected");
+      logAdminAction({ actionType: verified ? "VERIFY_PAYMENT" : "REJECT_PAYMENT", description: `${verified ? "Verified" : "Rejected"} payment of KES ${target?.amount} for ${target?.registrations?.name}`, targetType: "payment", targetId: paymentId, metadata: { amount: target?.amount, mpesa_code: target?.mpesa_code, registration_id: target?.registration_id } });
       fetchPayments();
     }
   };

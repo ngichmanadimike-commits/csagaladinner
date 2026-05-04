@@ -6,6 +6,7 @@ interface AuthContextType {
   user: User | null;
   session: Session | null;
   isAdmin: boolean;
+  isSuperAdmin: boolean;
   loading: boolean;
   signOut: () => Promise<void>;
 }
@@ -14,6 +15,7 @@ const AuthContext = createContext<AuthContextType>({
   user: null,
   session: null,
   isAdmin: false,
+  isSuperAdmin: false,
   loading: true,
   signOut: async () => {},
 });
@@ -22,6 +24,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const [user, setUser] = useState<User | null>(null);
   const [session, setSession] = useState<Session | null>(null);
   const [isAdmin, setIsAdmin] = useState(false);
+  const [isSuperAdmin, setIsSuperAdmin] = useState(false);
   const [loading, setLoading] = useState(true);
 
   const checkAdmin = async (userId: string) => {
@@ -29,12 +32,13 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       const { data } = await supabase
         .from("user_roles")
         .select("role")
-        .eq("user_id", userId)
-        .eq("role", "admin")
-        .maybeSingle();
-      setIsAdmin(!!data);
+        .eq("user_id", userId);
+      const roles = (data || []).map((r: any) => r.role);
+      setIsSuperAdmin(roles.includes("super_admin"));
+      setIsAdmin(roles.includes("admin") || roles.includes("super_admin"));
     } catch {
       setIsAdmin(false);
+      setIsSuperAdmin(false);
     }
   };
 
@@ -77,10 +81,11 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     setUser(null);
     setSession(null);
     setIsAdmin(false);
+      setIsSuperAdmin(false);
   };
 
   return (
-    <AuthContext.Provider value={{ user, session, isAdmin, loading, signOut }}>
+    <AuthContext.Provider value={{ user, session, isAdmin, isSuperAdmin, loading, signOut }}>
       {children}
     </AuthContext.Provider>
   );

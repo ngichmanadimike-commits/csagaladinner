@@ -4,29 +4,28 @@ import { Users, Building2, User, UserPlus } from "lucide-react";
 import RegistrationModal from "./RegistrationModal";
 import { supabase } from "@/integrations/supabase/client";
 
-const defaultPackages = [
-  { id: "individual", name: "Individual", price: 2650, icon: User, perks: ["1 Seat", "Dinner & Drinks", "Networking"], partial: true },
-  { id: "group5", name: "Group of 5", price: 13000, icon: Users, perks: ["5 Seats", "Dinner & Drinks", "Networking"], partial: false },
-  { id: "group10", name: "Group of 10", price: 25500, icon: UserPlus, perks: ["10 Seats", "Dinner & Drinks", "Priority Seating"], partial: false },
-  { id: "corporate", name: "Corporate", price: 3500, icon: Building2, perks: ["1 Premium Seat", "Brand Visibility", "VIP Networking"], partial: true },
-];
-
 const iconFor = (id: string) =>
   id === "individual" ? User : id === "corporate" ? Building2 : id === "group10" ? UserPlus : Users;
 
+interface PkgRow {
+  id: string; name: string; price: number; icon: any; perks: string[]; partial: boolean;
+  installments: number[]; installment_mode: "amount" | "percent";
+}
+
 const TicketsSection = () => {
-  const [packages, setPackages] = useState(defaultPackages);
-  const [selected, setSelected] = useState<typeof defaultPackages[0] | null>(null);
+  const [packages, setPackages] = useState<PkgRow[]>([]);
+  const [selected, setSelected] = useState<PkgRow | null>(null);
 
   useEffect(() => {
-    supabase.from("site_settings").select("value").eq("key", "ticket_packages").maybeSingle().then(({ data }) => {
-      if (!data?.value) return;
-      try {
-        const parsed = JSON.parse(data.value);
-        if (Array.isArray(parsed) && parsed.length) {
-          setPackages(parsed.map((p: any) => ({ ...p, icon: iconFor(p.id) })));
-        }
-      } catch { /* keep default */ }
+    supabase.from("ticket_packages").select("*").eq("active", true).order("display_order").then(({ data }) => {
+      const rows = (data || []).map((p: any) => ({
+        id: p.slug, name: p.name, price: Number(p.price), icon: iconFor(p.slug),
+        perks: Array.isArray(p.perks) ? p.perks : [],
+        partial: !!p.partial_allowed,
+        installments: Array.isArray(p.installments) ? p.installments.map(Number) : [],
+        installment_mode: p.installment_mode || "amount",
+      }));
+      setPackages(rows);
     });
   }, []);
 
