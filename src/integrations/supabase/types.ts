@@ -14,6 +14,60 @@ export type Database = {
   }
   public: {
     Tables: {
+      admin_activity_logs: {
+        Row: {
+          action_description: string | null
+          action_type: string
+          admin_email: string | null
+          admin_id: string | null
+          admin_name: string | null
+          branch: string | null
+          created_at: string
+          device_info: string | null
+          id: string
+          ip_address: string | null
+          metadata: Json | null
+          role: string | null
+          status: string
+          target_id: string | null
+          target_type: string | null
+        }
+        Insert: {
+          action_description?: string | null
+          action_type: string
+          admin_email?: string | null
+          admin_id?: string | null
+          admin_name?: string | null
+          branch?: string | null
+          created_at?: string
+          device_info?: string | null
+          id?: string
+          ip_address?: string | null
+          metadata?: Json | null
+          role?: string | null
+          status?: string
+          target_id?: string | null
+          target_type?: string | null
+        }
+        Update: {
+          action_description?: string | null
+          action_type?: string
+          admin_email?: string | null
+          admin_id?: string | null
+          admin_name?: string | null
+          branch?: string | null
+          created_at?: string
+          device_info?: string | null
+          id?: string
+          ip_address?: string | null
+          metadata?: Json | null
+          role?: string | null
+          status?: string
+          target_id?: string | null
+          target_type?: string | null
+        }
+        Relationships: []
+      }
       documents: {
         Row: {
           active: boolean
@@ -233,6 +287,13 @@ export type Database = {
             foreignKeyName: "payments_registration_id_fkey"
             columns: ["registration_id"]
             isOneToOne: false
+            referencedRelation: "code_payment_summary"
+            referencedColumns: ["registration_id"]
+          },
+          {
+            foreignKeyName: "payments_registration_id_fkey"
+            columns: ["registration_id"]
+            isOneToOne: false
             referencedRelation: "registrations"
             referencedColumns: ["id"]
           },
@@ -278,6 +339,7 @@ export type Database = {
           payment_type: string
           phone: string
           quantity: number
+          secure_ticket_token: string | null
           ticket_code: string | null
           ticket_issued: boolean
           total_cost: number
@@ -296,6 +358,7 @@ export type Database = {
           payment_type?: string
           phone: string
           quantity?: number
+          secure_ticket_token?: string | null
           ticket_code?: string | null
           ticket_issued?: boolean
           total_cost?: number
@@ -314,6 +377,7 @@ export type Database = {
           payment_type?: string
           phone?: string
           quantity?: number
+          secure_ticket_token?: string | null
           ticket_code?: string | null
           ticket_issued?: boolean
           total_cost?: number
@@ -427,6 +491,7 @@ export type Database = {
           num_students: number
           payment_method: string
           payment_status: string
+          secure_ticket_token: string | null
           sponsor_code: string | null
           sponsor_email: string | null
           sponsor_name: string
@@ -444,6 +509,7 @@ export type Database = {
           num_students?: number
           payment_method?: string
           payment_status?: string
+          secure_ticket_token?: string | null
           sponsor_code?: string | null
           sponsor_email?: string | null
           sponsor_name: string
@@ -461,6 +527,7 @@ export type Database = {
           num_students?: number
           payment_method?: string
           payment_status?: string
+          secure_ticket_token?: string | null
           sponsor_code?: string | null
           sponsor_email?: string | null
           sponsor_name?: string
@@ -468,6 +535,57 @@ export type Database = {
           verified?: boolean
           verified_at?: string | null
           verified_by?: string | null
+        }
+        Relationships: []
+      }
+      ticket_packages: {
+        Row: {
+          active: boolean
+          capacity: number | null
+          created_at: string
+          description: string | null
+          display_order: number
+          id: string
+          installment_mode: string
+          installments: Json
+          name: string
+          partial_allowed: boolean
+          perks: Json
+          price: number
+          slug: string
+          updated_at: string
+        }
+        Insert: {
+          active?: boolean
+          capacity?: number | null
+          created_at?: string
+          description?: string | null
+          display_order?: number
+          id?: string
+          installment_mode?: string
+          installments?: Json
+          name: string
+          partial_allowed?: boolean
+          perks?: Json
+          price?: number
+          slug: string
+          updated_at?: string
+        }
+        Update: {
+          active?: boolean
+          capacity?: number | null
+          created_at?: string
+          description?: string | null
+          display_order?: number
+          id?: string
+          installment_mode?: string
+          installments?: Json
+          name?: string
+          partial_allowed?: boolean
+          perks?: Json
+          price?: number
+          slug?: string
+          updated_at?: string
         }
         Relationships: []
       }
@@ -494,9 +612,66 @@ export type Database = {
       }
     }
     Views: {
-      [_ in never]: never
+      code_payment_summary: {
+        Row: {
+          balance: number | null
+          created_at: string | null
+          email: string | null
+          last_paid_at: string | null
+          name: string | null
+          package_type: string | null
+          payment_status: string | null
+          phone: string | null
+          quantity: number | null
+          registration_id: string | null
+          secure_ticket_token: string | null
+          ticket_code: string | null
+          ticket_issued: boolean | null
+          total_cost: number | null
+          total_paid: number | null
+          verified_payment_count: number | null
+        }
+        Insert: {
+          balance?: never
+          created_at?: string | null
+          email?: string | null
+          last_paid_at?: never
+          name?: string | null
+          package_type?: string | null
+          payment_status?: string | null
+          phone?: string | null
+          quantity?: number | null
+          registration_id?: string | null
+          secure_ticket_token?: string | null
+          ticket_code?: string | null
+          ticket_issued?: boolean | null
+          total_cost?: number | null
+          total_paid?: number | null
+          verified_payment_count?: never
+        }
+        Update: {
+          balance?: never
+          created_at?: string | null
+          email?: string | null
+          last_paid_at?: never
+          name?: string | null
+          package_type?: string | null
+          payment_status?: string | null
+          phone?: string | null
+          quantity?: number | null
+          registration_id?: string | null
+          secure_ticket_token?: string | null
+          ticket_code?: string | null
+          ticket_issued?: boolean | null
+          total_cost?: number | null
+          total_paid?: number | null
+          verified_payment_count?: never
+        }
+        Relationships: []
+      }
     }
     Functions: {
+      generate_secure_token: { Args: never; Returns: string }
       has_role: {
         Args: {
           _role: Database["public"]["Enums"]["app_role"]
