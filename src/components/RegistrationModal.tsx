@@ -9,11 +9,17 @@ interface Pkg {
   name: string;
   price: number;
   partial: boolean;
+  installments?: number[];
+  installment_mode?: "amount" | "percent";
 }
 
-const partialSchedule: Record<string, number[]> = {
-  individual: [1050, 800, 800],
-  corporate: [1500, 1000, 1000],
+const computeInstallments = (pkg: Pkg): number[] => {
+  const list = pkg.installments || [];
+  if (!list.length) return [];
+  if (pkg.installment_mode === "percent") {
+    return list.map((pct) => Math.round((Number(pct) / 100) * pkg.price));
+  }
+  return list.map((n) => Number(n));
 };
 
 const RegistrationModal = ({ pkg, onClose }: { pkg: Pkg; onClose: () => void }) => {
@@ -24,11 +30,14 @@ const RegistrationModal = ({ pkg, onClose }: { pkg: Pkg; onClose: () => void }) 
   const [quantity, setQuantity] = useState(1);
   const [registrationId, setRegistrationId] = useState<string | null>(null);
   const [ticketCode, setTicketCode] = useState<string | null>(null);
+  const [secureToken, setSecureToken] = useState<string | null>(null);
+
+  const installments = computeInstallments(pkg);
 
   const amount =
     paymentType === "full"
       ? pkg.price * quantity
-      : (partialSchedule[pkg.id]?.[installment] ?? pkg.price) * quantity;
+      : (installments[installment] ?? pkg.price) * quantity;
 
   const totalCost = pkg.price * quantity;
 
@@ -53,7 +62,7 @@ const RegistrationModal = ({ pkg, onClose }: { pkg: Pkg; onClose: () => void }) 
         payment_type: paymentType,
         total_cost: totalCost,
       })
-      .select("id, ticket_code")
+      .select("id, ticket_code, secure_ticket_token")
       .single();
     if (error) {
       toast.error("Failed to save registration: " + error.message);
@@ -61,6 +70,7 @@ const RegistrationModal = ({ pkg, onClose }: { pkg: Pkg; onClose: () => void }) 
     }
     setRegistrationId(data.id);
     setTicketCode(data.ticket_code);
+    setSecureToken((data as any).secure_ticket_token);
     if (data.ticket_code) {
       toast.success(`Booking code: ${data.ticket_code} — keep it to track your payments`);
     }
@@ -177,7 +187,7 @@ const RegistrationModal = ({ pkg, onClose }: { pkg: Pkg; onClose: () => void }) 
               {pkg.partial && (
                 <>
                   <p className="text-sm text-muted-foreground text-center">or pay in installments:</p>
-                  {partialSchedule[pkg.id]?.map((amt, i) => (
+                  {installments.map((amt, i) => (
                     <button
                       key={i}
                       onClick={() => { setPaymentType("partial"); setInstallment(i); setStep("mpesa"); }}
