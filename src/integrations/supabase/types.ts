@@ -326,6 +326,194 @@ export type Database = {
         }
         Relationships: []
       }
+      promo_redemptions: {
+        Row: {
+          code: string
+          created_at: string
+          discount_amount: number | null
+          email: string | null
+          id: string
+          phone: string | null
+          promotion_id: string | null
+          reason: string | null
+          registration_id: string | null
+          status: string
+        }
+        Insert: {
+          code: string
+          created_at?: string
+          discount_amount?: number | null
+          email?: string | null
+          id?: string
+          phone?: string | null
+          promotion_id?: string | null
+          reason?: string | null
+          registration_id?: string | null
+          status?: string
+        }
+        Update: {
+          code?: string
+          created_at?: string
+          discount_amount?: number | null
+          email?: string | null
+          id?: string
+          phone?: string | null
+          promotion_id?: string | null
+          reason?: string | null
+          registration_id?: string | null
+          status?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "promo_redemptions_promotion_id_fkey"
+            columns: ["promotion_id"]
+            isOneToOne: false
+            referencedRelation: "promotions"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      promotions: {
+        Row: {
+          code: string
+          created_at: string
+          created_by: string | null
+          deleted_at: string | null
+          description: string | null
+          discount_type: string
+          discount_value: number
+          eligible_users: string
+          expires_at: string
+          id: string
+          is_active: boolean
+          max_uses: number | null
+          segment_tag: string | null
+          start_at: string
+          title: string
+          updated_at: string
+          updated_by: string | null
+          used_count: number
+        }
+        Insert: {
+          code: string
+          created_at?: string
+          created_by?: string | null
+          deleted_at?: string | null
+          description?: string | null
+          discount_type: string
+          discount_value: number
+          eligible_users?: string
+          expires_at: string
+          id?: string
+          is_active?: boolean
+          max_uses?: number | null
+          segment_tag?: string | null
+          start_at?: string
+          title: string
+          updated_at?: string
+          updated_by?: string | null
+          used_count?: number
+        }
+        Update: {
+          code?: string
+          created_at?: string
+          created_by?: string | null
+          deleted_at?: string | null
+          description?: string | null
+          discount_type?: string
+          discount_value?: number
+          eligible_users?: string
+          expires_at?: string
+          id?: string
+          is_active?: boolean
+          max_uses?: number | null
+          segment_tag?: string | null
+          start_at?: string
+          title?: string
+          updated_at?: string
+          updated_by?: string | null
+          used_count?: number
+        }
+        Relationships: []
+      }
+      referral_usage: {
+        Row: {
+          created_at: string
+          device_fingerprint: string | null
+          id: string
+          ip_address: string | null
+          reason: string | null
+          referral_code: string
+          referred_email: string | null
+          referred_user_id: string | null
+          referrer_user_id: string | null
+          status: string
+        }
+        Insert: {
+          created_at?: string
+          device_fingerprint?: string | null
+          id?: string
+          ip_address?: string | null
+          reason?: string | null
+          referral_code: string
+          referred_email?: string | null
+          referred_user_id?: string | null
+          referrer_user_id?: string | null
+          status?: string
+        }
+        Update: {
+          created_at?: string
+          device_fingerprint?: string | null
+          id?: string
+          ip_address?: string | null
+          reason?: string | null
+          referral_code?: string
+          referred_email?: string | null
+          referred_user_id?: string | null
+          referrer_user_id?: string | null
+          status?: string
+        }
+        Relationships: []
+      }
+      referrals: {
+        Row: {
+          created_at: string
+          id: string
+          is_active: boolean
+          max_referrals: number | null
+          referral_code: string
+          referrer_email: string | null
+          referrer_user_id: string | null
+          reward_type: string
+          reward_value: number
+          total_referrals: number
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          is_active?: boolean
+          max_referrals?: number | null
+          referral_code: string
+          referrer_email?: string | null
+          referrer_user_id?: string | null
+          reward_type?: string
+          reward_value?: number
+          total_referrals?: number
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          is_active?: boolean
+          max_referrals?: number | null
+          referral_code?: string
+          referrer_email?: string | null
+          referrer_user_id?: string | null
+          reward_type?: string
+          reward_value?: number
+          total_referrals?: number
+        }
+        Relationships: []
+      }
       registrations: {
         Row: {
           created_at: string
@@ -672,12 +860,45 @@ export type Database = {
     }
     Functions: {
       generate_secure_token: { Args: never; Returns: string }
+      get_active_promotion: {
+        Args: never
+        Returns: {
+          code: string
+          created_at: string
+          created_by: string | null
+          deleted_at: string | null
+          description: string | null
+          discount_type: string
+          discount_value: number
+          eligible_users: string
+          expires_at: string
+          id: string
+          is_active: boolean
+          max_uses: number | null
+          segment_tag: string | null
+          start_at: string
+          title: string
+          updated_at: string
+          updated_by: string | null
+          used_count: number
+        }[]
+        SetofOptions: {
+          from: "*"
+          to: "promotions"
+          isOneToOne: false
+          isSetofReturn: true
+        }
+      }
       has_role: {
         Args: {
           _role: Database["public"]["Enums"]["app_role"]
           _user_id: string
         }
         Returns: boolean
+      }
+      validate_promo_code: {
+        Args: { _code: string; _email?: string }
+        Returns: Json
       }
     }
     Enums: {
