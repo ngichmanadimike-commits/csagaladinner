@@ -19,6 +19,7 @@ import {
   Ticket,
   Activity,
   Package,
+  Tag,
 } from "lucide-react";
 import { useState } from "react";
 
@@ -28,6 +29,7 @@ const navItems: { label: string; icon: any; path: string; superOnly?: boolean }[
   { label: "Payments", icon: CreditCard, path: "/admin/payments" },
   { label: "Booking Codes", icon: Ticket, path: "/admin/codes" },
   { label: "Ticket Packages", icon: Package, path: "/admin/packages" },
+  { label: "Promotions", icon: Tag, path: "/admin/promotions" },
   { label: "Sponsorships", icon: GraduationCap, path: "/admin/sponsorships" },
   { label: "Partner Inquiries", icon: Mail, path: "/admin/inquiries" },
   { label: "Partners", icon: Handshake, path: "/admin/partners" },
