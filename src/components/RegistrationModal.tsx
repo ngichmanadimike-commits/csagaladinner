@@ -1,8 +1,9 @@
 import { useState } from "react";
-import { X } from "lucide-react";
+import { X, Tag, CheckCircle2 } from "lucide-react";
 import MpesaPayment from "./MpesaPayment";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
+import { applyDiscount, formatDiscount } from "@/hooks/useActivePromotion";
 
 interface Pkg {
   id: string;
@@ -23,7 +24,7 @@ const computeInstallments = (pkg: Pkg): number[] => {
 };
 
 const RegistrationModal = ({ pkg, onClose }: { pkg: Pkg; onClose: () => void }) => {
-  const [step, setStep] = useState<"form" | "payment-choice" | "mpesa">("form");
+  const [step, setStep] = useState<"start" | "form" | "payment-choice" | "mpesa">("start");
   const [form, setForm] = useState({ name: "", email: "", phone: "", institution: "" });
   const [paymentType, setPaymentType] = useState<"full" | "partial">("full");
   const [installment, setInstallment] = useState(0);
@@ -31,15 +32,62 @@ const RegistrationModal = ({ pkg, onClose }: { pkg: Pkg; onClose: () => void }) 
   const [registrationId, setRegistrationId] = useState<string | null>(null);
   const [ticketCode, setTicketCode] = useState<string | null>(null);
   const [secureToken, setSecureToken] = useState<string | null>(null);
+  const [existingCodeInput, setExistingCodeInput] = useState("");
+  const [lookupLoading, setLookupLoading] = useState(false);
+  const [existingReg, setExistingReg] = useState<any>(null);
+  const [promoInput, setPromoInput] = useState("");
+  const [promoApplied, setPromoApplied] = useState<{ id: string; code: string; discount_type: "percentage"|"fixed"; discount_value: number; title?: string } | null>(null);
+  const [promoChecking, setPromoChecking] = useState(false);
 
   const installments = computeInstallments(pkg);
 
-  const amount =
+  const baseAmount =
     paymentType === "full"
       ? pkg.price * quantity
       : (installments[installment] ?? pkg.price) * quantity;
-
+  const amount = promoApplied ? applyDiscount(baseAmount, promoApplied) : baseAmount;
   const totalCost = pkg.price * quantity;
+
+  const lookupExisting = async () => {
+    const code = existingCodeInput.trim().toUpperCase();
+    if (!code) return;
+    setLookupLoading(true);
+    const { data, error } = await supabase
+      .from("registrations")
+      .select("id, name, email, phone, institution, total_cost, total_paid, package_type, quantity, ticket_code, secure_ticket_token")
+      .eq("ticket_code", code)
+      .maybeSingle();
+    setLookupLoading(false);
+    if (error || !data) {
+      toast.error("Booking code not found");
+      return;
+    }
+    setExistingReg(data);
+    setRegistrationId(data.id);
+    setTicketCode(data.ticket_code);
+    setSecureToken((data as any).secure_ticket_token);
+    setForm({ name: data.name, email: data.email, phone: data.phone, institution: data.institution || "" });
+    setQuantity(data.quantity || 1);
+    setStep("payment-choice");
+    toast.success("Code verified — payments will cumulate to this booking");
+  };
+
+  const validatePromo = async () => {
+    const code = promoInput.trim();
+    if (!code) return;
+    setPromoChecking(true);
+    const { data, error } = await supabase.rpc("validate_promo_code", { _code: code, _email: form.email || null });
+    setPromoChecking(false);
+    const res = data as any;
+    if (error || !res?.valid) {
+      setPromoApplied(null);
+      toast.error(res?.reason ? `Promo rejected: ${res.reason.replace(/_/g," ")}` : "Invalid promo code");
+      await supabase.from("promo_redemptions").insert({ code: code.toUpperCase(), email: form.email, status: "rejected", reason: res?.reason || "error" });
+      return;
+    }
+    setPromoApplied({ id: res.id, code: res.code, discount_type: res.discount_type, discount_value: Number(res.discount_value), title: res.title });
+    toast.success(`${res.title} applied — ${formatDiscount({ discount_type: res.discount_type, discount_value: Number(res.discount_value) })}`);
+  };
 
   const ensureRegistration = async (): Promise<string | null> => {
     if (registrationId) return registrationId;
@@ -99,6 +147,17 @@ const RegistrationModal = ({ pkg, onClose }: { pkg: Pkg; onClose: () => void }) 
       toast.error("Failed to save payment: " + error.message);
       throw error;
     }
+    if (promoApplied) {
+      await supabase.from("promo_redemptions").insert({
+        promotion_id: promoApplied.id,
+        code: promoApplied.code,
+        registration_id: regId,
+        email: form.email,
+        phone: info.phone,
+        status: "applied",
+        discount_amount: baseAmount - amount,
+      });
+    }
     toast.success("Payment recorded — pending verification");
   };
 
@@ -149,6 +208,36 @@ const RegistrationModal = ({ pkg, onClose }: { pkg: Pkg; onClose: () => void }) 
           </span>
         </div>
 
+        {step === "start" && (
+          <div className="space-y-4">
+            <p className="text-sm text-muted-foreground">Are you new, or continuing an existing booking?</p>
+            <button
+              onClick={() => setStep("form")}
+              className="w-full py-3 rounded-lg bg-primary text-primary-foreground font-bold"
+            >
+              New booking
+            </button>
+            <div className="space-y-2 pt-2 border-t border-border">
+              <p className="text-sm text-muted-foreground">Continuing? Enter your booking code so all payments cumulate to one ticket.</p>
+              <div className="flex gap-2">
+                <input
+                  value={existingCodeInput}
+                  onChange={(e) => setExistingCodeInput(e.target.value.toUpperCase())}
+                  placeholder="CSA-XXXXXX"
+                  className="flex-1 px-3 py-2.5 rounded-lg bg-muted border border-border text-sm font-mono"
+                />
+                <button
+                  onClick={lookupExisting}
+                  disabled={!existingCodeInput || lookupLoading}
+                  className="px-4 rounded-lg border border-primary text-primary text-sm font-semibold disabled:opacity-50"
+                >
+                  {lookupLoading ? "…" : "Continue"}
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
         {step === "form" && (
           <form onSubmit={handleSubmit} className="space-y-4">
             {(["name", "email", "phone", "institution"] as const).map((field) => (
@@ -176,12 +265,43 @@ const RegistrationModal = ({ pkg, onClose }: { pkg: Pkg; onClose: () => void }) 
 
         {step === "payment-choice" && (
           <div className="space-y-4">
+            {existingReg && (
+              <div className="p-3 rounded-lg bg-primary/10 border border-primary/30 text-sm">
+                <p className="font-semibold text-primary flex items-center gap-1"><CheckCircle2 size={14}/> Booking found</p>
+                <p className="text-muted-foreground text-xs mt-1">Paid so far: KES {Number(existingReg.total_paid).toLocaleString()} of KES {Number(existingReg.total_cost).toLocaleString()}</p>
+              </div>
+            )}
+
+            {/* Promo code */}
+            <div className="rounded-lg border border-border p-3 space-y-2">
+              <label className="text-xs uppercase tracking-wide text-muted-foreground flex items-center gap-1"><Tag size={12}/> Promo code (optional)</label>
+              {promoApplied ? (
+                <div className="flex items-center justify-between text-sm">
+                  <span className="text-primary font-semibold">{promoApplied.code} — {formatDiscount(promoApplied)}</span>
+                  <button onClick={() => setPromoApplied(null)} className="text-xs text-muted-foreground underline">Remove</button>
+                </div>
+              ) : (
+                <div className="flex gap-2">
+                  <input
+                    value={promoInput}
+                    onChange={(e) => setPromoInput(e.target.value.toUpperCase())}
+                    placeholder="SAVE20"
+                    className="flex-1 px-3 py-2 rounded-lg bg-muted border border-border text-sm font-mono"
+                  />
+                  <button onClick={validatePromo} disabled={!promoInput || promoChecking} className="px-3 rounded-lg border border-primary text-primary text-sm font-semibold disabled:opacity-50">
+                    {promoChecking ? "…" : "Apply"}
+                  </button>
+                </div>
+              )}
+            </div>
+
             <div className="space-y-3">
               <button
                 onClick={() => { setPaymentType("full"); setStep("mpesa"); }}
                 className="w-full py-3 rounded-lg bg-primary text-primary-foreground font-bold hover:scale-[1.02] transition-transform"
               >
-                Full Payment – KES {(pkg.price * quantity).toLocaleString()}
+                Full Payment – KES {(promoApplied ? applyDiscount(pkg.price * quantity, promoApplied) : pkg.price * quantity).toLocaleString()}
+                {promoApplied && <span className="block text-xs opacity-80 line-through">KES {(pkg.price * quantity).toLocaleString()}</span>}
               </button>
 
               {pkg.partial && (
@@ -193,7 +313,7 @@ const RegistrationModal = ({ pkg, onClose }: { pkg: Pkg; onClose: () => void }) 
                       onClick={() => { setPaymentType("partial"); setInstallment(i); setStep("mpesa"); }}
                       className="w-full py-3 rounded-lg border border-border text-foreground font-semibold hover:border-primary hover:text-primary transition-all"
                     >
-                      Installment {i + 1} – KES {(amt * quantity).toLocaleString()}
+                      Installment {i + 1} – KES {(promoApplied ? applyDiscount(amt * quantity, promoApplied) : amt * quantity).toLocaleString()}
                     </button>
                   ))}
                 </>
