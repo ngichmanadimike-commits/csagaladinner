@@ -3,6 +3,8 @@ import { supabase } from "@/integrations/supabase/client";
 import { Search, Loader2, CheckCircle, Clock, AlertCircle } from "lucide-react";
 import { toast } from "sonner";
 import { maskName, maskEmail, maskTicketToken } from "@/lib/mask";
+import { downloadTicketPdf } from "@/lib/generateTicket";
+import { Download } from "lucide-react";
 
 interface RegistrationResult {
   id: string;
@@ -158,11 +160,26 @@ const PaymentStatusLookup = () => {
                     <>
                       <p className="text-xs text-muted-foreground mt-2">Your Ticket (fully paid)</p>
                       <p className="font-mono text-xs break-all text-emerald-400">{r.secure_ticket_token}</p>
-                      <a
-                        href={`data:text/plain;charset=utf-8,${encodeURIComponent(`CSA Gala Dinner 2026\nName: ${r.name}\nBooking Code: ${r.ticket_code}\nTicket: ${r.secure_ticket_token}\nStatus: PAID`)}`}
-                        download={`csa-ticket-${r.ticket_code}.txt`}
-                        className="inline-block mt-2 px-3 py-1 rounded bg-primary/20 text-primary text-xs font-semibold hover:bg-primary/30"
-                      >Download ticket</a>
+                      <button
+                        onClick={async () => {
+                          try {
+                            await downloadTicketPdf({
+                              name: r.name,
+                              bookingCode: r.ticket_code || "",
+                              ticketType: r.package_type,
+                              amount: r.total_paid,
+                              status: "PAID",
+                              secureToken: r.secure_ticket_token || "",
+                              ticketNumber: r.ticket_code || "",
+                            });
+                          } catch (e: any) {
+                            toast.error("Failed to generate ticket: " + (e?.message || "unknown"));
+                          }
+                        }}
+                        className="inline-flex items-center gap-1.5 mt-2 px-3 py-1.5 rounded bg-primary text-primary-foreground text-xs font-semibold hover:opacity-90"
+                      >
+                        <Download size={12} /> Download Ticket (PDF)
+                      </button>
                     </>
                   ) : r.payment_status === "partial" ? (
                     <>
