@@ -20,6 +20,7 @@ import {
   Activity,
   Package,
   Tag,
+  ShieldAlert,
 } from "lucide-react";
 import { useState } from "react";
 
@@ -41,6 +42,7 @@ const navItems: { label: string; icon: any; path: string; superOnly?: boolean }[
   { label: "Site Settings", icon: Settings, path: "/admin/settings" },
   { label: "Users & Roles", icon: Shield, path: "/admin/users" },
   { label: "Admin Activity", icon: Activity, path: "/admin/activity", superOnly: true },
+  { label: "Danger Zone", icon: ShieldAlert, path: "/admin/danger-zone", superOnly: true },
 ];
 
 const AdminLayout = ({ children }: { children: ReactNode }) => {

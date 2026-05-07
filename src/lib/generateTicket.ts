@@ -10,9 +10,11 @@ export interface TicketData {
   status: string;
   secureToken: string;
   ticketNumber?: string;
+  eventName?: string;
   eventDate?: string;
   venue?: string;
   time?: string;
+  contact?: string;
 }
 
 const loadImage = (src: string) =>
@@ -43,52 +45,74 @@ export async function generateTicketPdf(data: TicketData): Promise<Blob> {
   const W = canvas.width;
   const H = canvas.height;
 
-  // Right stub starts ~ 67% across in the supplied design
-  const stubX = W * 0.685;
+  // Right stub layout: the cream "ADMIT" panel begins ~70% across the width
+  // and the value column sits to the right of the icons (~78% across).
+  const stubLabelX = W * 0.78;
 
-  // Helper to draw a value next to the label icon row
-  const drawValue = (text: string, y: number, color = "#1a1a1a", size = 22, bold = true) => {
-    ctx.fillStyle = color;
-    ctx.font = `${bold ? "bold " : ""}${size}px Helvetica, Arial, sans-serif`;
-    ctx.fillText(text, stubX + 70, y);
-  };
-
-  // Approximate Y positions of the 5 stub rows in the design
+  // Y positions of the 5 stub value rows in the supplied design
   const rows = {
-    name: H * 0.255,
-    code: H * 0.345,
-    type: H * 0.435,
-    status: H * 0.525,
-    amount: H * 0.615,
+    name: H * 0.27,
+    code: H * 0.39,
+    type: H * 0.51,
+    status: H * 0.63,
+    amount: H * 0.75,
   };
 
-  drawValue(data.name, rows.name);
-  drawValue(data.bookingCode, rows.code, "#1a1a1a", 20);
-  drawValue(data.ticketType, rows.type);
-  drawValue(
-    data.status.toUpperCase(),
-    rows.status,
-    data.status.toLowerCase() === "paid" ? "#1f7a1f" : "#b8860b"
-  );
-  drawValue(`KSH ${Number(data.amount).toLocaleString()}/=`, rows.amount);
+  // Draw a value with auto shrink-to-fit so long names still fit.
+  const drawFitted = (text: string, x: number, y: number, maxWidth: number, color = "#0b1d3a", baseSize = 28) => {
+    ctx.fillStyle = color;
+    let size = baseSize;
+    ctx.font = `bold ${size}px Helvetica, Arial, sans-serif`;
+    while (ctx.measureText(text).width > maxWidth && size > 12) {
+      size -= 1;
+      ctx.font = `bold ${size}px Helvetica, Arial, sans-serif`;
+    }
+    ctx.fillText(text, x, y);
+  };
 
-  // QR code in the bottom-left of the stub
+  const stubMaxW = W * 0.18; // value column width on stub
+  drawFitted(data.name, stubLabelX, rows.name, stubMaxW);
+  drawFitted(data.bookingCode, stubLabelX, rows.code, stubMaxW, "#0b1d3a", 26);
+  drawFitted(data.ticketType, stubLabelX, rows.type, stubMaxW);
+  drawFitted(
+    data.status.toUpperCase(),
+    stubLabelX,
+    rows.status,
+    stubMaxW,
+    data.status.toLowerCase() === "paid" ? "#1b7a1b" : "#b8860b"
+  );
+  drawFitted(`KSH ${Number(data.amount).toLocaleString()}/=`, stubLabelX, rows.amount, stubMaxW);
+
+  // Ticket type banner on the main (left) panel — gold ribbon area
+  ctx.fillStyle = "#0b1d3a";
+  let bannerSize = 42;
+  ctx.font = `bold ${bannerSize}px Helvetica, Arial, sans-serif`;
+  const bannerMax = W * 0.35;
+  while (ctx.measureText(data.ticketType.toUpperCase()).width > bannerMax && bannerSize > 18) {
+    bannerSize -= 1;
+    ctx.font = `bold ${bannerSize}px Helvetica, Arial, sans-serif`;
+  }
+  ctx.textAlign = "center";
+  ctx.fillText(data.ticketType.toUpperCase(), W * 0.46, H * 0.78);
+  ctx.textAlign = "start";
+
+  // Ticket number box (bottom-left of main panel)
+  if (data.ticketNumber) {
+    ctx.fillStyle = "#0b1d3a";
+    ctx.font = "bold 26px Helvetica, Arial, sans-serif";
+    ctx.fillText(data.ticketNumber, W * 0.27, H * 0.91);
+  }
+
+  // QR code in the SCAN area at the bottom-right of the stub
   const qrPayload = JSON.stringify({
     code: data.bookingCode,
     token: data.secureToken,
     name: data.name,
   });
-  const qrDataUrl = await QRCode.toDataURL(qrPayload, { margin: 1, width: 240 });
+  const qrDataUrl = await QRCode.toDataURL(qrPayload, { margin: 1, width: 320 });
   const qrImg = await loadImage(qrDataUrl);
-  const qrSize = H * 0.18;
-  ctx.drawImage(qrImg, stubX + 30, H * 0.7, qrSize, qrSize);
-
-  // Bottom-left ticket number (under the date/venue column on main panel)
-  if (data.ticketNumber) {
-    ctx.fillStyle = "#1a1a1a";
-    ctx.font = "bold 22px Helvetica, Arial, sans-serif";
-    ctx.fillText(data.ticketNumber, W * 0.21, H * 0.86);
-  }
+  const qrSize = H * 0.16;
+  ctx.drawImage(qrImg, W * 0.86, H * 0.83, qrSize, qrSize);
 
   // Convert to PDF (landscape, sized to image aspect ratio)
   const aspect = W / H;

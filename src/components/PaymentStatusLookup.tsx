@@ -159,27 +159,8 @@ const PaymentStatusLookup = () => {
                   {r.payment_status === "paid" && r.secure_ticket_token ? (
                     <>
                       <p className="text-xs text-muted-foreground mt-2">Your Ticket (fully paid)</p>
-                      <p className="font-mono text-xs break-all text-emerald-400">{r.secure_ticket_token}</p>
-                      <button
-                        onClick={async () => {
-                          try {
-                            await downloadTicketPdf({
-                              name: r.name,
-                              bookingCode: r.ticket_code || "",
-                              ticketType: r.package_type,
-                              amount: r.total_paid,
-                              status: "PAID",
-                              secureToken: r.secure_ticket_token || "",
-                              ticketNumber: r.ticket_code || "",
-                            });
-                          } catch (e: any) {
-                            toast.error("Failed to generate ticket: " + (e?.message || "unknown"));
-                          }
-                        }}
-                        className="inline-flex items-center gap-1.5 mt-2 px-3 py-1.5 rounded bg-primary text-primary-foreground text-xs font-semibold hover:opacity-90"
-                      >
-                        <Download size={12} /> Download Ticket (PDF)
-                      </button>
+                      <p className="font-mono text-xs break-all text-emerald-400">{maskTicketToken(r.secure_ticket_token)}</p>
+                      <SecureDownload reg={r} />
                     </>
                   ) : r.payment_status === "partial" ? (
                     <>
@@ -225,3 +206,80 @@ const PaymentStatusLookup = () => {
 };
 
 export default PaymentStatusLookup;
+
+function SecureDownload({ reg }: { reg: RegistrationResult }) {
+  const [open, setOpen] = useState(false);
+  const [code, setCode] = useState("");
+  const [busy, setBusy] = useState(false);
+
+  const handle = async () => {
+    const entered = code.trim().toUpperCase();
+    if (!entered) {
+      toast.error("Enter your booking code");
+      return;
+    }
+    if (entered !== (reg.ticket_code || "").toUpperCase()) {
+      toast.error("Invalid Booking Code. Please try again.");
+      return;
+    }
+    setBusy(true);
+    try {
+      await downloadTicketPdf({
+        name: reg.name,
+        bookingCode: reg.ticket_code || "",
+        ticketType: reg.package_type,
+        amount: reg.total_paid,
+        status: "PAID",
+        secureToken: reg.secure_ticket_token || "",
+        ticketNumber: reg.ticket_code || "",
+        eventName: "CSA Gala Dinner 2026",
+      });
+      toast.success("Ticket downloaded");
+      setOpen(false);
+      setCode("");
+    } catch (e: any) {
+      toast.error("Failed to generate ticket: " + (e?.message || "unknown"));
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  if (!open) {
+    return (
+      <button
+        onClick={() => setOpen(true)}
+        className="inline-flex items-center gap-1.5 mt-2 px-3 py-1.5 rounded bg-primary text-primary-foreground text-xs font-semibold hover:opacity-90"
+      >
+        <Download size={12} /> Download Ticket (PDF)
+      </button>
+    );
+  }
+
+  return (
+    <div className="mt-2 p-3 rounded-lg border border-primary/40 bg-primary/5 space-y-2">
+      <p className="text-xs text-muted-foreground">Enter your booking code to download:</p>
+      <div className="flex gap-2">
+        <input
+          autoFocus
+          value={code}
+          onChange={(e) => setCode(e.target.value.toUpperCase())}
+          placeholder="CSA-XXXXXX"
+          className="flex-1 px-3 py-2 rounded-md bg-muted border border-border text-sm font-mono"
+        />
+        <button
+          onClick={handle}
+          disabled={busy}
+          className="px-3 rounded-md bg-primary text-primary-foreground text-xs font-semibold disabled:opacity-50"
+        >
+          {busy ? "…" : "Verify & Download"}
+        </button>
+        <button
+          onClick={() => { setOpen(false); setCode(""); }}
+          className="px-2 rounded-md border border-border text-xs"
+        >
+          Cancel
+        </button>
+      </div>
+    </div>
+  );
+}

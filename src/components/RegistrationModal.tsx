@@ -45,7 +45,11 @@ const RegistrationModal = ({ pkg, onClose }: { pkg: Pkg; onClose: () => void }) 
     paymentType === "full"
       ? pkg.price * quantity
       : (installments[installment] ?? pkg.price) * quantity;
-  const amount = promoApplied ? applyDiscount(baseAmount, promoApplied) : baseAmount;
+  // Promo only applies to full payments or the FIRST installment of a brand-new booking.
+  const promoEligible =
+    paymentType === "full" ||
+    (paymentType === "partial" && installment === 0 && Number(existingReg?.total_paid || 0) === 0);
+  const amount = promoApplied && promoEligible ? applyDiscount(baseAmount, promoApplied) : baseAmount;
   const totalCost = pkg.price * quantity;
 
   const lookupExisting = async () => {
@@ -76,7 +80,17 @@ const RegistrationModal = ({ pkg, onClose }: { pkg: Pkg; onClose: () => void }) 
     const code = promoInput.trim();
     if (!code) return;
     setPromoChecking(true);
-    const { data, error } = await supabase.rpc("validate_promo_code", { _code: code, _email: form.email || null });
+    // Promo only valid on full payment OR first installment of a NEW booking
+    const isFirstInstallment =
+      paymentType === "full" ||
+      (paymentType === "partial" && installment === 0 && !existingReg && Number(existingReg?.total_paid || 0) === 0);
+    const { data, error } = await supabase.rpc("validate_promo_code", {
+      _code: code,
+      _email: form.email || null,
+      _phone: form.phone || null,
+      _registration_id: registrationId,
+      _is_first_installment: isFirstInstallment,
+    });
     setPromoChecking(false);
     const res = data as any;
     if (error || !res?.valid) {
@@ -147,7 +161,7 @@ const RegistrationModal = ({ pkg, onClose }: { pkg: Pkg; onClose: () => void }) 
       toast.error("Failed to save payment: " + error.message);
       throw error;
     }
-    if (promoApplied) {
+    if (promoApplied && promoEligible) {
       await supabase.from("promo_redemptions").insert({
         promotion_id: promoApplied.id,
         code: promoApplied.code,
