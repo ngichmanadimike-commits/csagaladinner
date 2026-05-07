@@ -859,6 +859,10 @@ export type Database = {
       }
     }
     Functions: {
+      admin_wipe_data: {
+        Args: { _confirm: string; _scope: string }
+        Returns: Json
+      }
       generate_secure_token: { Args: never; Returns: string }
       get_active_promotion: {
         Args: never
@@ -896,10 +900,18 @@ export type Database = {
         }
         Returns: boolean
       }
-      validate_promo_code: {
-        Args: { _code: string; _email?: string }
-        Returns: Json
-      }
+      validate_promo_code:
+        | { Args: { _code: string; _email?: string }; Returns: Json }
+        | {
+            Args: {
+              _code: string
+              _email?: string
+              _is_first_installment?: boolean
+              _phone?: string
+              _registration_id?: string
+            }
+            Returns: Json
+          }
     }
     Enums: {
       app_role: "admin" | "user" | "super_admin"
