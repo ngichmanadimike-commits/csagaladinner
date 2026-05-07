@@ -161,7 +161,7 @@ const RegistrationModal = ({ pkg, onClose }: { pkg: Pkg; onClose: () => void }) 
       toast.error("Failed to save payment: " + error.message);
       throw error;
     }
-    if (promoApplied) {
+    if (promoApplied && promoEligible) {
       await supabase.from("promo_redemptions").insert({
         promotion_id: promoApplied.id,
         code: promoApplied.code,
