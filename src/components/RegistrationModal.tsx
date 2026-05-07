@@ -76,7 +76,17 @@ const RegistrationModal = ({ pkg, onClose }: { pkg: Pkg; onClose: () => void }) 
     const code = promoInput.trim();
     if (!code) return;
     setPromoChecking(true);
-    const { data, error } = await supabase.rpc("validate_promo_code", { _code: code, _email: form.email || null });
+    // Promo only valid on full payment OR first installment of a NEW booking
+    const isFirstInstallment =
+      paymentType === "full" ||
+      (paymentType === "partial" && installment === 0 && !existingReg && Number(existingReg?.total_paid || 0) === 0);
+    const { data, error } = await supabase.rpc("validate_promo_code", {
+      _code: code,
+      _email: form.email || null,
+      _phone: form.phone || null,
+      _registration_id: registrationId,
+      _is_first_installment: isFirstInstallment,
+    });
     setPromoChecking(false);
     const res = data as any;
     if (error || !res?.valid) {
