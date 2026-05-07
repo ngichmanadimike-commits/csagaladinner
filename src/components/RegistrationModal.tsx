@@ -45,7 +45,11 @@ const RegistrationModal = ({ pkg, onClose }: { pkg: Pkg; onClose: () => void }) 
     paymentType === "full"
       ? pkg.price * quantity
       : (installments[installment] ?? pkg.price) * quantity;
-  const amount = promoApplied ? applyDiscount(baseAmount, promoApplied) : baseAmount;
+  // Promo only applies to full payments or the FIRST installment of a brand-new booking.
+  const promoEligible =
+    paymentType === "full" ||
+    (paymentType === "partial" && installment === 0 && Number(existingReg?.total_paid || 0) === 0);
+  const amount = promoApplied && promoEligible ? applyDiscount(baseAmount, promoApplied) : baseAmount;
   const totalCost = pkg.price * quantity;
 
   const lookupExisting = async () => {
