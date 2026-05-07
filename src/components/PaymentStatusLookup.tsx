@@ -159,27 +159,8 @@ const PaymentStatusLookup = () => {
                   {r.payment_status === "paid" && r.secure_ticket_token ? (
                     <>
                       <p className="text-xs text-muted-foreground mt-2">Your Ticket (fully paid)</p>
-                      <p className="font-mono text-xs break-all text-emerald-400">{r.secure_ticket_token}</p>
-                      <button
-                        onClick={async () => {
-                          try {
-                            await downloadTicketPdf({
-                              name: r.name,
-                              bookingCode: r.ticket_code || "",
-                              ticketType: r.package_type,
-                              amount: r.total_paid,
-                              status: "PAID",
-                              secureToken: r.secure_ticket_token || "",
-                              ticketNumber: r.ticket_code || "",
-                            });
-                          } catch (e: any) {
-                            toast.error("Failed to generate ticket: " + (e?.message || "unknown"));
-                          }
-                        }}
-                        className="inline-flex items-center gap-1.5 mt-2 px-3 py-1.5 rounded bg-primary text-primary-foreground text-xs font-semibold hover:opacity-90"
-                      >
-                        <Download size={12} /> Download Ticket (PDF)
-                      </button>
+                      <p className="font-mono text-xs break-all text-emerald-400">{maskTicketToken(r.secure_ticket_token)}</p>
+                      <SecureDownload reg={r} />
                     </>
                   ) : r.payment_status === "partial" ? (
                     <>
