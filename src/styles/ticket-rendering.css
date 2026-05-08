@@ -1,0 +1,313 @@
+/**
+ * Ticket Rendering CSS
+ * Pixel-perfect responsive styling for ticket generation
+ */
+
+/* Ticket Container */
+.ticket-container {
+  position: relative;
+  width: 800px;
+  height: 400px;
+  background: white;
+  border: 1px solid #e5e7eb;
+  border-radius: 8px;
+  overflow: hidden;
+  box-shadow: 0 10px 25px rgba(0, 0, 0, 0.1);
+  print-color-adjust: exact;
+  -webkit-print-color-adjust: exact;
+}
+
+/* Responsive Container */
+@media (max-width: 1024px) {
+  .ticket-container {
+    width: 100%;
+    max-width: 800px;
+    height: auto;
+    aspect-ratio: 2/1;
+  }
+}
+
+@media (max-width: 768px) {
+  .ticket-container {
+    width: 100%;
+    height: auto;
+    aspect-ratio: 1/0.6;
+  }
+}
+
+@media (max-width: 480px) {
+  .ticket-container {
+    width: 100%;
+    height: auto;
+    aspect-ratio: 1/0.7;
+  }
+}
+
+/* Field Styles */
+.ticket-field {
+  position: absolute;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  margin: 0;
+  padding: 4px 8px;
+  box-sizing: border-box;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue',
+    Arial, sans-serif;
+}
+
+/* Member Full Name */
+.ticket-field-memberFullName {
+  left: 50px;
+  top: 80px;
+  width: 300px;
+  height: 40px;
+  font-size: 18px;
+  font-weight: bold;
+  text-align: left;
+  line-height: 1.2;
+  color: #1f2937;
+}
+
+/* Booking Code */
+.ticket-field-bookingCode {
+  left: 50px;
+  top: 130px;
+  width: 200px;
+  height: 30px;
+  font-size: 14px;
+  font-weight: 600;
+  text-align: left;
+  font-family: 'Courier New', monospace;
+  letter-spacing: 1px;
+  color: #374151;
+}
+
+/* Ticket Type */
+.ticket-field-ticketType {
+  left: 300px;
+  top: 130px;
+  width: 150px;
+  height: 30px;
+  font-size: 12px;
+  text-align: center;
+  color: #666;
+  text-transform: uppercase;
+}
+
+/* Payment Status */
+.ticket-field-paymentStatus {
+  left: 50px;
+  top: 170px;
+  width: 150px;
+  height: 25px;
+  font-size: 11px;
+  text-align: left;
+  color: #059669;
+  font-weight: 600;
+}
+
+.ticket-field-paymentStatus.pending {
+  color: #f59e0b;
+}
+
+.ticket-field-paymentStatus.failed {
+  color: #dc2626;
+}
+
+/* Amount Paid */
+.ticket-field-amountPaid {
+  left: 220px;
+  top: 170px;
+  width: 150px;
+  height: 25px;
+  font-size: 12px;
+  font-weight: 600;
+  text-align: left;
+  color: #1f2937;
+}
+
+/* Ticket Number */
+.ticket-field-ticketNumber {
+  left: 50px;
+  top: 210px;
+  width: 200px;
+  height: 30px;
+  font-size: 14px;
+  font-weight: 600;
+  text-align: left;
+  font-family: 'Courier New', monospace;
+  color: #374151;
+}
+
+/* Verification Code */
+.ticket-field-verificationCode {
+  left: 280px;
+  top: 210px;
+  width: 170px;
+  height: 30px;
+  font-size: 12px;
+  text-align: center;
+  letter-spacing: 2px;
+  font-family: 'Courier New', monospace;
+  color: #6b7280;
+}
+
+/* QR Code Container */
+.ticket-field-qrCode {
+  left: 50px;
+  top: 280px;
+  width: 120px;
+  height: 120px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: white;
+  border: 1px solid #d1d5db;
+  border-radius: 4px;
+}
+
+.ticket-field-qrCode img {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  image-rendering: crisp-edges;
+  -webkit-image-rendering: pixelated;
+  image-rendering: pixelated;
+}
+
+/* Print Styles */
+@media print {
+  .ticket-container {
+    border: none;
+    box-shadow: none;
+    width: 100%;
+    height: 100%;
+    max-width: 100%;
+    margin: 0;
+    padding: 0;
+    page-break-inside: avoid;
+  }
+
+  .ticket-field {
+    print-color-adjust: exact;
+    -webkit-print-color-adjust: exact;
+  }
+
+  .ticket-field-qrCode img {
+    image-rendering: -webkit-optimize-contrast;
+    -ms-interpolation-mode: nearest-neighbor;
+  }
+}
+
+/* High DPI/Retina Display Support */
+@media (-webkit-min-device-pixel-ratio: 2), (min-resolution: 192dpi) {
+  .ticket-field {
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+
+  .ticket-field-qrCode img {
+    image-rendering: -webkit-optimize-contrast;
+  }
+}
+
+/* Animation States */
+.ticket-field-loading {
+  animation: pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+}
+
+@keyframes pulse {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.5;
+  }
+}
+
+/* Error State */
+.ticket-field-error {
+  background-color: #fee2e2;
+  border: 1px solid #fecaca;
+  color: #dc2626;
+}
+
+/* Mobile Responsive Adjustments */
+@media (max-width: 768px) {
+  .ticket-field-memberFullName {
+    width: 250px;
+    font-size: 14px;
+  }
+
+  .ticket-field-bookingCode {
+    width: 150px;
+    font-size: 12px;
+  }
+
+  .ticket-field-ticketType {
+    width: 120px;
+    font-size: 10px;
+  }
+
+  .ticket-field-qrCode {
+    width: 100px;
+    height: 100px;
+  }
+}
+
+@media (max-width: 480px) {
+  .ticket-field-memberFullName {
+    width: 200px;
+    font-size: 12px;
+  }
+
+  .ticket-field-bookingCode {
+    width: 120px;
+    font-size: 10px;
+  }
+
+  .ticket-field-qrCode {
+    width: 80px;
+    height: 80px;
+  }
+}
+
+/* Accessibility */
+@media (prefers-reduced-motion: reduce) {
+  .ticket-field-loading {
+    animation: none;
+    opacity: 0.7;
+  }
+}
+
+/* High Contrast Mode */
+@media (prefers-contrast: more) {
+  .ticket-field {
+    border: 1px solid #000;
+    font-weight: bold;
+  }
+
+  .ticket-container {
+    border: 2px solid #000;
+  }
+}
+
+/* Export/Download Quality */
+.ticket-export {
+  position: absolute;
+  width: 100%;
+  height: 100%;
+  top: 0;
+  left: 0;
+}
+
+/* Canvas-based rendering */
+canvas.ticket-canvas {
+  display: block;
+  width: 100%;
+  height: 100%;
+  image-rendering: -webkit-optimize-contrast;
+  image-rendering: crisp-edges;
+}
