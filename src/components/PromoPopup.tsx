@@ -10,10 +10,19 @@ const COOLDOWN = 24 * 60 * 60 * 1000;
 const PromoPopup = () => {
   const { promo } = useActivePromotion();
   const [open, setOpen] = useState(false);
+  const [adminEnabled, setAdminEnabled] = useState(true); // NEW: admin control
   const closeRef = useRef<HTMLButtonElement>(null);
 
+  // NEW: Check if admin globally disabled promos
   useEffect(() => {
-    if (!promo) return;
+    fetch('/api/promo-status')
+     .then(r => r.json())
+     .then(d => setAdminEnabled(d.enabled))
+     .catch(() => setAdminEnabled(true)); // Fail open if API down
+  }, []);
+
+  useEffect(() => {
+    if (!promo ||!adminEnabled) return; // NEW: Admin kill switch
     const raw = localStorage.getItem(KEY);
     if (raw) {
       try {
@@ -23,7 +32,7 @@ const PromoPopup = () => {
     }
     const t = setTimeout(() => setOpen(true), 3000);
     return () => clearTimeout(t);
-  }, [promo]);
+  }, [promo, adminEnabled]); // NEW: depend on adminEnabled
 
   useEffect(() => {
     if (!open) return;
@@ -40,7 +49,7 @@ const PromoPopup = () => {
     setOpen(false);
   };
 
-  if (!promo || !open) return null;
+  if (!promo ||!open ||!adminEnabled) return null; // NEW: Hide if admin disabled
 
   return (
     <div
