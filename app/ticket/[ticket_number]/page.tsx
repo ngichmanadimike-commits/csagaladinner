@@ -10,20 +10,20 @@ export default async function TicketPage({ params }: { params: { ticket_number: 
   const { data: ticket, error } = await supabase
     .from('ticket_purchases')
     .select('*')
-    .eq('ticket_number', params.ticket_number)
+    .eq('id', params.ticket_number) // ← Changed this line
     .single()
 
   if (error || !ticket) {
     return <div style={{ padding: '20px', fontFamily: 'sans-serif' }}>
       <h1>Ticket not found</h1>
-      <p>No ticket exists with number: {params.ticket_number}</p>
+      <p>No ticket exists with ID: {params.ticket_number}</p>
     </div>
   }
 
   return (
     <div style={{ padding: '20px', fontFamily: 'sans-serif', maxWidth: '600px', margin: '0 auto' }}>
       <h1>CSA Gala Dinner 2026</h1>
-      <h2>Ticket #{ticket.ticket_number}</h2>
+      <h2>Ticket ID: {ticket.id}</h2> {/* Changed this line */}
       <hr />
       <p><strong>Name:</strong> {ticket.purchaser_name}</p>
       <p><strong>Email:</strong> {ticket.purchaser_email}</p>
@@ -35,4 +35,3 @@ export default async function TicketPage({ params }: { params: { ticket_number: 
       <p><strong>Purchase Date:</strong> {new Date(ticket.purchase_date).toLocaleString()}</p>
     </div>
   )
-}
