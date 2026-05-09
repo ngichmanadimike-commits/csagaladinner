@@ -16,6 +16,8 @@
       "@react-pdf/renderer": "^3.4.4",
   "qrcode": "^1.5.3",
   "@supabase/supabase-js": "^2.45.4",
+    "html2canvas": "^1.4.1",
+"jspdf": "^2.5.1",
   "resend": "^3.4.0",
     "@hookform/resolvers": "^3.10.0",
     "@lovable.dev/cloud-auth-js": "^1.1.1",
