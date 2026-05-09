@@ -10,7 +10,7 @@ export default async function TicketPage({ params }: { params: { ticket_number: 
   const { data: ticket, error } = await supabase
     .from('ticket_purchases')
     .select('*')
-    .eq('id', params.ticket_number) // ← Changed this line
+    .eq('id', Number(params.ticket_number))
     .single()
 
   if (error || !ticket) {
