@@ -1,5 +1,6 @@
+'use client'
 import { useEffect, useState } from "react";
-import { useParams, useNavigate } from "react-router-dom";
+import { useParams, useRouter } from "next/navigation";
 import { supabase } from "@/integrations/supabase/client";
 
 interface TicketRecord {
@@ -14,8 +15,10 @@ interface TicketRecord {
 }
 
 const TicketPage = () => {
-  const { ticket_number } = useParams<{ ticket_number: string }>();
-  const navigate = useNavigate();
+  const params = useParams();
+  const router = useRouter();
+  const ticket_number = params.ticket_number as string;
+  
   const [ticket, setTicket] = useState<TicketRecord | null>(null);
   const [loading, setLoading] = useState(true);
   const [notFound, setNotFound] = useState(false);
@@ -78,7 +81,7 @@ const TicketPage = () => {
             Please double-check the ticket number or contact support.
           </p>
           <button
-            onClick={() => navigate("/")}
+            onClick={() => router.push("/")}
             className="px-6 py-3 rounded-lg font-semibold text-sm transition-opacity hover:opacity-80"
             style={{ backgroundColor: "#D4AF37", color: "#0A2342" }}
           >
@@ -180,7 +183,7 @@ const TicketPage = () => {
           </div>
         </div>
 
-        <button onClick={() => navigate("/")} className="mt-8 text-sm font-semibold transition-opacity hover:opacity-70" style={{ color: "#D4AF37" }}>
+        <button onClick={() => router.push("/")} className="mt-8 text-sm font-semibold transition-opacity hover:opacity-70" style={{ color: "#D4AF37" }}>
           ← Back to Home
         </button>
       </div>
