@@ -1,4 +1,6 @@
 import { createClient } from '@supabase/supabase-js'
+import { notFound } from 'next/navigation'
+import TicketDesign from '@/components/TicketDesign'
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -10,28 +12,23 @@ export default async function TicketPage({ params }: { params: { ticket_number: 
   const { data: ticket, error } = await supabase
     .from('ticket_purchases')
     .select('*')
-    .eq('id', Number(params.ticket_number))
+    .eq('ticket_number', params.ticket_number) // FIXED: search by ticket_number, not id
     .single()
 
   if (error || !ticket) {
-    return <div style={{ padding: '20px', fontFamily: 'sans-serif' }}>
-      <h1>Ticket not found</h1>
-      <p>No ticket exists with ID: {params.ticket_number}</p>
-    </div>
+    notFound()
   }
 
-  return (
-    <div style={{ padding: '20px', fontFamily: 'sans-serif', maxWidth: '600px', margin: '0 auto' }}>
-      <h1>CSA Gala Dinner 2026</h1>
-      <h2>Ticket ID: {ticket.id}</h2> {/* Changed this line */}
-      <hr />
-      <p><strong>Name:</strong> {ticket.purchaser_name}</p>
-      <p><strong>Email:</strong> {ticket.purchaser_email}</p>
-      <p><strong>Phone:</strong> {ticket.purchaser_phone}</p>
-      <p><strong>Quantity:</strong> {ticket.quantity}</p>
-      <p><strong>Total:</strong> KES {ticket.total_amount}</p>
-      <p><strong>Status:</strong> {ticket.payment_status}</p>
-      <p><strong>Booking Code:</strong> {ticket.booking_code}</p>
-      <p><strong>Purchase Date:</strong> {new Date(ticket.purchase_date).toLocaleString()}</p>
-    </div>
-  )
+  // Map your table columns to what the design expects
+  const ticketData = {
+    ticket_number: ticket.ticket_number,
+    purchaser_name: ticket.purchaser_name,
+    booking_code: ticket.booking_code,
+    type_name: ticket.ticket_type || 'Regular', // use ticket_type column if you have it
+    total_amount: ticket.total_amount,
+    payment_status: ticket.payment_status,
+    qr_code: ticket.qr_code || ticket.booking_code // fallback to booking_code if no qr_code column
+  }
+
+  return <TicketDesign ticket={ticketData} />
+}
