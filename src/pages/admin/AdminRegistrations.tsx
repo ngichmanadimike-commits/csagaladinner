@@ -5,8 +5,19 @@ import { Search, Download, Trash2 } from "lucide-react";
 import { exportToXlsx } from "@/lib/exportXlsx";
 import { toast } from "sonner";
 
+interface TicketPurchase {
+  id: string;
+  ticket_number: string;
+  name: string;
+  email: string;
+  phone: string;
+  amount: number;
+  status: string;
+  created_at: string;
+}
+
 const AdminRegistrations = () => {
-  const [registrations, setRegistrations] = useState<any[]>([]);
+  const [registrations, setRegistrations] = useState<TicketPurchase[]>([]);
   const [search, setSearch] = useState("");
   const [loading, setLoading] = useState(true);
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
@@ -15,18 +26,18 @@ const AdminRegistrations = () => {
 
   const fetchRegistrations = async () => {
     const { data } = await supabase
-      .from("registrations")
-      .select("*")
+      .from("ticket_purchases")
+      .select("id, ticket_number, name, email, phone, amount, status, created_at")
       .order("created_at", { ascending: false });
-    setRegistrations(data || []);
+    setRegistrations((data as TicketPurchase[]) || []);
     setLoading(false);
   };
 
   useEffect(() => {
     fetchRegistrations();
     const channel = supabase
-      .channel("registrations-realtime")
-      .on("postgres_changes", { event: "*", schema: "public", table: "registrations" }, fetchRegistrations)
+      .channel("ticket_purchases-realtime")
+      .on("postgres_changes", { event: "*", schema: "public", table: "ticket_purchases" }, fetchRegistrations)
       .subscribe();
     return () => { supabase.removeChannel(channel); };
   }, []);
@@ -45,28 +56,28 @@ const AdminRegistrations = () => {
 
   const handleDeleteSelected = async () => {
     if (selectedIds.length === 0) return
-    if (!confirm(`Delete ${selectedIds.length} registration(s)? Cannot be undone.`)) return
+    if (!confirm(`Delete ${selectedIds.length} record(s)? Cannot be undone.`)) return
     
     setDeletingSelected(true)
-    const { error } = await supabase.from("registrations").delete().in("id", selectedIds)
+    const { error } = await supabase.from("ticket_purchases").delete().in("id", selectedIds)
     setDeletingSelected(false)
     
     if (error) toast.error("Delete failed: " + error.message)
     else {
-      toast.success(`${selectedIds.length} registration(s) deleted`)
+      toast.success(`${selectedIds.length} record(s) deleted`)
       setRegistrations(prev => prev.filter(r => !selectedIds.includes(r.id)))
       setSelectedIds([])
     }
   }
 
-  const handleDeleteRow = async (row: any) => {
-    if (!confirm(`Delete registration for ${row.name}? Cannot be undone.`)) return
+  const handleDeleteRow = async (row: TicketPurchase) => {
+    if (!confirm(`Delete ticket ${row.ticket_number} for ${row.name}? Cannot be undone.`)) return
     setDeletingId(row.id)
-    const { error } = await supabase.from("registrations").delete().eq("id", row.id)
+    const { error } = await supabase.from("ticket_purchases").delete().eq("id", row.id)
     setDeletingId(null)
     if (error) toast.error("Delete failed: " + error.message)
     else {
-      toast.success("Registration deleted")
+      toast.success("Record deleted")
       setRegistrations(prev => prev.filter(r => r.id !== row.id))
       setSelectedIds(prev => prev.filter(id => id !== row.id))
     }
@@ -74,7 +85,7 @@ const AdminRegistrations = () => {
 
   const filtered = registrations.filter((r) => {
     const q = search.toLowerCase();
-    return !search || r.name?.toLowerCase().includes(q) || r.email?.toLowerCase().includes(q) || r.phone?.includes(q);
+    return !search || r.name?.toLowerCase().includes(q) || r.email?.toLowerCase().includes(q) || r.phone?.includes(q) || r.ticket_number?.toLowerCase().includes(q);
   });
 
   return (
@@ -86,7 +97,7 @@ const AdminRegistrations = () => {
             <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
             <input
               type="text"
-              placeholder="Search by name, email, or phone..."
+              placeholder="Search by name, email, phone, or ticket #..."
               value={search}
               onChange={(e) => setSearch(e.target.value)}
               className="pl-9 pr-4 py-2 rounded-lg bg-muted border border-border text-foreground text-sm focus:outline-none focus:ring-2 focus:ring-primary/50 w-full sm:w-72"
@@ -95,18 +106,13 @@ const AdminRegistrations = () => {
           <button
             onClick={() =>
               exportToXlsx(
-                filtered.map((r: any) => ({
+                filtered.map((r) => ({
+                  "Ticket #": r.ticket_number,
                   Name: r.name,
                   Email: r.email,
                   Phone: r.phone,
-                  Institution: r.institution,
-                  Package: r.package_type,
-                  Quantity: r.quantity,
-                  "Payment Type": r.payment_type,
-                  "Total Cost": Number(r.total_cost),
-                  "Total Paid": Number(r.total_paid),
-                  Balance: Number(r.total_cost) - Number(r.total_paid),
-                  Status: r.payment_status,
+                  Amount: Number(r.amount),
+                  Status: r.status,
                   Created: r.created_at,
                 })),
                 "registrations",
@@ -154,14 +160,13 @@ const AdminRegistrations = () => {
                       className="w-4 h-4 cursor-pointer accent-primary"
                     />
                   </th>
+                  <th className="p-3">Ticket #</th>
                   <th className="p-3">Name</th>
                   <th className="p-3">Email</th>
                   <th className="p-3">Phone</th>
-                  <th className="p-3">Package</th>
-                  <th className="p-3">Cost</th>
-                  <th className="p-3">Paid</th>
-                  <th className="p-3">Balance</th>
+                  <th className="p-3">Amount</th>
                   <th className="p-3">Status</th>
+                  <th className="p-3">Date</th>
                   <th className="p-3 text-right">Actions</th>
                 </tr>
               </thead>
@@ -176,22 +181,21 @@ const AdminRegistrations = () => {
                         className="w-4 h-4 cursor-pointer accent-primary"
                       />
                     </td>
+                    <td className="p-3 font-mono text-xs text-foreground font-semibold">#{r.ticket_number}</td>
                     <td className="p-3 text-foreground">{r.name}</td>
                     <td className="p-3 text-muted-foreground">{r.email}</td>
                     <td className="p-3 text-muted-foreground">{r.phone}</td>
-                    <td className="p-3 text-foreground capitalize">{r.package_type}</td>
-                    <td className="p-3 text-foreground">KES {Number(r.total_cost).toLocaleString()}</td>
-                    <td className="p-3 text-emerald-400">KES {Number(r.total_paid).toLocaleString()}</td>
-                    <td className="p-3 text-yellow-400">KES {(Number(r.total_cost) - Number(r.total_paid)).toLocaleString()}</td>
+                    <td className="p-3 text-foreground font-semibold">KES {Number(r.amount).toLocaleString()}</td>
                     <td className="p-3">
                       <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${
-                        r.payment_status === "paid" ? "bg-emerald-400/10 text-emerald-400" :
-                        r.payment_status === "partial" ? "bg-yellow-400/10 text-yellow-400" :
+                        r.status === "paid" || r.status === "confirmed" ? "bg-emerald-400/10 text-emerald-400" :
+                        r.status === "pending" ? "bg-yellow-400/10 text-yellow-400" :
                         "bg-red-400/10 text-red-400"
                       }`}>
-                        {r.payment_status}
+                        {r.status}
                       </span>
                     </td>
+                    <td className="p-3 text-muted-foreground text-xs">{new Date(r.created_at).toLocaleDateString("en-KE")}</td>
                     <td className="p-3 text-right">
                       <button 
                         onClick={() => handleDeleteRow(r)} 
