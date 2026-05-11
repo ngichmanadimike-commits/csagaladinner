@@ -1,13 +1,17 @@
 import { useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import AdminLayout from "@/components/admin/AdminLayout";
-import { Search, Download } from "lucide-react";
+import { Search, Download, Trash2 } from "lucide-react";
 import { exportToXlsx } from "@/lib/exportXlsx";
+import { toast } from "sonner";
 
 const AdminRegistrations = () => {
   const [registrations, setRegistrations] = useState<any[]>([]);
   const [search, setSearch] = useState("");
   const [loading, setLoading] = useState(true);
+  const [selectedIds, setSelectedIds] = useState<string[]>([]);
+  const [deletingId, setDeletingId] = useState<string | null>(null);
+  const [deletingSelected, setDeletingSelected] = useState(false);
 
   const fetchRegistrations = async () => {
     const { data } = await supabase
@@ -26,6 +30,47 @@ const AdminRegistrations = () => {
       .subscribe();
     return () => { supabase.removeChannel(channel); };
   }, []);
+
+  const toggleSelect = (id: string) => {
+    setSelectedIds(prev => prev.includes(id) ? prev.filter(i => i !== id) : [...prev, id])
+  }
+
+  const toggleSelectAll = () => {
+    if (selectedIds.length === filtered.length) {
+      setSelectedIds([])
+    } else {
+      setSelectedIds(filtered.map(r => r.id))
+    }
+  }
+
+  const handleDeleteSelected = async () => {
+    if (selectedIds.length === 0) return
+    if (!confirm(`Delete ${selectedIds.length} registration(s)? Cannot be undone.`)) return
+    
+    setDeletingSelected(true)
+    const { error } = await supabase.from("registrations").delete().in("id", selectedIds)
+    setDeletingSelected(false)
+    
+    if (error) toast.error("Delete failed: " + error.message)
+    else {
+      toast.success(`${selectedIds.length} registration(s) deleted`)
+      setRegistrations(prev => prev.filter(r => !selectedIds.includes(r.id)))
+      setSelectedIds([])
+    }
+  }
+
+  const handleDeleteRow = async (row: any) => {
+    if (!confirm(`Delete registration for ${row.name}? Cannot be undone.`)) return
+    setDeletingId(row.id)
+    const { error } = await supabase.from("registrations").delete().eq("id", row.id)
+    setDeletingId(null)
+    if (error) toast.error("Delete failed: " + error.message)
+    else {
+      toast.success("Registration deleted")
+      setRegistrations(prev => prev.filter(r => r.id !== row.id))
+      setSelectedIds(prev => prev.filter(id => id !== row.id))
+    }
+  }
 
   const filtered = registrations.filter((r) => {
     const q = search.toLowerCase();
@@ -72,8 +117,24 @@ const AdminRegistrations = () => {
           >
             <Download size={16} /> Export
           </button>
+          {selectedIds.length > 0 && (
+            <button 
+              onClick={handleDeleteSelected} 
+              disabled={deletingSelected}
+              className="flex items-center gap-2 px-3 py-2 rounded-lg bg-red-600 text-white text-sm font-semibold disabled:opacity-50 hover:bg-red-700 transition-colors"
+            >
+              <Trash2 size={16} />
+              {deletingSelected ? "Deleting..." : `Delete Selected (${selectedIds.length})`}
+            </button>
+          )}
         </div>
       </div>
+
+      {selectedIds.length > 0 && (
+        <div className="mb-3 text-sm text-muted-foreground">
+          {selectedIds.length} of {filtered.length} selected
+        </div>
+      )}
 
       <div className="glass rounded-xl overflow-hidden">
         {loading ? (
@@ -85,6 +146,14 @@ const AdminRegistrations = () => {
             <table className="w-full text-sm">
               <thead>
                 <tr className="text-left text-muted-foreground border-b border-border bg-muted/30">
+                  <th className="p-3 w-12">
+                    <input
+                      type="checkbox"
+                      checked={selectedIds.length === filtered.length && filtered.length > 0}
+                      onChange={toggleSelectAll}
+                      className="w-4 h-4 cursor-pointer accent-primary"
+                    />
+                  </th>
                   <th className="p-3">Name</th>
                   <th className="p-3">Email</th>
                   <th className="p-3">Phone</th>
@@ -93,11 +162,20 @@ const AdminRegistrations = () => {
                   <th className="p-3">Paid</th>
                   <th className="p-3">Balance</th>
                   <th className="p-3">Status</th>
+                  <th className="p-3 text-right">Actions</th>
                 </tr>
               </thead>
               <tbody>
                 {filtered.map((r) => (
                   <tr key={r.id} className="border-b border-border/50 hover:bg-muted/20">
+                    <td className="p-3">
+                      <input
+                        type="checkbox"
+                        checked={selectedIds.includes(r.id)}
+                        onChange={() => toggleSelect(r.id)}
+                        className="w-4 h-4 cursor-pointer accent-primary"
+                      />
+                    </td>
                     <td className="p-3 text-foreground">{r.name}</td>
                     <td className="p-3 text-muted-foreground">{r.email}</td>
                     <td className="p-3 text-muted-foreground">{r.phone}</td>
@@ -113,6 +191,15 @@ const AdminRegistrations = () => {
                       }`}>
                         {r.payment_status}
                       </span>
+                    </td>
+                    <td className="p-3 text-right">
+                      <button 
+                        onClick={() => handleDeleteRow(r)} 
+                        disabled={deletingId === r.id}
+                        className="p-1.5 rounded-lg hover:bg-red-400/10 text-red-400 disabled:opacity-40 transition-colors"
+                      >
+                        {deletingId === r.id ? <span className="text-xs">...</span> : <Trash2 size={15} />}
+                      </button>
                     </td>
                   </tr>
                 ))}
