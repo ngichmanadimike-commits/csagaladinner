@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { supabase } from "@/integrations/supabase/client";
+import { supabase } from "../integrations/supabase/client"
 import AdminLayout from "@/components/admin/AdminLayout";
 import { Search, Trash2 } from "lucide-react";
 import { toast } from "sonner";
