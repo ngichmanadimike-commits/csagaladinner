@@ -23,6 +23,8 @@ const AdminTickets = () => {
   const [loading, setLoading] = useState(true);
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [deletingAll, setDeletingAll] = useState(false);
+  const [selectedIds, setSelectedIds] = useState<string[]>([]);
+  const [deletingSelected, setDeletingSelected] = useState(false);
 
   const fetchTickets = async () => {
     const { data } = await supabase
@@ -42,6 +44,41 @@ const AdminTickets = () => {
     return () => { supabase.removeChannel(channel); };
   }, []);
 
+  const toggleSelect = (id: string) => {
+    setSelectedIds(prev => 
+      prev.includes(id) ? prev.filter(i => i !== id) : [...prev, id]
+    )
+  }
+
+  const toggleSelectAll = () => {
+    if (selectedIds.length === filtered.length) {
+      setSelectedIds([])
+    } else {
+      setSelectedIds(filtered.map(t => t.id))
+    }
+  }
+
+  const handleDeleteSelected = async () => {
+    if (selectedIds.length === 0) return
+    const confirmed = window.confirm(`Delete ${selectedIds.length} ticket(s)? This cannot be undone.`)
+    if (!confirmed) return
+    
+    setDeletingSelected(true)
+    const { error } = await supabase
+      .from("ticket_purchases")
+      .delete()
+      .in("id", selectedIds)
+    
+    setDeletingSelected(false)
+    if (error) { 
+      toast.error("Failed to delete tickets: " + error.message)
+    } else { 
+      toast.success(`${selectedIds.length} ticket(s) deleted`)
+      setTickets(prev => prev.filter(t => !selectedIds.includes(t.id)))
+      setSelectedIds([])
+    }
+  }
+
   const handleDeleteAll = async () => {
     const confirmed = window.confirm("Delete ALL ticket records? This cannot be undone.");
     if (!confirmed) return;
@@ -49,7 +86,7 @@ const AdminTickets = () => {
     const { error } = await supabase.from("ticket_purchases").delete().neq("id", "00000000-0000-0000-0000-000000000000");
     setDeletingAll(false);
     if (error) { toast.error("Failed to delete all tickets: " + error.message); }
-    else { toast.success("All tickets deleted"); setTickets([]); }
+    else { toast.success("All tickets deleted"); setTickets([]); setSelectedIds([]); }
   };
 
   const handleDeleteRow = async (row: TicketPurchase) => {
@@ -59,7 +96,11 @@ const AdminTickets = () => {
     const { error } = await supabase.from("ticket_purchases").delete().eq("id", row.id);
     setDeletingId(null);
     if (error) { toast.error("Failed to delete ticket: " + error.message); }
-    else { toast.success("Ticket deleted"); setTickets((prev) => prev.filter((t) => t.id !== row.id)); }
+    else { 
+      toast.success("Ticket deleted"); 
+      setTickets((prev) => prev.filter((t) => t.id !== row.id));
+      setSelectedIds(prev => prev.filter(id => id !== row.id));
+    }
   };
 
   const filtered = tickets.filter((t) => {
@@ -79,9 +120,19 @@ const AdminTickets = () => {
           <button onClick={() => exportToXlsx(filtered.map((t) => ({ "Ticket #": t.ticket_number, Name: t.name, Email: t.email, Phone: t.phone, Amount: Number(t.amount), Status: t.status, Purchased: t.created_at })), "ticket_purchases", "Ticket Purchases")} className="flex items-center gap-2 px-3 py-2 rounded-lg bg-primary text-primary-foreground text-sm font-semibold">
             <Download size={16} /> Export
           </button>
+          {selectedIds.length > 0 && (
+            <button 
+              onClick={handleDeleteSelected} 
+              disabled={deletingSelected} 
+              className="flex items-center gap-2 px-3 py-2 rounded-lg bg-red-600 text-white text-sm font-semibold disabled:opacity-50 hover:bg-red-700 transition-colors"
+            >
+              <Trash2 size={16} />
+              {deletingSelected ? "Deleting..." : `Delete Selected (${selectedIds.length})`}
+            </button>
+          )}
           <button onClick={handleDeleteAll} disabled={deletingAll || tickets.length === 0} className="flex items-center gap-2 px-3 py-2 rounded-lg bg-destructive text-destructive-foreground text-sm font-semibold disabled:opacity-50 hover:bg-destructive/90 transition-colors">
             <AlertTriangle size={16} />
-            {deletingAll ? "Deleting…" : "Delete All Tickets"}
+            {deletingAll ? "Deleting…" : "Delete All"}
           </button>
         </div>
       </div>
@@ -91,6 +142,12 @@ const AdminTickets = () => {
         <div className="glass rounded-xl p-3"><p className="text-xs text-muted-foreground">Confirmed</p><p className="text-xl font-bold text-emerald-400">{tickets.filter((t) => t.status === "confirmed" || t.status === "paid").length}</p></div>
         <div className="glass rounded-xl p-3"><p className="text-xs text-muted-foreground">Total Revenue</p><p className="text-xl font-bold text-yellow-400">KES {tickets.reduce((s, t) => s + Number(t.amount), 0).toLocaleString()}</p></div>
       </div>
+
+      {selectedIds.length > 0 && (
+        <div className="mb-3 text-sm text-muted-foreground">
+          {selectedIds.length} of {filtered.length} selected
+        </div>
+      )}
 
       <div className="glass rounded-xl overflow-hidden">
         {loading ? (
@@ -102,12 +159,28 @@ const AdminTickets = () => {
             <table className="w-full text-sm">
               <thead>
                 <tr className="text-left text-muted-foreground border-b border-border bg-muted/30">
+                  <th className="p-3 w-12">
+                    <input
+                      type="checkbox"
+                      checked={selectedIds.length === filtered.length && filtered.length > 0}
+                      onChange={toggleSelectAll}
+                      className="w-4 h-4 cursor-pointer accent-primary"
+                    />
+                  </th>
                   <th className="p-3">Ticket #</th><th className="p-3">Name</th><th className="p-3">Email</th><th className="p-3">Phone</th><th className="p-3">Amount</th><th className="p-3">Status</th><th className="p-3">Date</th><th className="p-3 text-right">Actions</th>
                 </tr>
               </thead>
               <tbody>
                 {filtered.map((t) => (
                   <tr key={t.id} className="border-b border-border/50 hover:bg-muted/20 transition-colors">
+                    <td className="p-3">
+                      <input
+                        type="checkbox"
+                        checked={selectedIds.includes(t.id)}
+                        onChange={() => toggleSelect(t.id)}
+                        className="w-4 h-4 cursor-pointer accent-primary"
+                      />
+                    </td>
                     <td className="p-3 font-mono text-xs text-foreground font-semibold">#{t.ticket_number}</td>
                     <td className="p-3 text-foreground font-medium">{t.name}</td>
                     <td className="p-3 text-muted-foreground">{t.email}</td>
