@@ -1,6 +1,5 @@
 import Navbar from "@/components/Navbar";
-import PromoBanner from "@/components/PromoBanner";
-import PromoPopup from "@/components/PromoPopup";
+import EventNotification from "@/components/EventNotification";
 import HeroSection from "@/components/HeroSection";
 import TicketsSection from "@/components/TicketsSection";
 import PaymentStatusLookup from "@/components/PaymentStatusLookup";
@@ -12,7 +11,6 @@ import Footer from "@/components/Footer";
 
 const Index = () => (
   <div className="min-h-screen bg-background">
-    <PromoBanner />
     <Navbar />
     <HeroSection />
     <TicketsSection />
@@ -22,7 +20,8 @@ const Index = () => (
     <PartnersSection />
     <SocialSection />
     <Footer />
-    <PromoPopup />
+    {/* EventNotification replaces PromoPopup/PromoBanner — shows once per browser session */}
+    <EventNotification />
   </div>
 );
 
