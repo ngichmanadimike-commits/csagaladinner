@@ -1,8 +1,7 @@
 import { useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import AdminLayout from "@/components/admin/AdminLayout";
-import { Search, Download, Trash2 } from "lucide-react";
-import { exportToXlsx } from "@/lib/exportXlsx";
+import { Search, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 
 interface TicketPurchase {
@@ -103,26 +102,6 @@ const AdminRegistrations = () => {
               className="pl-9 pr-4 py-2 rounded-lg bg-muted border border-border text-foreground text-sm focus:outline-none focus:ring-2 focus:ring-primary/50 w-full sm:w-72"
             />
           </div>
-          <button
-            onClick={() =>
-              exportToXlsx(
-                filtered.map((r) => ({
-                  "Ticket #": r.ticket_number,
-                  Name: r.name,
-                  Email: r.email,
-                  Phone: r.phone,
-                  Amount: Number(r.amount),
-                  Status: r.status,
-                  Created: r.created_at,
-                })),
-                "registrations",
-                "Registrations"
-              )
-            }
-            className="flex items-center gap-2 px-3 py-2 rounded-lg bg-primary text-primary-foreground text-sm font-semibold"
-          >
-            <Download size={16} /> Export
-          </button>
           {selectedIds.length > 0 && (
             <button 
               onClick={handleDeleteSelected} 
