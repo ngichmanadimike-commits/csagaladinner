@@ -27,6 +27,8 @@ import AdminActivity from "./pages/admin/AdminActivity.tsx";
 import AdminCodes from "./pages/admin/AdminCodes.tsx";
 import AdminPromotions from "./pages/admin/AdminPromotions.tsx";
 import AdminDangerZone from "./pages/admin/AdminDangerZone.tsx";
+import AdminTickets from "./pages/admin/AdminTickets.tsx";
+import TicketPage from "./pages/TicketPage.tsx";
 import ResetPassword from "./pages/ResetPassword.tsx";
 import NotFound from "./pages/NotFound.tsx";
 
@@ -63,6 +65,8 @@ const App = () => (
             <Route path="/admin/activity" element={<AdminActivity />} />
             <Route path="/admin/promotions" element={<AdminPromotions />} />
             <Route path="/admin/danger-zone" element={<AdminDangerZone />} />
+            <Route path="/admin/tickets" element={<AdminTickets />} />
+            <Route path="/ticket/:ticket_number" element={<TicketPage />} />
             <Route path="/reset-password" element={<ResetPassword />} />
             {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
             <Route path="*" element={<NotFound />} />
