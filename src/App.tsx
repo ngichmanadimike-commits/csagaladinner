@@ -58,4 +58,25 @@ const App = () => (
             <Route path="/admin/partners" element={<AdminPartners />} />
             <Route path="/admin/sponsorships" element={<AdminSponsorships />} />
             <Route path="/admin/inquiries" element={<AdminInquiries />} />
-            <Route
+            <Route path="/admin/documents" element={<AdminDocuments />} />
+            <Route path="/admin/speakers" element={<AdminSpeakers />} />
+            <Route path="/admin/settings" element={<AdminSettings />} />
+            <Route path="/admin/packages" element={<AdminPackages />} />
+            <Route path="/admin/codes" element={<AdminCodes />} />
+            <Route path="/admin/activity" element={<AdminActivity />} />
+            <Route path="/admin/promotions" element={<AdminPromotions />} />
+            <Route path="/admin/danger-zone" element={<AdminDangerZone />} />
+            <Route path="/admin/tickets" element={<AdminTickets />} />
+            <Route path="/admin/donations" element={<AdminDonations />} />
+            <Route path="/ticket/:ticket_number" element={<TicketPage />} />
+            <Route path="/reset-password" element={<ResetPassword />} />
+            {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
+            <Route path="*" element={<NotFound />} />
+          </Routes>
+        </AuthProvider>
+      </BrowserRouter>
+    </TooltipProvider>
+  </QueryClientProvider>
+);
+
+export default App;
