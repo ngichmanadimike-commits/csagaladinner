@@ -156,7 +156,9 @@ const AdminTickets = () => {
             <table className="w-full text-sm">
               <thead>
                 <tr className="text-left text-muted-foreground border-b border-border bg-muted/30">
-                   w-12">
+                                 <thead>
+                <tr className="text-left text-muted-foreground border-b border-border bg-muted/30">
+                  <th className="p-3 w-12">
                     <input
                       type="checkbox"
                       checked={selectedIds.length === filtered.length && filtered.length > 0}
