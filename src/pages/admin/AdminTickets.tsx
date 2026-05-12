@@ -154,9 +154,11 @@ const AdminTickets = () => {
         ) : (
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
-              <thead>
+                          <thead>
                 <tr className="text-left text-muted-foreground border-b border-border bg-muted/30">
-                                 <thead>
+                  <th className="p-3 w-12">
+                    <input
+                      type="checkbox"  
                 <tr className="text-left text-muted-foreground border-b border-border bg-muted/30">
                   <th className="p-3 w-12">
                     <input
