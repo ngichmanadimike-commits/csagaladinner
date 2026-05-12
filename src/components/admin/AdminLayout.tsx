@@ -38,12 +38,14 @@ const AdminLayout = ({ children }: { children: ReactNode }) => {
   const [sidebarOpen, setSidebarOpen] = useState(false);
 
   useEffect(() => {
-    if (!loading && !user) { navigate("/login", { replace: true }); }
+    if (!loading && !user) { 
+      navigate("/admin/login", { replace: true }); 
+    }
   }, [loading, user, navigate]);
 
   if (loading) {
     return (
-      if (!loading && !user) { navigate("/admin/login", { replace: true }); }
+      <div className="min-h-screen bg-background flex items-center justify-center">
         <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary" />
       </div>
     );
