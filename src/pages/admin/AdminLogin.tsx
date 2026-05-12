@@ -12,9 +12,10 @@ const AdminLogin = () => {
   const { user, isAdmin } = useAuth();
   const navigate = useNavigate();
 
+  // If already logged in as admin, redirect immediately
   useEffect(() => {
     if (user && isAdmin) {
-      navigate("/admin", { replace: true });
+      navigate("/admin/donations", { replace: true });
     }
   }, [user, isAdmin, navigate]);
 
@@ -22,18 +23,23 @@ const AdminLogin = () => {
     e.preventDefault();
     setLoading(true);
 
-    const { error } = await supabase.auth.signInWithPassword({
+    const { data, error } = await supabase.auth.signInWithPassword({
       email,
       password,
     });
 
+    setLoading(false);
+
     if (error) {
       toast.error(error.message);
-      setLoading(false);
       return;
     }
 
-    toast.success("Logged in successfully");
+    if (data.user) {
+      toast.success("Logged in successfully");
+      // Force redirect after login - don't wait for useAuth
+      navigate("/admin/donations", { replace: true });
+    }
   };
 
   return (
