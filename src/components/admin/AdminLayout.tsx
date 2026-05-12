@@ -13,6 +13,7 @@ const navItems: { label: string; icon: any; path: string; superOnly?: boolean }[
   { label: "Ticket Purchases", icon: Ticket, path: "/admin/tickets" },
   { label: "Registrations", icon: Users, path: "/admin/registrations" },
   { label: "Payments", icon: CreditCard, path: "/admin/payments" },
+  { label: "Donations", icon: CreditCard, path: "/admin/donations" },
   { label: "Booking Codes", icon: Ticket, path: "/admin/codes" },
   { label: "Ticket Packages", icon: Package, path: "/admin/packages" },
   { label: "Promotions", icon: Tag, path: "/admin/promotions" },
@@ -42,7 +43,7 @@ const AdminLayout = ({ children }: { children: ReactNode }) => {
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-background flex items-center justify-center">
+      if (!loading && !user) { navigate("/admin/login", { replace: true }); }
         <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary" />
       </div>
     );
