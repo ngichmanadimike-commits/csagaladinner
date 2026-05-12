@@ -2,9 +2,8 @@
 import { useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import AdminLayout from "@/components/admin/AdminLayout";
-import { Search, Download, Trash2, AlertTriangle } from "lucide-react";
+import { Search, Trash2, AlertTriangle } from "lucide-react";
 import { toast } from "sonner";
-import { exportToXlsx } from "@/lib/exportXlsx";
 
 interface TicketPurchase {
   id: string;
@@ -117,93 +116,8 @@ const AdminTickets = () => {
             <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
             <input type="text" placeholder="Search by name, email, phone, or ticket #..." value={search} onChange={(e) => setSearch(e.target.value)} className="pl-9 pr-4 py-2 rounded-lg bg-muted border border-border text-foreground text-sm focus:outline-none focus:ring-2 focus:ring-primary/50 w-full sm:w-72" />
           </div>
-          <button onClick={() => exportToXlsx(filtered.map((t) => ({ "Ticket #": t.ticket_number, Name: t.name, Email: t.email, Phone: t.phone, Amount: Number(t.amount), Status: t.status, Purchased: t.created_at })), "ticket_purchases", "Ticket Purchases")} className="flex items-center gap-2 px-3 py-2 rounded-lg bg-primary text-primary-foreground text-sm font-semibold">
-            <Download size={16} /> Export
-          </button>
           {selectedIds.length > 0 && (
             <button 
               onClick={handleDeleteSelected} 
               disabled={deletingSelected} 
-              className="flex items-center gap-2 px-3 py-2 rounded-lg bg-red-600 text-white text-sm font-semibold disabled:opacity-50 hover:bg-red-700 transition-colors"
-            >
-              <Trash2 size={16} />
-              {deletingSelected ? "Deleting..." : `Delete Selected (${selectedIds.length})`}
-            </button>
-          )}
-          <button onClick={handleDeleteAll} disabled={deletingAll || tickets.length === 0} className="flex items-center gap-2 px-3 py-2 rounded-lg bg-destructive text-destructive-foreground text-sm font-semibold disabled:opacity-50 hover:bg-destructive/90 transition-colors">
-            <AlertTriangle size={16} />
-            {deletingAll ? "Deleting…" : "Delete All"}
-          </button>
-        </div>
-      </div>
-
-      <div className="grid grid-cols-3 gap-3 mb-4">
-        <div className="glass rounded-xl p-3"><p className="text-xs text-muted-foreground">Total Tickets</p><p className="text-xl font-bold">{tickets.length}</p></div>
-        <div className="glass rounded-xl p-3"><p className="text-xs text-muted-foreground">Confirmed</p><p className="text-xl font-bold text-emerald-400">{tickets.filter((t) => t.status === "confirmed" || t.status === "paid").length}</p></div>
-        <div className="glass rounded-xl p-3"><p className="text-xs text-muted-foreground">Total Revenue</p><p className="text-xl font-bold text-yellow-400">KES {tickets.reduce((s, t) => s + Number(t.amount), 0).toLocaleString()}</p></div>
-      </div>
-
-      {selectedIds.length > 0 && (
-        <div className="mb-3 text-sm text-muted-foreground">
-          {selectedIds.length} of {filtered.length} selected
-        </div>
-      )}
-
-      <div className="glass rounded-xl overflow-hidden">
-        {loading ? (
-          <div className="p-8 text-center text-muted-foreground">Loading…</div>
-        ) : filtered.length === 0 ? (
-          <div className="p-8 text-center text-muted-foreground">No ticket purchases found.</div>
-        ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full text-sm">
-              <thead>
-                <tr className="text-left text-muted-foreground border-b border-border bg-muted/30">
-                  <th className="p-3 w-12">
-                    <input
-                      type="checkbox"
-                      checked={selectedIds.length === filtered.length && filtered.length > 0}
-                      onChange={toggleSelectAll}
-                      className="w-4 h-4 cursor-pointer accent-primary"
-                    />
-                  </th>
-                  <th className="p-3">Ticket #</th><th className="p-3">Name</th><th className="p-3">Email</th><th className="p-3">Phone</th><th className="p-3">Amount</th><th className="p-3">Status</th><th className="p-3">Date</th><th className="p-3 text-right">Actions</th>
-                </tr>
-              </thead>
-              <tbody>
-                {filtered.map((t) => (
-                  <tr key={t.id} className="border-b border-border/50 hover:bg-muted/20 transition-colors">
-                    <td className="p-3">
-                      <input
-                        type="checkbox"
-                        checked={selectedIds.includes(t.id)}
-                        onChange={() => toggleSelect(t.id)}
-                        className="w-4 h-4 cursor-pointer accent-primary"
-                      />
-                    </td>
-                    <td className="p-3 font-mono text-xs text-foreground font-semibold">#{t.ticket_number}</td>
-                    <td className="p-3 text-foreground font-medium">{t.name}</td>
-                    <td className="p-3 text-muted-foreground">{t.email}</td>
-                    <td className="p-3 text-muted-foreground">{t.phone}</td>
-                    <td className="p-3 text-foreground font-semibold">KES {Number(t.amount).toLocaleString()}</td>
-                    <td className="p-3">
-                      <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${t.status === "paid" || t.status === "confirmed" ? "bg-emerald-400/10 text-emerald-400" : t.status === "pending" ? "bg-yellow-400/10 text-yellow-400" : "bg-red-400/10 text-red-400"}`}>{t.status}</span>
-                    </td>
-                    <td className="p-3 text-muted-foreground text-xs">{new Date(t.created_at).toLocaleDateString("en-KE")}</td>
-                    <td className="p-3 text-right">
-                      <button onClick={() => handleDeleteRow(t)} disabled={deletingId === t.id} title={`Delete ticket ${t.ticket_number}`} className="p-1.5 rounded-lg hover:bg-red-400/10 text-red-400 disabled:opacity-40 transition-colors">
-                        {deletingId === t.id ? <span className="text-xs">…</span> : <Trash2 size={15} />}
-                      </button>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        )}
-      </div>
-    </AdminLayout>
-  );
-};
-
-export default AdminTickets;
+              className="flex items-center gap-2 px-3 py-2 rounded-lg bg-red-600 text-white text-sm font-semibold disabled:opacity-50 hover:bg-red
