@@ -156,5 +156,52 @@ const AdminTickets = () => {
             <table className="w-full text-sm">
               <thead>
                 <tr className="text-left text-muted-foreground border-b border-border bg-muted/30">
-                  <th className="p-3
+                   w-12">
+                    <input
+                      type="checkbox"
+                      checked={selectedIds.length === filtered.length && filtered.length > 0}
+                      onChange={toggleSelectAll}
+                      className="w-4 h-4 cursor-pointer accent-primary"
+                    />
+                  </th>
+                  <th className="p-3">Ticket #</th><th className="p-3">Name</th><th className="p-3">Email</th><th className="p-3">Phone</th><th className="p-3">Amount</th><th className="p-3">Status</th><th className="p-3">Date</th><th className="p-3 text-right">Actions</th>
+                </tr>
+              </thead>
+              <tbody>
+                {filtered.map((t) => (
+                  <tr key={t.id} className="border-b border-border/50 hover:bg-muted/20 transition-colors">
+                    <td className="p-3">
+                      <input
+                        type="checkbox"
+                        checked={selectedIds.includes(t.id)}
+                        onChange={() => toggleSelect(t.id)}
+                        className="w-4 h-4 cursor-pointer accent-primary"
+                      />
+                    </td>
+                    <td className="p-3 font-mono text-xs text-foreground font-semibold">#{t.ticket_number}</td>
+                    <td className="p-3 text-foreground font-medium">{t.name}</td>
+                    <td className="p-3 text-muted-foreground">{t.email}</td>
+                    <td className="p-3 text-muted-foreground">{t.phone}</td>
+                    <td className="p-3 text-foreground font-semibold">KES {Number(t.amount).toLocaleString()}</td>
+                    <td className="p-3">
+                      <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${t.status === "paid" || t.status === "confirmed" ? "bg-emerald-400/10 text-emerald-400" : t.status === "pending" ? "bg-yellow-400/10 text-yellow-400" : "bg-red-400/10 text-red-400"}`}>{t.status}</span>
+                    </td>
+                    <td className="p-3 text-muted-foreground text-xs">{new Date(t.created_at).toLocaleDateString("en-KE")}</td>
+                    <td className="p-3 text-right">
+                      <button onClick={() => handleDeleteRow(t)} disabled={deletingId === t.id} title={`Delete ticket ${t.ticket_number}`} className="p-1.5 rounded-lg hover:bg-red-400/10 text-red-400 disabled:opacity-40 transition-colors">
+                        {deletingId === t.id ? <span className="text-xs">…</span> : <Trash2 size={15} />}
+                      </button>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </div>
+    </AdminLayout>
+  );
+};
+
+export default AdminTickets;
 
