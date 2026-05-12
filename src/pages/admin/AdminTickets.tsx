@@ -44,39 +44,39 @@ const AdminTickets = () => {
   }, []);
 
   const toggleSelect = (id: string) => {
-    setSelectedIds(prev => 
+    setSelectedIds(prev =>
       prev.includes(id) ? prev.filter(i => i !== id) : [...prev, id]
-    )
-  }
+    );
+  };
 
   const toggleSelectAll = () => {
     if (selectedIds.length === filtered.length) {
-      setSelectedIds([])
+      setSelectedIds([]);
     } else {
-      setSelectedIds(filtered.map(t => t.id))
+      setSelectedIds(filtered.map(t => t.id));
     }
-  }
+  };
 
   const handleDeleteSelected = async () => {
-    if (selectedIds.length === 0) return
-    const confirmed = window.confirm(`Delete ${selectedIds.length} ticket(s)? This cannot be undone.`)
-    if (!confirmed) return
-    
-    setDeletingSelected(true)
+    if (selectedIds.length === 0) return;
+    const confirmed = window.confirm(`Delete ${selectedIds.length} ticket(s)? This cannot be undone.`);
+    if (!confirmed) return;
+
+    setDeletingSelected(true);
     const { error } = await supabase
       .from("ticket_purchases")
       .delete()
-      .in("id", selectedIds)
-    
-    setDeletingSelected(false)
-    if (error) { 
-      toast.error("Failed to delete tickets: " + error.message)
-    } else { 
-      toast.success(`${selectedIds.length} ticket(s) deleted`)
-      setTickets(prev => prev.filter(t => !selectedIds.includes(t.id)))
-      setSelectedIds([])
+      .in("id", selectedIds);
+
+    setDeletingSelected(false);
+    if (error) {
+      toast.error("Failed to delete tickets: " + error.message);
+    } else {
+      toast.success(`${selectedIds.length} ticket(s) deleted`);
+      setTickets(prev => prev.filter(t => !selectedIds.includes(t.id)));
+      setSelectedIds([]);
     }
-  }
+  };
 
   const handleDeleteAll = async () => {
     const confirmed = window.confirm("Delete ALL ticket records? This cannot be undone.");
@@ -95,8 +95,8 @@ const AdminTickets = () => {
     const { error } = await supabase.from("ticket_purchases").delete().eq("id", row.id);
     setDeletingId(null);
     if (error) { toast.error("Failed to delete ticket: " + error.message); }
-    else { 
-      toast.success("Ticket deleted"); 
+    else {
+      toast.success("Ticket deleted");
       setTickets((prev) => prev.filter((t) => t.id !== row.id));
       setSelectedIds(prev => prev.filter(id => id !== row.id));
     }
@@ -114,20 +114,29 @@ const AdminTickets = () => {
         <div className="flex flex-col sm:flex-row gap-2 sm:items-center">
           <div className="relative">
             <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
-            <input type="text" placeholder="Search by name, email, phone, or ticket #..." value={search} onChange={(e) => setSearch(e.target.value)} className="pl-9 pr-4 py-2 rounded-lg bg-muted border border-border text-foreground text-sm focus:outline-none focus:ring-2 focus:ring-primary/50 w-full sm:w-72" />
+            <input
+              type="text"
+              placeholder="Search by name, email, phone, or ticket #..."
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              className="pl-9 pr-4 py-2 rounded-lg bg-muted border border-border text-foreground text-sm focus:outline-none focus:ring-2 focus:ring-primary/50 w-full sm:w-72"
+            />
           </div>
-                              {selectedIds.length > 0 && (
-            <button 
-              onClick={handleDeleteSelected} 
-              disabled={deletingSelected} 
+          {selectedIds.length > 0 && (
+            <button
+              onClick={handleDeleteSelected}
+              disabled={deletingSelected}
               className="flex items-center gap-2 px-3 py-2 rounded-lg bg-red-600 text-white text-sm font-semibold disabled:opacity-50 hover:bg-red-700 transition-colors"
             >
               <Trash2 size={16} />
               {deletingSelected ? "Deleting..." : `Delete Selected (${selectedIds.length})`}
             </button>
           )}
-          
-          <button onClick={handleDeleteAll} disabled={deletingAll || tickets.length === 0} className="flex items-center gap-2 px-3 py-2 rounded-lg bg-destructive text-destructive-foreground text-sm font-semibold disabled:opacity-50 hover:bg-destructive/90 transition-colors">
+          <button
+            onClick={handleDeleteAll}
+            disabled={deletingAll || tickets.length === 0}
+            className="flex items-center gap-2 px-3 py-2 rounded-lg bg-destructive text-destructive-foreground text-sm font-semibold disabled:opacity-50 hover:bg-destructive/90 transition-colors"
+          >
             <AlertTriangle size={16} />
             {deletingAll ? "Deleting…" : "Delete All"}
           </button>
@@ -154,11 +163,7 @@ const AdminTickets = () => {
         ) : (
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
-                          <thead>
-                <tr className="text-left text-muted-foreground border-b border-border bg-muted/30">
-                  <th className="p-3 w-12">
-                    <input
-                      type="checkbox"  
+              <thead>
                 <tr className="text-left text-muted-foreground border-b border-border bg-muted/30">
                   <th className="p-3 w-12">
                     <input
@@ -168,7 +173,14 @@ const AdminTickets = () => {
                       className="w-4 h-4 cursor-pointer accent-primary"
                     />
                   </th>
-                  <th className="p-3">Ticket #</th><th className="p-3">Name</th><th className="p-3">Email</th><th className="p-3">Phone</th><th className="p-3">Amount</th><th className="p-3">Status</th><th className="p-3">Date</th><th className="p-3 text-right">Actions</th>
+                  <th className="p-3">Ticket #</th>
+                  <th className="p-3">Name</th>
+                  <th className="p-3">Email</th>
+                  <th className="p-3">Phone</th>
+                  <th className="p-3">Amount</th>
+                  <th className="p-3">Status</th>
+                  <th className="p-3">Date</th>
+                  <th className="p-3 text-right">Actions</th>
                 </tr>
               </thead>
               <tbody>
@@ -192,7 +204,12 @@ const AdminTickets = () => {
                     </td>
                     <td className="p-3 text-muted-foreground text-xs">{new Date(t.created_at).toLocaleDateString("en-KE")}</td>
                     <td className="p-3 text-right">
-                      <button onClick={() => handleDeleteRow(t)} disabled={deletingId === t.id} title={`Delete ticket ${t.ticket_number}`} className="p-1.5 rounded-lg hover:bg-red-400/10 text-red-400 disabled:opacity-40 transition-colors">
+                      <button
+                        onClick={() => handleDeleteRow(t)}
+                        disabled={deletingId === t.id}
+                        title={`Delete ticket ${t.ticket_number}`}
+                        className="p-1.5 rounded-lg hover:bg-red-400/10 text-red-400 disabled:opacity-40 transition-colors"
+                      >
                         {deletingId === t.id ? <span className="text-xs">…</span> : <Trash2 size={15} />}
                       </button>
                     </td>
@@ -208,4 +225,3 @@ const AdminTickets = () => {
 };
 
 export default AdminTickets;
-
