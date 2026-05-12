@@ -126,4 +126,35 @@ const AdminTickets = () => {
               {deletingSelected ? "Deleting..." : `Delete Selected (${selectedIds.length})`}
             </button>
           )}
+          
+          <button onClick={handleDeleteAll} disabled={deletingAll || tickets.length === 0} className="flex items-center gap-2 px-3 py-2 rounded-lg bg-destructive text-destructive-foreground text-sm font-semibold disabled:opacity-50 hover:bg-destructive/90 transition-colors">
+            <AlertTriangle size={16} />
+            {deletingAll ? "Deleting…" : "Delete All"}
+          </button>
+        </div>
+      </div>
+
+      <div className="grid grid-cols-3 gap-3 mb-4">
+        <div className="glass rounded-xl p-3"><p className="text-xs text-muted-foreground">Total Tickets</p><p className="text-xl font-bold">{tickets.length}</p></div>
+        <div className="glass rounded-xl p-3"><p className="text-xs text-muted-foreground">Confirmed</p><p className="text-xl font-bold text-emerald-400">{tickets.filter((t) => t.status === "confirmed" || t.status === "paid").length}</p></div>
+        <div className="glass rounded-xl p-3"><p className="text-xs text-muted-foreground">Total Revenue</p><p className="text-xl font-bold text-yellow-400">KES {tickets.reduce((s, t) => s + Number(t.amount), 0).toLocaleString()}</p></div>
+      </div>
+
+      {selectedIds.length > 0 && (
+        <div className="mb-3 text-sm text-muted-foreground">
+          {selectedIds.length} of {filtered.length} selected
+        </div>
+      )}
+
+      <div className="glass rounded-xl overflow-hidden">
+        {loading ? (
+          <div className="p-8 text-center text-muted-foreground">Loading…</div>
+        ) : filtered.length === 0 ? (
+          <div className="p-8 text-center text-muted-foreground">No ticket purchases found.</div>
+        ) : (
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="text-left text-muted-foreground border-b border-border bg-muted/30">
+                  <th className="p-3
 
