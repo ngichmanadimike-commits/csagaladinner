@@ -86,7 +86,7 @@ const MpesaPayment = ({ amount, onBack, onPaymentSubmitted }: MpesaPaymentProps)
       <div className="glass rounded-xl p-4 space-y-2">
         <h4 className="font-bold text-foreground">Payment Details</h4>
         <p className="text-sm text-muted-foreground">Method: <span className="text-foreground">Lipa na M-PESA</span></p>
-        <p className="text-sm text-muted-foreground">Till Number: <span className="text-primary font-bold">6776606</span></p>
+        {/* <p className="text-sm text-muted-foreground">Till Number: <span className="text-primary font-bold">6776606</span></p> */}
         <p className="text-sm text-muted-foreground">Business Name: <span className="text-foreground">Victor Mwoni Mutemi</span></p>
         <p className="text-sm text-muted-foreground">Amount: <span className="text-primary font-bold">KES {amount.toLocaleString()}</span></p>
       </div>
@@ -132,12 +132,14 @@ const MpesaPayment = ({ amount, onBack, onPaymentSubmitted }: MpesaPaymentProps)
             <ol className="text-sm text-muted-foreground space-y-1.5 list-decimal list-inside">
               <li>Go to M-PESA</li>
               <li>Select <span className="text-foreground">Lipa na M-PESA</span></li>
-              <li>Select <span className="text-foreground">Buy Goods and Services</span></li>
-              <li>Enter Till Number: <span className="text-primary font-semibold">6776606</span></li>
+              <li>Select <span className="text-foreground">Pay Bill</span></li>
+              <li>Enter Business No: <span className="text-primary font-semibold">174379</span> <span className="text-xs text-yellow-400">(Test Mode)</span></li>
+              <li>Enter Account No: <span className="text-primary font-semibold">TICKET</span></li>
               <li>Enter Amount: <span className="text-primary font-semibold">KES {amount.toLocaleString()}</span></li>
               <li>Enter PIN</li>
               <li>Confirm</li>
             </ol>
+            <p className="text-xs text-muted-foreground mt-3">* For testing only. Use STK Push above for easier payment.</p>
           </div>
 
           <div>
