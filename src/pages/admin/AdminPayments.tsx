@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import AdminLayout from "@/components/admin/AdminLayout";
-import { Search, CheckCircle2, XCircle, Download } from "lucide-react";
+import { Search, CheckCircle2, XCircle, Download, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 import { exportToXlsx } from "@/lib/exportXlsx";
 import { logAdminAction } from "@/lib/adminLog";
@@ -12,6 +12,9 @@ const AdminPayments = () => {
   const [statusFilter, setStatusFilter] = useState<"all" | "pending" | "verified">("all");
   const [sourceFilter, setSourceFilter] = useState<"all" | "stk" | "manual">("all");
   const [loading, setLoading] = useState(true);
+  const [selectedIds, setSelectedIds] = useState<string[]>([]);
+  const [deletingId, setDeletingId] = useState<string | null>(null);
+  const [deletingSelected, setDeletingSelected] = useState(false);
 
   const fetchPayments = async () => {
     const { data } = await supabase
@@ -30,6 +33,56 @@ const AdminPayments = () => {
       .subscribe();
     return () => { supabase.removeChannel(channel); };
   }, []);
+
+  const toggleSelect = (id: string) => {
+    setSelectedIds(prev => prev.includes(id) ? prev.filter(i => i !== id) : [...prev, id]);
+  };
+
+  const toggleSelectAll = () => {
+    if (selectedIds.length === filtered.length) {
+      setSelectedIds([]);
+    } else {
+      setSelectedIds(filtered.map(p => p.id));
+    }
+  };
+
+  const handleDeleteSelected = async () => {
+    if (selectedIds.length === 0) return;
+    if (!confirm(`Delete ${selectedIds.length} payment(s)? Cannot be undone.`)) return;
+    
+    setDeletingSelected(true);
+    const { error } = await supabase.from("payments").delete().in("id", selectedIds);
+    setDeletingSelected(false);
+    
+    if (error) {
+      toast.error("Delete failed: " + error.message);
+      logAdminAction({ actionType: "DELETE_PAYMENT", description: `Failed to delete ${selectedIds.length} payments`, targetType: "payment", status: "failed", metadata: { error: error.message, ids: selectedIds } });
+    } else {
+      toast.success(`${selectedIds.length} payment(s) deleted`);
+      logAdminAction({ actionType: "DELETE_PAYMENT", description: `Deleted ${selectedIds.length} payment(s)`, targetType: "payment", metadata: { count: selectedIds.length, ids: selectedIds } });
+      setPayments(prev => prev.filter(p => !selectedIds.includes(p.id)));
+      setSelectedIds([]);
+    }
+  };
+
+  const handleDeleteRow = async (payment: any) => {
+    const reg = payment.registrations;
+    if (!confirm(`Delete payment of KES ${payment.amount} for ${reg?.name || 'Unknown'}? Cannot be undone.`)) return;
+    
+    setDeletingId(payment.id);
+    const { error } = await supabase.from("payments").delete().eq("id", payment.id);
+    setDeletingId(null);
+    
+    if (error) {
+      toast.error("Delete failed: " + error.message);
+      logAdminAction({ actionType: "DELETE_PAYMENT", description: `Failed to delete payment`, targetType: "payment", targetId: payment.id, status: "failed", metadata: { error: error.message } });
+    } else {
+      toast.success("Payment deleted");
+      logAdminAction({ actionType: "DELETE_PAYMENT", description: `Deleted payment of KES ${payment.amount} for ${reg?.name}`, targetType: "payment", targetId: payment.id, metadata: { amount: payment.amount, mpesa_code: payment.mpesa_code } });
+      setPayments(prev => prev.filter(p => p.id !== payment.id));
+      setSelectedIds(prev => prev.filter(id => id !== payment.id));
+    }
+  };
 
   const handleVerify = async (paymentId: string, verified: boolean) => {
     const target = payments.find((p) => p.id === paymentId);
@@ -95,6 +148,16 @@ const AdminPayments = () => {
               className="pl-9 pr-4 py-2 rounded-lg bg-muted border border-border text-foreground text-sm focus:outline-none focus:ring-2 focus:ring-primary/50 w-full sm:w-72"
             />
           </div>
+          {selectedIds.length > 0 && (
+            <button 
+              onClick={handleDeleteSelected} 
+              disabled={deletingSelected}
+              className="flex items-center gap-2 px-3 py-2 rounded-lg bg-red-600 text-white text-sm font-semibold disabled:opacity-50 hover:bg-red-700 transition-colors"
+            >
+              <Trash2 size={16} />
+              {deletingSelected ? "Deleting..." : `Delete (${selectedIds.length})`}
+            </button>
+          )}
           <button
             onClick={() =>
               exportToXlsx(
@@ -120,6 +183,12 @@ const AdminPayments = () => {
         </div>
       </div>
 
+      {selectedIds.length > 0 && (
+        <div className="mb-3 text-sm text-muted-foreground">
+          {selectedIds.length} of {filtered.length} selected
+        </div>
+      )}
+
       <div className="grid grid-cols-3 gap-3 mb-4">
         <div className="glass rounded-xl p-3"><p className="text-xs text-muted-foreground">Showing</p><p className="text-xl font-bold">{totals.count}</p></div>
         <div className="glass rounded-xl p-3"><p className="text-xs text-muted-foreground">Verified KES</p><p className="text-xl font-bold text-emerald-400">{totals.verified.toLocaleString()}</p></div>
@@ -136,12 +205,20 @@ const AdminPayments = () => {
             <table className="w-full text-sm">
               <thead>
                 <tr className="text-left text-muted-foreground border-b border-border bg-muted/30">
+                  <th className="p-3 w-12">
+                    <input
+                      type="checkbox"
+                      checked={selectedIds.length === filtered.length && filtered.length > 0}
+                      onChange={toggleSelectAll}
+                      className="w-4 h-4 cursor-pointer accent-primary"
+                    />
+                  </th>
                   <th className="p-3">Name</th>
                   <th className="p-3">Email</th>
                   <th className="p-3">Amount</th>
                   <th className="p-3">M-Pesa Code</th>
                   <th className="p-3">Status</th>
-                  <th className="p-3">Actions</th>
+                  <th className="p-3 text-right">Actions</th>
                 </tr>
               </thead>
               <tbody>
@@ -149,6 +226,14 @@ const AdminPayments = () => {
                   const reg = p.registrations as any;
                   return (
                     <tr key={p.id} className="border-b border-border/50 hover:bg-muted/20">
+                      <td className="p-3">
+                        <input
+                          type="checkbox"
+                          checked={selectedIds.includes(p.id)}
+                          onChange={() => toggleSelect(p.id)}
+                          className="w-4 h-4 cursor-pointer accent-primary"
+                        />
+                      </td>
                       <td className="p-3 text-foreground">{reg?.name || "—"}</td>
                       <td className="p-3 text-muted-foreground">{reg?.email || "—"}</td>
                       <td className="p-3 text-foreground font-semibold">KES {Number(p.amount).toLocaleString()}</td>
@@ -158,8 +243,8 @@ const AdminPayments = () => {
                           {p.verified ? "Verified" : "Pending"}
                         </span>
                       </td>
-                      <td className="p-3">
-                        <div className="flex gap-2">
+                      <td className="p-3 text-right">
+                        <div className="flex gap-2 justify-end">
                           {!p.verified && (
                             <button onClick={() => handleVerify(p.id, true)} className="p-1.5 rounded-lg hover:bg-emerald-400/10 text-emerald-400" title="Verify">
                               <CheckCircle2 size={16} />
@@ -170,6 +255,14 @@ const AdminPayments = () => {
                               <XCircle size={16} />
                             </button>
                           )}
+                          <button 
+                            onClick={() => handleDeleteRow(p)} 
+                            disabled={deletingId === p.id}
+                            className="p-1.5 rounded-lg hover:bg-red-400/10 text-red-400 disabled:opacity-40 transition-colors"
+                            title="Delete"
+                          >
+                            {deletingId === p.id ? <span className="text-xs">...</span> : <Trash2 size={15} />}
+                          </button>
                         </div>
                       </td>
                     </tr>
