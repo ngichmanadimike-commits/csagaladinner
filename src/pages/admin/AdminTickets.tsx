@@ -116,11 +116,14 @@ const AdminTickets = () => {
             <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
             <input type="text" placeholder="Search by name, email, phone, or ticket #..." value={search} onChange={(e) => setSearch(e.target.value)} className="pl-9 pr-4 py-2 rounded-lg bg-muted border border-border text-foreground text-sm focus:outline-none focus:ring-2 focus:ring-primary/50 w-full sm:w-72" />
           </div>
-                    {selectedIds.length > 0 && (
+                              {selectedIds.length > 0 && (
             <button 
               onClick={handleDeleteSelected} 
               disabled={deletingSelected} 
               className="flex items-center gap-2 px-3 py-2 rounded-lg bg-red-600 text-white text-sm font-semibold disabled:opacity-50 hover:bg-red-700 transition-colors"
             >
-              <Trash2 size={16} /> 
+              <Trash2 size={16} />
+              {deletingSelected ? "Deleting..." : `Delete Selected (${selectedIds.length})`}
+            </button>
+          )}
 
