@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-{ supabase } from "@/integrations/supabase/client";
+import { supabase } from "@/integrations/supabase/client";
 import AdminLayout from "@/components/admin/AdminLayout";
 import { Search, Trash2 } from "lucide-react";
 import { toast } from "sonner";
@@ -42,45 +42,45 @@ const AdminRegistrations = () => {
   }, []);
 
   const toggleSelect = (id: string) => {
-    setSelectedIds(prev => prev.includes(id) ? prev.filter(i => i !== id) : [...prev, id])
-  }
+    setSelectedIds(prev => prev.includes(id) ? prev.filter(i => i !== id) : [...prev, id]);
+  };
 
   const toggleSelectAll = () => {
     if (selectedIds.length === filtered.length) {
-      setSelectedIds([])
+      setSelectedIds([]);
     } else {
-      setSelectedIds(filtered.map(r => r.id))
+      setSelectedIds(filtered.map(r => r.id));
     }
-  }
+  };
 
   const handleDeleteSelected = async () => {
-    if (selectedIds.length === 0) return
-    if (!confirm(`Delete ${selectedIds.length} record(s)? Cannot be undone.`)) return
+    if (selectedIds.length === 0) return;
+    if (!confirm(`Delete ${selectedIds.length} record(s)? Cannot be undone.`)) return;
     
-    setDeletingSelected(true)
-    const { error } = await supabase.from("ticket_purchases").delete().in("id", selectedIds)
-    setDeletingSelected(false)
+    setDeletingSelected(true);
+    const { error } = await supabase.from("ticket_purchases").delete().in("id", selectedIds);
+    setDeletingSelected(false);
     
-    if (error) toast.error("Delete failed: " + error.message)
+    if (error) toast.error("Delete failed: " + error.message);
     else {
-      toast.success(`${selectedIds.length} record(s) deleted`)
-      setRegistrations(prev => prev.filter(r => !selectedIds.includes(r.id)))
-      setSelectedIds([])
+      toast.success(`${selectedIds.length} record(s) deleted`);
+      setRegistrations(prev => prev.filter(r => !selectedIds.includes(r.id)));
+      setSelectedIds([]);
     }
-  }
+  };
 
   const handleDeleteRow = async (row: TicketPurchase) => {
-    if (!confirm(`Delete ticket ${row.ticket_number} for ${row.name}? Cannot be undone.`)) return
-    setDeletingId(row.id)
-    const { error } = await supabase.from("ticket_purchases").delete().eq("id", row.id)
-    setDeletingId(null)
-    if (error) toast.error("Delete failed: " + error.message)
+    if (!confirm(`Delete ticket ${row.ticket_number} for ${row.name}? Cannot be undone.`)) return;
+    setDeletingId(row.id);
+    const { error } = await supabase.from("ticket_purchases").delete().eq("id", row.id);
+    setDeletingId(null);
+    if (error) toast.error("Delete failed: " + error.message);
     else {
-      toast.success("Record deleted")
-      setRegistrations(prev => prev.filter(r => r.id !== row.id))
-      setSelectedIds(prev => prev.filter(id => id !== row.id))
+      toast.success("Record deleted");
+      setRegistrations(prev => prev.filter(r => r.id !== row.id));
+      setSelectedIds(prev => prev.filter(id => id !== row.id));
     }
-  }
+  };
 
   const filtered = registrations.filter((r) => {
     const q = search.toLowerCase();
