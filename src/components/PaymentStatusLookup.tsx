@@ -2,7 +2,7 @@ import { useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { Search, Loader2, CheckCircle, Clock, AlertCircle } from "lucide-react";
 import { toast } from "sonner";
-import { maskName, maskEmail, maskTicketToken } from "@/lib/mask";
+import { maskName, maskEmail, maskTicketToken, maskBookingCode } from "@/lib/mask";
 import { downloadTicketPdf } from "@/lib/generateTicket";
 import { Download } from "lucide-react";
 
