@@ -1,12 +1,12 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef } from "react";
 
 interface Props {
   targetDate: string;
 }
 
 const CountdownTimer = ({ targetDate }: Props) => {
-  const calcTime = () => {
-    const diff = new Date(targetDate).getTime() - Date.now();
+  const calcTime = (date: string) => {
+    const diff = new Date(date).getTime() - Date.now();
     if (diff <= 0) return { days: 0, hours: 0, minutes: 0, seconds: 0 };
     return {
       days: Math.floor(diff / 86400000),
@@ -16,9 +16,17 @@ const CountdownTimer = ({ targetDate }: Props) => {
     };
   };
 
-  const [time, setTime] = useState(calcTime);
+  const [time, setTime] = useState(() => calcTime(targetDate));
+  const targetRef = useRef(targetDate);
+
+  // Re-sync whenever admin updates the event date
   useEffect(() => {
-    const id = setInterval(() => setTime(calcTime), 1000);
+    targetRef.current = targetDate;
+    setTime(calcTime(targetDate));
+  }, [targetDate]);
+
+  useEffect(() => {
+    const id = setInterval(() => setTime(calcTime(targetRef.current)), 1000);
     return () => clearInterval(id);
   }, []);
 
@@ -32,7 +40,10 @@ const CountdownTimer = ({ targetDate }: Props) => {
   return (
     <div className="flex justify-center gap-4 md:gap-6">
       {units.map((u) => (
-        <div key={u.label} className="glass rounded-xl px-4 py-3 md:px-6 md:py-4 min-w-[70px] md:min-w-[90px] text-center">
+        <div
+          key={u.label}
+          className="glass rounded-xl px-4 py-3 md:px-6 md:py-4 min-w-[70px] md:min-w-[90px] text-center"
+        >
           <div className="font-display text-2xl md:text-4xl font-bold text-primary">
             {String(u.value).padStart(2, "0")}
           </div>
