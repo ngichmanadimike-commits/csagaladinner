@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import AdminLayout from "@/components/admin/AdminLayout";
 import { toast } from "sonner";
-import { Loader2, Save } from "lucide-react";
+import { Loader2, Save, Info } from "lucide-react";
 
 const AdminEventConfig = () => {
   const [events, setEvents] = useState<any[]>([]);
@@ -12,7 +12,10 @@ const AdminEventConfig = () => {
 
   useEffect(() => {
     const fetchEvents = async () => {
-      const { data } = await supabase.from("events").select("*").order("created_at", { ascending: false });
+      const { data } = await supabase
+        .from("events")
+        .select("*")
+        .order("created_at", { ascending: false });
       setEvents(data || []);
       if (data && data.length > 0) setSelected(data[0]);
       setLoading(false);
@@ -39,8 +42,9 @@ const AdminEventConfig = () => {
 
     setSaving(false);
     if (error) {
-      toast.error("Failed to save");
+      toast.error("Failed to save: " + error.message);
     } else {
+      setEvents((prev) => prev.map((e) => (e.id === selected.id ? selected : e)));
       toast.success("Event updated successfully");
     }
   };
@@ -79,7 +83,10 @@ const AdminEventConfig = () => {
     <AdminLayout>
       <div className="flex items-center justify-between mb-6">
         <h1 className="font-display text-2xl font-bold text-foreground">Event Configuration</h1>
-        <button onClick={handleCreate} className="px-4 py-2 rounded-lg bg-primary text-primary-foreground text-sm font-semibold hover:scale-[1.02] transition-transform">
+        <button
+          onClick={handleCreate}
+          className="px-4 py-2 rounded-lg bg-primary text-primary-foreground text-sm font-semibold hover:scale-[1.02] transition-transform"
+        >
           + New Event
         </button>
       </div>
@@ -103,47 +110,69 @@ const AdminEventConfig = () => {
       )}
 
       {selected && (
-        <div className="glass rounded-xl p-6 space-y-4">
-          {[
-            { label: "Event Title", field: "title", type: "text" },
-            { label: "Theme", field: "theme", type: "text" },
-            { label: "Venue", field: "venue", type: "text" },
-            { label: "Event Date", field: "event_date", type: "datetime-local" },
-            { label: "Description", field: "description", type: "textarea" },
-            { label: "Nomination URL", field: "nomination_url", type: "url" },
-            { label: "Voting URL", field: "voting_url", type: "url" },
-          ].map((f) => (
-            <div key={f.field}>
-              <label className="text-sm text-muted-foreground mb-1 block">{f.label}</label>
-              {f.type === "textarea" ? (
-                <textarea
-                  value={selected[f.field] || ""}
-                  onChange={(e) => updateField(f.field, e.target.value)}
-                  rows={3}
-                  className="w-full px-4 py-2.5 rounded-lg bg-muted border border-border text-foreground text-sm focus:outline-none focus:ring-2 focus:ring-primary/50 resize-none"
-                />
-              ) : (
+        <div className="space-y-6">
+          <div className="glass rounded-xl p-6 space-y-4">
+            <h2 className="font-semibold text-foreground text-base border-b border-border pb-2">
+              Core Event Details
+            </h2>
+
+            {[
+              { label: "Event Title", field: "title", type: "text" },
+              { label: "Theme / Tagline", field: "theme", type: "text" },
+              { label: "Venue", field: "venue", type: "text" },
+              { label: "Event Date & Time", field: "event_date", type: "datetime-local" },
+              { label: "Nomination URL", field: "nomination_url", type: "url" },
+              { label: "Voting URL", field: "voting_url", type: "url" },
+            ].map((f) => (
+              <div key={f.field}>
+                <label className="text-sm text-muted-foreground mb-1 block">{f.label}</label>
                 <input
                   type={f.type}
                   value={selected[f.field] || ""}
                   onChange={(e) => updateField(f.field, e.target.value)}
                   className="w-full px-4 py-2.5 rounded-lg bg-muted border border-border text-foreground text-sm focus:outline-none focus:ring-2 focus:ring-primary/50"
                 />
-              )}
-            </div>
-          ))}
+              </div>
+            ))}
 
-          <div>
-            <label className="text-sm text-muted-foreground mb-1 block">Status</label>
-            <select
-              value={selected.status || "draft"}
-              onChange={(e) => updateField("status", e.target.value)}
-              className="w-full px-4 py-2.5 rounded-lg bg-muted border border-border text-foreground text-sm focus:outline-none focus:ring-2 focus:ring-primary/50"
-            >
-              <option value="draft">Draft</option>
-              <option value="published">Published</option>
-              <option value="archived">Archived</option>
-            </select>
+            <div>
+              <label className="text-sm text-muted-foreground mb-1 block">
+                Description (shown on popup &amp; site)
+              </label>
+              <textarea
+                value={selected.description || ""}
+                onChange={(e) => updateField("description", e.target.value)}
+                rows={3}
+                className="w-full px-4 py-2.5 rounded-lg bg-muted border border-border text-foreground text-sm focus:outline-none focus:ring-2 focus:ring-primary/50 resize-none"
+              />
+            </div>
+
+            <div>
+              <label className="text-sm text-muted-foreground mb-1 block">Status</label>
+              <select
+                value={selected.status || "draft"}
+                onChange={(e) => updateField("status", e.target.value)}
+                className="w-full px-4 py-2.5 rounded-lg bg-muted border border-border text-foreground text-sm focus:outline-none focus:ring-2 focus:ring-primary/50"
+              >
+                <option value="draft">Draft (hidden from public)</option>
+                <option value="published">Published (visible + shown on popup)</option>
+                <option value="archived">Archived</option>
+              </select>
+            </div>
+          </div>
+
+          {/* Info panel explaining popup connection */}
+          <div className="glass rounded-xl p-4 flex gap-3 items-start border border-primary/20">
+            <Info size={18} className="text-primary flex-shrink-0 mt-0.5" />
+            <div className="text-sm text-muted-foreground">
+              <p className="text-foreground font-semibold mb-1">Event Notification Popup</p>
+              <p>
+                The popup shown to visitors uses this event's <strong>Title</strong>,{" "}
+                <strong>Event Date</strong>, <strong>Venue</strong>, and{" "}
+                <strong>Description</strong> automatically — as long as the status is set to{" "}
+                <span className="text-primary font-semibold">Published</span>.
+              </p>
+            </div>
           </div>
 
           <button
@@ -159,7 +188,9 @@ const AdminEventConfig = () => {
 
       {events.length === 0 && (
         <div className="glass rounded-xl p-8 text-center">
-          <p className="text-muted-foreground mb-4">No events yet. Create your first event to get started.</p>
+          <p className="text-muted-foreground mb-4">
+            No events yet. Create your first event to get started.
+          </p>
         </div>
       )}
     </AdminLayout>
