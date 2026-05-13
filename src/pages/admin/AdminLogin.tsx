@@ -9,24 +9,20 @@ const AdminLogin = () => {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
-  const { user, isAdmin } = useAuth();
+  const { user, isAdmin, loading: authLoading } = useAuth();
   const navigate = useNavigate();
 
-  // If already logged in as admin, redirect immediately
   useEffect(() => {
-    if (user && isAdmin) {
-      navigate("/admin/donations", { replace: true });
+    if (!authLoading && user && isAdmin) {
+      navigate("/admin", { replace: true });
     }
-  }, [user, isAdmin, navigate]);
+  }, [user, isAdmin, authLoading, navigate]);
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
 
-    const { data, error } = await supabase.auth.signInWithPassword({
-      email,
-      password,
-    });
+    const { data, error } = await supabase.auth.signInWithPassword({ email, password });
 
     setLoading(false);
 
@@ -37,10 +33,17 @@ const AdminLogin = () => {
 
     if (data.user) {
       toast.success("Logged in successfully");
-      // Force redirect after login - don't wait for useAuth
-      navigate("/admin/donations", { replace: true });
+      navigate("/admin", { replace: true });
     }
   };
+
+  if (authLoading) {
+    return (
+      <div className="min-h-screen bg-background flex items-center justify-center">
+        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary" />
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-background flex items-center justify-center p-4">
@@ -56,9 +59,7 @@ const AdminLogin = () => {
 
         <form onSubmit={handleLogin} className="space-y-4">
           <div>
-            <label className="block text-sm font-medium text-foreground mb-2">
-              Email
-            </label>
+            <label className="block text-sm font-medium text-foreground mb-2">Email</label>
             <div className="relative">
               <Mail className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" size={18} />
               <input
@@ -73,9 +74,7 @@ const AdminLogin = () => {
           </div>
 
           <div>
-            <label className="block text-sm font-medium text-foreground mb-2">
-              Password
-            </label>
+            <label className="block text-sm font-medium text-foreground mb-2">Password</label>
             <div className="relative">
               <Lock className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" size={18} />
               <input
