@@ -39,3 +39,16 @@ export const maskTicketToken = (token?: string | null): string => {
   if (token.length <= 8) return "•".repeat(token.length);
   return token.slice(0, 4) + "•".repeat(16) + token.slice(-4);
 };
+
+/**
+ * Mask a booking/ticket code on the public lookup page.
+ * Shows only the last 4 characters so others cannot see the full code.
+ * Example:  CSA-ABCDEF  →  ••••••CDEF
+ */
+export const maskBookingCode = (code?: string | null): string => {
+  if (!code) return "—";
+  if (code.length <= 4) return "•".repeat(code.length);
+  const visible = code.slice(-4);
+  const hidden = code.slice(0, code.length - 4).replace(/./g, "•");
+  return hidden + visible;
+};
