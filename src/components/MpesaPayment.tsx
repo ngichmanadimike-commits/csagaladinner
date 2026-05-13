@@ -9,6 +9,16 @@ interface MpesaPaymentProps {
   onPaymentSubmitted?: (info: { mpesaCode: string; phone: string; source: "stk" | "manual" }) => Promise<void> | void;
 }
 
+/** Normalize phone to 254XXXXXXXXX format expected by Safaricom */
+function normalizePhone(raw: string): string {
+  const digits = raw.replace(/\D/g, "");
+  if (digits.startsWith("254") && digits.length === 12) return digits;
+  if (digits.startsWith("0") && digits.length === 10) return "254" + digits.slice(1);
+  if (digits.startsWith("7") && digits.length === 9) return "254" + digits;
+  if (digits.startsWith("1") && digits.length === 9) return "254" + digits;
+  return digits;
+}
+
 const MpesaPayment = ({ amount, onBack, onPaymentSubmitted }: MpesaPaymentProps) => {
   const [phone, setPhone] = useState("");
   const [txCode, setTxCode] = useState("");
@@ -22,20 +32,29 @@ const MpesaPayment = ({ amount, onBack, onPaymentSubmitted }: MpesaPaymentProps)
     setLoading(true);
     setError("");
     try {
+      const normalizedPhone = normalizePhone(phone);
+
       const { data, error: fnError } = await supabase.functions.invoke("mpesa-stk-push", {
-        body: { phone, amount },
+        body: {
+          phoneNumber: normalizedPhone,   // FIX: was "phone", function expects "phoneNumber"
+          amount: Math.round(amount),     // FIX: ensure integer — Safaricom rejects decimals
+          accountReference: "CSA Gala",
+          transactionDesc: "Ticket Payment",
+        },
       });
+
       if (fnError) throw fnError;
-      if (data?.errorCode) {
-        setError(data.errorMessage || "STK Push failed. Please try manually.");
+
+      if (data?.errorCode || data?.error) {
+        const msg = data?.errorMessage || data?.error || "STK Push failed. Please try manually.";
+        setError(msg);
         setStep("confirm");
       } else {
         setStep("waiting");
-        // Auto-advance to confirm after 15s
-        setTimeout(() => setStep("confirm"), 15000);
+        setTimeout(() => setStep("confirm"), 20000);
       }
     } catch (err: any) {
-      console.error(err);
+      console.error("STK Push error:", err);
       setError("Could not initiate payment. Use manual instructions below.");
       setStep("confirm");
     } finally {
@@ -86,7 +105,6 @@ const MpesaPayment = ({ amount, onBack, onPaymentSubmitted }: MpesaPaymentProps)
       <div className="glass rounded-xl p-4 space-y-2">
         <h4 className="font-bold text-foreground">Payment Details</h4>
         <p className="text-sm text-muted-foreground">Method: <span className="text-foreground">Lipa na M-PESA</span></p>
-        {/* <p className="text-sm text-muted-foreground">Till Number: <span className="text-primary font-bold">6776606</span></p> */}
         <p className="text-sm text-muted-foreground">Business Name: <span className="text-foreground">Victor Mwoni Mutemi</span></p>
         <p className="text-sm text-muted-foreground">Amount: <span className="text-primary font-bold">KES {amount.toLocaleString()}</span></p>
       </div>
@@ -102,6 +120,7 @@ const MpesaPayment = ({ amount, onBack, onPaymentSubmitted }: MpesaPaymentProps)
               placeholder="e.g. 0712345678"
               className="w-full px-4 py-2.5 rounded-lg bg-muted border border-border text-foreground text-sm focus:outline-none focus:ring-2 focus:ring-primary/50"
             />
+            <p className="text-xs text-muted-foreground mt-1">Accepts formats: 07XX, 01XX, 254XXXXXXXXX</p>
           </div>
           {error && <p className="text-sm text-red-400">{error}</p>}
           <button
@@ -110,7 +129,7 @@ const MpesaPayment = ({ amount, onBack, onPaymentSubmitted }: MpesaPaymentProps)
             className="w-full py-3 rounded-lg bg-primary text-primary-foreground font-bold hover:scale-[1.02] transition-transform disabled:opacity-50 disabled:hover:scale-100 flex items-center justify-center gap-2"
           >
             {loading && <Loader2 size={18} className="animate-spin" />}
-            Pay KES {amount.toLocaleString()} via STK Push
+            {loading ? "Sending STK Push..." : `Pay KES ${amount.toLocaleString()} via STK Push`}
           </button>
           <button
             onClick={() => setStep("confirm")}
@@ -133,13 +152,12 @@ const MpesaPayment = ({ amount, onBack, onPaymentSubmitted }: MpesaPaymentProps)
               <li>Go to M-PESA</li>
               <li>Select <span className="text-foreground">Lipa na M-PESA</span></li>
               <li>Select <span className="text-foreground">Pay Bill</span></li>
-              <li>Enter Business No: <span className="text-primary font-semibold">174379</span> <span className="text-xs text-yellow-400">(Test Mode)</span></li>
-              <li>Enter Account No: <span className="text-primary font-semibold">TICKET</span></li>
+              <li>Enter Business No: <span className="text-primary font-semibold">174379</span></li>
+              <li>Enter Account No: <span className="text-primary font-semibold">CSA Gala</span></li>
               <li>Enter Amount: <span className="text-primary font-semibold">KES {amount.toLocaleString()}</span></li>
               <li>Enter PIN</li>
-              <li>Confirm</li>
+              <li>Confirm &amp; note the transaction code</li>
             </ol>
-            <p className="text-xs text-muted-foreground mt-3">* For testing only. Use STK Push above for easier payment.</p>
           </div>
 
           <div>
