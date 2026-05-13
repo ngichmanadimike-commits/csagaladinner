@@ -50,29 +50,39 @@ const PaymentStatusLookup = () => {
     const trimmed = query.trim();
     if (!trimmed) return;
 
-    setLoading(true);
-    setSearched(true);
-
-    const [{ data, error }, sponsorRes] = await Promise.all([
-      supabase
-      .from("registrations")
-      .select("id, name, email, package_type, total_cost, total_paid, payment_status, ticket_issued, ticket_code, secure_ticket_token")
-      .or(`name.ilike.%${trimmed}%,email.ilike.%${trimmed}%,ticket_code.ilike.%${trimmed}%`),
-      supabase
-        .from("sponsorships")
-        .select("id, sponsor_name, sponsor_email, sponsor_phone, num_students, level, amount, verified, payment_status, sponsor_code")
-        .or(`sponsor_name.ilike.%${trimmed}%,sponsor_email.ilike.%${trimmed}%,sponsor_code.ilike.%${trimmed}%`),
-    ]);
-
-    setLoading(false);
-
-    if (error) {
-      toast.error("Failed to search. Please try again.");
+    // Stop crash if supabase client isn't initialized
+    if (!supabase) {
+      toast.error("Supabase client not configured");
       return;
     }
 
-    setResults(data ?? []);
-    setSponsorResults((sponsorRes.data as any) ?? []);
+    setLoading(true);
+    setSearched(true);
+
+    try {
+      const [{ data, error }, sponsorRes] = await Promise.all([
+        supabase
+          .from("registrations")
+          .select("id, name, email, package_type, total_cost, total_paid, payment_status, ticket_issued, ticket_code, secure_ticket_token")
+          .or(`name.ilike.%${trimmed}%,email.ilike.%${trimmed}%,ticket_code.ilike.%${trimmed}%`),
+        supabase
+          .from("sponsorships")
+          .select("id, sponsor_name, sponsor_email, sponsor_phone, num_students, level, amount, verified, payment_status, sponsor_code")
+          .or(`sponsor_name.ilike.%${trimmed}%,sponsor_email.ilike.%${trimmed}%,sponsor_code.ilike.%${trimmed}%`),
+      ]);
+
+      if (error) {
+        toast.error(error.message);
+        return;
+      }
+
+      setResults(data ?? []);
+      setSponsorResults((sponsorRes.data as any) ?? []);
+    } catch (err: any) {
+      toast.error("Search failed: " + err.message);
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (
@@ -95,7 +105,7 @@ const PaymentStatusLookup = () => {
               value={query}
               onChange={(e) => setQuery(e.target.value)}
               placeholder="Booking code, name, or email..."
-              className="w-full pl-10 pr-4 py-3 rounded-xl bg-muted border border-border text-foreground text-sm focus:outline-none focus:ring-2 focus:ring-primary/50"
+              className="w-full pl-10 pr-4 py-3 rounded-xl bg-muted border-border text-foreground text-sm focus:outline-none focus:ring-2 focus:ring-primary/50"
             />
           </div>
           <button
@@ -256,7 +266,7 @@ function SecureDownload({ reg }: { reg: RegistrationResult }) {
   }
 
   return (
-    <div className="mt-2 p-3 rounded-lg border border-primary/40 bg-primary/5 space-y-2">
+    <div className="mt-2 p-3 rounded-lg border-primary/40 bg-primary/5 space-y-2">
       <p className="text-xs text-muted-foreground">Enter your booking code to download:</p>
       <div className="flex gap-2">
         <input
@@ -264,7 +274,7 @@ function SecureDownload({ reg }: { reg: RegistrationResult }) {
           value={code}
           onChange={(e) => setCode(e.target.value.toUpperCase())}
           placeholder="CSA-XXXXXX"
-          className="flex-1 px-3 py-2 rounded-md bg-muted border border-border text-sm font-mono"
+          className="flex-1 px-3 py-2 rounded-md bg-muted border-border text-sm font-mono"
         />
         <button
           onClick={handle}
@@ -275,7 +285,7 @@ function SecureDownload({ reg }: { reg: RegistrationResult }) {
         </button>
         <button
           onClick={() => { setOpen(false); setCode(""); }}
-          className="px-2 rounded-md border border-border text-xs"
+          className="px-2 rounded-md border-border text-xs"
         >
           Cancel
         </button>
