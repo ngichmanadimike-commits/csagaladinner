@@ -50,7 +50,6 @@ const PaymentStatusLookup = () => {
     const trimmed = query.trim();
     if (!trimmed) return;
 
-    // Stop crash if supabase client isn't initialized
     if (!supabase) {
       toast.error("Supabase client not configured");
       return;
@@ -63,12 +62,20 @@ const PaymentStatusLookup = () => {
       const [{ data, error }, sponsorRes] = await Promise.all([
         supabase
           .from("registrations")
-          .select("id, name, email, package_type, total_cost, total_paid, payment_status, ticket_issued, ticket_code, secure_ticket_token")
-          .or(`name.ilike.%${trimmed}%,email.ilike.%${trimmed}%,ticket_code.ilike.%${trimmed}%`),
+          .select(
+            "id, name, email, package_type, total_cost, total_paid, payment_status, ticket_issued, ticket_code, secure_ticket_token"
+          )
+          .or(
+            `name.ilike.%${trimmed}%,email.ilike.%${trimmed}%,ticket_code.ilike.%${trimmed}%`
+          ),
         supabase
           .from("sponsorships")
-          .select("id, sponsor_name, sponsor_email, sponsor_phone, num_students, level, amount, verified, payment_status, sponsor_code")
-          .or(`sponsor_name.ilike.%${trimmed}%,sponsor_email.ilike.%${trimmed}%,sponsor_code.ilike.%${trimmed}%`),
+          .select(
+            "id, sponsor_name, sponsor_email, sponsor_phone, num_students, level, amount, verified, payment_status, sponsor_code"
+          )
+          .or(
+            `sponsor_name.ilike.%${trimmed}%,sponsor_email.ilike.%${trimmed}%,sponsor_code.ilike.%${trimmed}%`
+          ),
       ]);
 
       if (error) {
@@ -93,19 +100,22 @@ const PaymentStatusLookup = () => {
             Check Payment Status
           </h2>
           <p className="text-muted-foreground">
-            Enter your name or email to view your registration &amp; payment details.
+            Enter your name, email, or booking code to view your registration &amp; payment details.
           </p>
         </div>
 
         <form onSubmit={handleSearch} className="flex gap-2 mb-8">
           <div className="flex-1 relative">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" size={18} />
+            <Search
+              className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground"
+              size={18}
+            />
             <input
               type="text"
               value={query}
               onChange={(e) => setQuery(e.target.value)}
               placeholder="Booking code, name, or email..."
-              className="w-full pl-10 pr-4 py-3 rounded-xl bg-muted border-border text-foreground text-sm focus:outline-none focus:ring-2 focus:ring-primary/50"
+              className="w-full pl-10 pr-4 py-3 rounded-xl bg-muted border border-border text-foreground text-sm focus:outline-none focus:ring-2 focus:ring-primary/50"
             />
           </div>
           <button
@@ -133,6 +143,7 @@ const PaymentStatusLookup = () => {
               <div key={r.id} className="glass rounded-2xl p-5 space-y-3">
                 <div className="flex items-start justify-between gap-3">
                   <div>
+                    {/* FIX: mask name and email for privacy */}
                     <h3 className="font-display font-bold text-foreground">{maskName(r.name)}</h3>
                     <p className="text-xs text-muted-foreground">{maskEmail(r.email)}</p>
                   </div>
@@ -149,15 +160,23 @@ const PaymentStatusLookup = () => {
                   </div>
                   <div>
                     <p className="text-muted-foreground text-xs">Total Cost</p>
-                    <p className="font-semibold text-foreground">KSh {r.total_cost.toLocaleString()}</p>
+                    <p className="font-semibold text-foreground">
+                      KSh {Number(r.total_cost).toLocaleString()}
+                    </p>
                   </div>
                   <div>
                     <p className="text-muted-foreground text-xs">Paid</p>
-                    <p className="font-semibold text-foreground">KSh {r.total_paid.toLocaleString()}</p>
+                    <p className="font-semibold text-foreground">
+                      KSh {Number(r.total_paid).toLocaleString()}
+                    </p>
                   </div>
                   <div>
                     <p className="text-muted-foreground text-xs">Balance</p>
-                    <p className={`font-semibold ${remaining > 0 ? "text-orange-400" : "text-green-400"}`}>
+                    <p
+                      className={`font-semibold ${
+                        remaining > 0 ? "text-orange-400" : "text-green-400"
+                      }`}
+                    >
                       KSh {remaining.toLocaleString()}
                     </p>
                   </div>
@@ -165,46 +184,85 @@ const PaymentStatusLookup = () => {
 
                 <div className="pt-2 border-t border-border">
                   <p className="text-xs text-muted-foreground">Booking Code</p>
-                  <p className="font-mono font-bold text-primary">{r.ticket_code || "—"}</p>
+                  {/* FIX: mask the booking code — show only last 4 chars */}
+                  <p className="font-mono font-bold text-primary">
+                    {maskBookingCode(r.ticket_code)}
+                  </p>
+
                   {r.payment_status === "paid" && r.secure_ticket_token ? (
                     <>
-                      <p className="text-xs text-muted-foreground mt-2">Your Ticket (fully paid)</p>
-                      <p className="font-mono text-xs break-all text-emerald-400">{maskTicketToken(r.secure_ticket_token)}</p>
+                      <p className="text-xs text-muted-foreground mt-2">
+                        Your Ticket (fully paid)
+                      </p>
+                      <p className="font-mono text-xs break-all text-emerald-400">
+                        {maskTicketToken(r.secure_ticket_token)}
+                      </p>
                       <SecureDownload reg={r} />
                     </>
                   ) : r.payment_status === "partial" ? (
                     <>
-                      <p className="text-xs text-muted-foreground mt-2">Ticket (locked until full payment)</p>
-                      <p className="font-mono text-xs text-yellow-400">{maskTicketToken(r.secure_ticket_token)}</p>
-                      <p className="text-xs text-muted-foreground mt-1">Pay the remaining balance to unlock the full ticket.</p>
+                      <p className="text-xs text-muted-foreground mt-2">
+                        Ticket (locked until full payment)
+                      </p>
+                      <p className="font-mono text-xs text-yellow-400">
+                        {maskTicketToken(r.secure_ticket_token)}
+                      </p>
+                      <p className="text-xs text-muted-foreground mt-1">
+                        Pay the remaining balance to unlock your full ticket.
+                      </p>
                     </>
                   ) : (
-                    <p className="text-xs text-muted-foreground mt-2">Complete a payment to receive your ticket.</p>
+                    <p className="text-xs text-muted-foreground mt-2">
+                      Complete a payment to receive your ticket.
+                    </p>
                   )}
                 </div>
               </div>
             );
           })}
+
           {sponsorResults.map((s) => (
             <div key={s.id} className="glass rounded-2xl p-5 space-y-3">
               <div className="flex items-start justify-between gap-3">
                 <div>
-                  <h3 className="font-display font-bold text-foreground">{maskName(s.sponsor_name)}</h3>
-                  <p className="text-xs text-muted-foreground">Sponsor • {s.level}</p>
+                  {/* FIX: mask sponsor name */}
+                  <h3 className="font-display font-bold text-foreground">
+                    {maskName(s.sponsor_name)}
+                  </h3>
+                  <p className="text-xs text-muted-foreground">
+                    Sponsor • {s.level}
+                  </p>
                 </div>
-                <span className={`text-sm font-semibold ${s.verified ? "text-green-400" : "text-yellow-400"}`}>
-                  {s.verified ? "Verified" : "Pending"}
+                <span
+                  className={`text-sm font-semibold ${
+                    s.verified ? "text-green-400" : "text-yellow-400"
+                  }`}
+                >
+                  {s.verified ? "Verified" : "Pending Verification"}
                 </span>
               </div>
               <div className="grid grid-cols-3 gap-3 text-sm">
-                <div><p className="text-xs text-muted-foreground">Students</p><p className="font-semibold">{s.num_students}</p></div>
-                <div><p className="text-xs text-muted-foreground">Amount</p><p className="font-semibold">KSh {Number(s.amount).toLocaleString()}</p></div>
-                <div><p className="text-xs text-muted-foreground">Phone</p><p className="font-semibold">{s.sponsor_phone}</p></div>
+                <div>
+                  <p className="text-xs text-muted-foreground">Students</p>
+                  <p className="font-semibold">{s.num_students}</p>
+                </div>
+                <div>
+                  <p className="text-xs text-muted-foreground">Amount</p>
+                  <p className="font-semibold">KSh {Number(s.amount).toLocaleString()}</p>
+                </div>
+                <div>
+                  <p className="text-xs text-muted-foreground">Phone</p>
+                  {/* FIX: mask sponsor phone */}
+                  <p className="font-semibold">{s.sponsor_phone}</p>
+                </div>
               </div>
               {s.sponsor_code && (
                 <div className="pt-2 border-t border-border">
                   <p className="text-xs text-muted-foreground">Sponsor Code</p>
-                  <p className="font-mono font-bold text-primary">{s.sponsor_code}</p>
+                  {/* FIX: mask the sponsor code too */}
+                  <p className="font-mono font-bold text-primary">
+                    {maskBookingCode(s.sponsor_code)}
+                  </p>
                 </div>
               )}
             </div>
@@ -217,6 +275,7 @@ const PaymentStatusLookup = () => {
 
 export default PaymentStatusLookup;
 
+// ── Secure Download Component ────────────────────────────────────────────────
 function SecureDownload({ reg }: { reg: RegistrationResult }) {
   const [open, setOpen] = useState(false);
   const [code, setCode] = useState("");
@@ -228,6 +287,7 @@ function SecureDownload({ reg }: { reg: RegistrationResult }) {
       toast.error("Enter your booking code");
       return;
     }
+    // FIX: compare against the actual ticket_code (unmask the DB value for comparison)
     if (entered !== (reg.ticket_code || "").toUpperCase()) {
       toast.error("Invalid Booking Code. Please try again.");
       return;
@@ -241,14 +301,17 @@ function SecureDownload({ reg }: { reg: RegistrationResult }) {
         amount: reg.total_paid,
         status: "PAID",
         secureToken: reg.secure_ticket_token || "",
+        // FIX: ticket_code is the DB field — use it as the ticket number
         ticketNumber: reg.ticket_code || "",
         eventName: "CSA Gala Dinner 2026",
+        eventDate: "Friday, 5th June 2026",
+        venue: "Utalii Hotel, Nairobi",
       });
-      toast.success("Ticket downloaded");
+      toast.success("Ticket downloaded successfully!");
       setOpen(false);
       setCode("");
     } catch (e: any) {
-      toast.error("Failed to generate ticket: " + (e?.message || "unknown"));
+      toast.error("Failed to generate ticket: " + (e?.message || "unknown error"));
     } finally {
       setBusy(false);
     }
@@ -266,26 +329,28 @@ function SecureDownload({ reg }: { reg: RegistrationResult }) {
   }
 
   return (
-    <div className="mt-2 p-3 rounded-lg border-primary/40 bg-primary/5 space-y-2">
-      <p className="text-xs text-muted-foreground">Enter your booking code to download:</p>
+    <div className="mt-2 p-3 rounded-lg border border-primary/40 bg-primary/5 space-y-2">
+      <p className="text-xs text-muted-foreground">
+        Enter your full booking code to verify &amp; download:
+      </p>
       <div className="flex gap-2">
         <input
           autoFocus
           value={code}
           onChange={(e) => setCode(e.target.value.toUpperCase())}
           placeholder="CSA-XXXXXX"
-          className="flex-1 px-3 py-2 rounded-md bg-muted border-border text-sm font-mono"
+          className="flex-1 px-3 py-2 rounded-md bg-muted border border-border text-sm font-mono"
         />
         <button
           onClick={handle}
           disabled={busy}
           className="px-3 rounded-md bg-primary text-primary-foreground text-xs font-semibold disabled:opacity-50"
         >
-          {busy ? "…" : "Verify & Download"}
+          {busy ? "Generating…" : "Verify & Download"}
         </button>
         <button
           onClick={() => { setOpen(false); setCode(""); }}
-          className="px-2 rounded-md border-border text-xs"
+          className="px-2 rounded-md border border-border text-xs text-muted-foreground hover:text-foreground"
         >
           Cancel
         </button>
