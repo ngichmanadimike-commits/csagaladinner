@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import AdminLayout from "@/components/admin/AdminLayout";
 import { toast } from "sonner";
-import { Loader2, Save, Info } from "lucide-react";
+import { Loader2, Save, Info, Image } from "lucide-react";
 
 const AdminEventConfig = () => {
   const [events, setEvents] = useState<any[]>([]);
@@ -37,6 +37,7 @@ const AdminEventConfig = () => {
         nomination_url: selected.nomination_url,
         voting_url: selected.voting_url,
         description: selected.description,
+        flyer_url: selected.flyer_url,
       })
       .eq("id", selected.id);
 
@@ -111,6 +112,7 @@ const AdminEventConfig = () => {
 
       {selected && (
         <div className="space-y-6">
+          {/* Core event fields */}
           <div className="glass rounded-xl p-6 space-y-4">
             <h2 className="font-semibold text-foreground text-base border-b border-border pb-2">
               Core Event Details
@@ -137,7 +139,7 @@ const AdminEventConfig = () => {
 
             <div>
               <label className="text-sm text-muted-foreground mb-1 block">
-                Description (shown on popup &amp; site)
+                Description (shown on site)
               </label>
               <textarea
                 value={selected.description || ""}
@@ -161,16 +163,62 @@ const AdminEventConfig = () => {
             </div>
           </div>
 
-          {/* Info panel explaining popup connection */}
+          {/* Flyer section */}
+          <div className="glass rounded-xl p-6 space-y-4">
+            <h2 className="font-semibold text-foreground text-base border-b border-border pb-2 flex items-center gap-2">
+              <Image size={18} className="text-primary" />
+              Event Popup Flyer
+            </h2>
+
+            <div className="flex gap-3 items-start p-3 rounded-lg bg-primary/5 border border-primary/20">
+              <Info size={16} className="text-primary flex-shrink-0 mt-0.5" />
+              <p className="text-xs text-muted-foreground">
+                Paste a public image URL here to override the default flyer shown in the popup.
+                Leave blank to use the built-in flyer. To upload a new one, go to{" "}
+                <strong className="text-foreground">Supabase → Storage → event-assets</strong>,
+                upload the image, copy the public URL, and paste it below.
+              </p>
+            </div>
+
+            <div>
+              <label className="text-sm text-muted-foreground mb-1 block">
+                Flyer Image URL (optional)
+              </label>
+              <input
+                type="url"
+                value={selected.flyer_url || ""}
+                onChange={(e) => updateField("flyer_url", e.target.value)}
+                placeholder="https://xxxx.supabase.co/storage/v1/object/public/event-assets/flyer.jpg"
+                className="w-full px-4 py-2.5 rounded-lg bg-muted border border-border text-foreground text-sm focus:outline-none focus:ring-2 focus:ring-primary/50"
+              />
+            </div>
+
+            {selected.flyer_url && (
+              <div>
+                <p className="text-xs text-muted-foreground mb-2">Preview:</p>
+                <img
+                  src={selected.flyer_url}
+                  alt="Flyer preview"
+                  className="w-full max-w-xs rounded-xl border border-border object-cover"
+                  onError={(e) => {
+                    (e.target as HTMLImageElement).style.display = "none";
+                    toast.error("Could not load image — check the URL");
+                  }}
+                />
+              </div>
+            )}
+          </div>
+
+          {/* Info panel */}
           <div className="glass rounded-xl p-4 flex gap-3 items-start border border-primary/20">
             <Info size={18} className="text-primary flex-shrink-0 mt-0.5" />
             <div className="text-sm text-muted-foreground">
               <p className="text-foreground font-semibold mb-1">Event Notification Popup</p>
               <p>
-                The popup shown to visitors uses this event's <strong>Title</strong>,{" "}
-                <strong>Event Date</strong>, <strong>Venue</strong>, and{" "}
-                <strong>Description</strong> automatically — as long as the status is set to{" "}
-                <span className="text-primary font-semibold">Published</span>.
+                The popup shown to visitors displays the flyer image automatically — as long as
+                status is set to{" "}
+                <span className="text-primary font-semibold">Published</span>. You can swap the
+                flyer any time using the Flyer Image URL field above.
               </p>
             </div>
           </div>
