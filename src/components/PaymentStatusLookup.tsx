@@ -1,10 +1,9 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { supabase } from "@/integrations/supabase/client";
-import { Search, Loader2, CheckCircle, Clock, AlertCircle } from "lucide-react";
+import { Search, Loader2, CheckCircle, Clock, AlertCircle, Download } from "lucide-react";
 import { toast } from "sonner";
 import { maskName, maskEmail, maskTicketToken, maskBookingCode } from "@/lib/mask";
 import { downloadTicketPdf } from "@/lib/generateTicket";
-import { Download } from "lucide-react";
 
 interface RegistrationResult {
   id: string;
@@ -34,6 +33,7 @@ interface SponsorResult {
 
 const statusConfig: Record<string, { icon: typeof CheckCircle; label: string; class: string }> = {
   paid: { icon: CheckCircle, label: "Fully Paid", class: "text-green-400" },
+  confirmed: { icon: CheckCircle, label: "Confirmed", class: "text-green-400" },
   partial: { icon: Clock, label: "Partial Payment", class: "text-yellow-400" },
   pending: { icon: AlertCircle, label: "Pending", class: "text-orange-400" },
 };
@@ -45,15 +45,25 @@ const PaymentStatusLookup = () => {
   const [loading, setLoading] = useState(false);
   const [searched, setSearched] = useState(false);
 
+  // Pre-fill from URL query param ?code=CSA-XXXXXX
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const code = params.get("code");
+    if (code) {
+      setQuery(code);
+      // Auto-search
+      setTimeout(() => {
+        document.getElementById("lookup-form")?.dispatchEvent(
+          new Event("submit", { bubbles: true, cancelable: true })
+        );
+      }, 300);
+    }
+  }, []);
+
   const handleSearch = async (e: React.FormEvent) => {
     e.preventDefault();
     const trimmed = query.trim();
     if (!trimmed) return;
-
-    if (!supabase) {
-      toast.error("Supabase client not configured");
-      return;
-    }
 
     setLoading(true);
     setSearched(true);
@@ -65,9 +75,7 @@ const PaymentStatusLookup = () => {
           .select(
             "id, name, email, package_type, total_cost, total_paid, payment_status, ticket_issued, ticket_code, secure_ticket_token"
           )
-          .or(
-            `name.ilike.%${trimmed}%,email.ilike.%${trimmed}%,ticket_code.ilike.%${trimmed}%`
-          ),
+          .or(`name.ilike.%${trimmed}%,email.ilike.%${trimmed}%,ticket_code.ilike.%${trimmed}%`),
         supabase
           .from("sponsorships")
           .select(
@@ -104,7 +112,7 @@ const PaymentStatusLookup = () => {
           </p>
         </div>
 
-        <form onSubmit={handleSearch} className="flex gap-2 mb-8">
+        <form id="lookup-form" onSubmit={handleSearch} className="flex gap-2 mb-8">
           <div className="flex-1 relative">
             <Search
               className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground"
@@ -136,15 +144,19 @@ const PaymentStatusLookup = () => {
         <div className="space-y-4">
           {results.map((r) => {
             const remaining = Math.max(0, r.total_cost - r.total_paid);
-            const config = statusConfig[r.payment_status] ?? statusConfig.pending;
+            const config =
+              statusConfig[r.payment_status] ?? statusConfig.pending;
             const StatusIcon = config.icon;
+            const isPaid =
+              r.payment_status === "paid" || r.payment_status === "confirmed";
 
             return (
               <div key={r.id} className="glass rounded-2xl p-5 space-y-3">
                 <div className="flex items-start justify-between gap-3">
                   <div>
-                    {/* FIX: mask name and email for privacy */}
-                    <h3 className="font-display font-bold text-foreground">{maskName(r.name)}</h3>
+                    <h3 className="font-display font-bold text-foreground">
+                      {maskName(r.name)}
+                    </h3>
                     <p className="text-xs text-muted-foreground">{maskEmail(r.email)}</p>
                   </div>
                   <span className={`flex items-center gap-1.5 text-sm font-semibold ${config.class}`}>
@@ -156,7 +168,9 @@ const PaymentStatusLookup = () => {
                 <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-sm">
                   <div>
                     <p className="text-muted-foreground text-xs">Package</p>
-                    <p className="font-semibold text-foreground capitalize">{r.package_type}</p>
+                    <p className="font-semibold text-foreground capitalize">
+                      {r.package_type}
+                    </p>
                   </div>
                   <div>
                     <p className="text-muted-foreground text-xs">Total Cost</p>
@@ -184,15 +198,14 @@ const PaymentStatusLookup = () => {
 
                 <div className="pt-2 border-t border-border">
                   <p className="text-xs text-muted-foreground">Booking Code</p>
-                  {/* FIX: mask the booking code — show only last 4 chars */}
                   <p className="font-mono font-bold text-primary">
                     {maskBookingCode(r.ticket_code)}
                   </p>
 
-                  {r.payment_status === "paid" && r.secure_ticket_token ? (
+                  {isPaid && r.secure_ticket_token ? (
                     <>
                       <p className="text-xs text-muted-foreground mt-2">
-                        Your Ticket (fully paid)
+                        Your Ticket Token
                       </p>
                       <p className="font-mono text-xs break-all text-emerald-400">
                         {maskTicketToken(r.secure_ticket_token)}
@@ -202,13 +215,13 @@ const PaymentStatusLookup = () => {
                   ) : r.payment_status === "partial" ? (
                     <>
                       <p className="text-xs text-muted-foreground mt-2">
-                        Ticket (locked until full payment)
+                        Ticket locked until full payment
                       </p>
                       <p className="font-mono text-xs text-yellow-400">
                         {maskTicketToken(r.secure_ticket_token)}
                       </p>
                       <p className="text-xs text-muted-foreground mt-1">
-                        Pay the remaining balance to unlock your full ticket.
+                        Pay the remaining KSh {remaining.toLocaleString()} to unlock your ticket.
                       </p>
                     </>
                   ) : (
@@ -225,13 +238,10 @@ const PaymentStatusLookup = () => {
             <div key={s.id} className="glass rounded-2xl p-5 space-y-3">
               <div className="flex items-start justify-between gap-3">
                 <div>
-                  {/* FIX: mask sponsor name */}
                   <h3 className="font-display font-bold text-foreground">
                     {maskName(s.sponsor_name)}
                   </h3>
-                  <p className="text-xs text-muted-foreground">
-                    Sponsor • {s.level}
-                  </p>
+                  <p className="text-xs text-muted-foreground">Sponsor • {s.level}</p>
                 </div>
                 <span
                   className={`text-sm font-semibold ${
@@ -248,18 +258,18 @@ const PaymentStatusLookup = () => {
                 </div>
                 <div>
                   <p className="text-xs text-muted-foreground">Amount</p>
-                  <p className="font-semibold">KSh {Number(s.amount).toLocaleString()}</p>
+                  <p className="font-semibold">
+                    KSh {Number(s.amount).toLocaleString()}
+                  </p>
                 </div>
                 <div>
                   <p className="text-xs text-muted-foreground">Phone</p>
-                  {/* FIX: mask sponsor phone */}
                   <p className="font-semibold">{s.sponsor_phone}</p>
                 </div>
               </div>
               {s.sponsor_code && (
                 <div className="pt-2 border-t border-border">
                   <p className="text-xs text-muted-foreground">Sponsor Code</p>
-                  {/* FIX: mask the sponsor code too */}
                   <p className="font-mono font-bold text-primary">
                     {maskBookingCode(s.sponsor_code)}
                   </p>
@@ -287,25 +297,27 @@ function SecureDownload({ reg }: { reg: RegistrationResult }) {
       toast.error("Enter your booking code");
       return;
     }
-    // FIX: compare against the actual ticket_code (unmask the DB value for comparison)
     if (entered !== (reg.ticket_code || "").toUpperCase()) {
-      toast.error("Invalid Booking Code. Please try again.");
+      toast.error("Incorrect booking code. Please try again.");
       return;
     }
     setBusy(true);
     try {
+      // FIX: correct field mapping — generateTicket uses purchaser_name and booking_code
       await downloadTicketPdf({
-        name: reg.name,
-        bookingCode: reg.ticket_code || "",
-        ticketType: reg.package_type,
-        amount: reg.total_paid,
-        status: "PAID",
-        secureToken: reg.secure_ticket_token || "",
-        // FIX: ticket_code is the DB field — use it as the ticket number
-        ticketNumber: reg.ticket_code || "",
+        purchaser_name: reg.name,          // FIX: was data.name, field is purchaser_name
+        booking_code: reg.ticket_code || "", // FIX: was bookingCode
+        ticket_type: reg.package_type,
+        type_name: reg.package_type,
+        total_amount: reg.total_paid,
+        payment_status: "PAID",
+        ticket_number: reg.ticket_code || "",
+        ticket_code: reg.ticket_code || "",
+        qr_code: reg.secure_ticket_token || reg.ticket_code || "",
         eventName: "CSA Gala Dinner 2026",
         eventDate: "Friday, 5th June 2026",
         venue: "Utalii Hotel, Nairobi",
+        time: "7:00 PM – 11:00 PM",
       });
       toast.success("Ticket downloaded successfully!");
       setOpen(false);
@@ -349,7 +361,10 @@ function SecureDownload({ reg }: { reg: RegistrationResult }) {
           {busy ? "Generating…" : "Verify & Download"}
         </button>
         <button
-          onClick={() => { setOpen(false); setCode(""); }}
+          onClick={() => {
+            setOpen(false);
+            setCode("");
+          }}
           className="px-2 rounded-md border border-border text-xs text-muted-foreground hover:text-foreground"
         >
           Cancel
@@ -357,4 +372,4 @@ function SecureDownload({ reg }: { reg: RegistrationResult }) {
       </div>
     </div>
   );
-}
+    }
