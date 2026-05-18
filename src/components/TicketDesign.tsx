@@ -10,8 +10,14 @@ type TicketData = {
 }
 
 export default function TicketDesign({ ticket }: { ticket: TicketData }) {
-  const ticketType = ticket.type_name || ticket.ticket_type || 'Regular'
-  
+  const ticketType = (ticket.type_name || ticket.ticket_type || 'Regular').toString()
+  const safeBookingCode = ticket.booking_code ?? ''
+  const safeQrCode = ticket.qr_code || ticket.booking_code || ''
+  const safePurchaserName = ticket.purchaser_name ?? ''
+  const safeTicketNumber = ticket.ticket_number ?? ''
+  const safePaymentStatus = ticket.payment_status ?? 'pending'
+  const safeTotalAmount = ticket.total_amount ?? 0
+
   return (
     <>
       <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@700;900&family=Montserrat:wght@400;600;700&family=Great+Vibes&family=Cinzel:wght@600;700&display=swap" rel="stylesheet" />
@@ -334,7 +340,7 @@ export default function TicketDesign({ ticket }: { ticket: TicketData }) {
               </div>
               
               <div className="bottom-row">
-                <div className="ticket-no">TICKET NO. <span>{ticket.ticket_number}</span></div>
+                <div className="ticket-no">TICKET NO. <span>{safeTicketNumber}</span></div>
                 <div className="tagline-script">Pooling Construction Students Together!</div>
               </div>
             </div>
@@ -350,7 +356,7 @@ export default function TicketDesign({ ticket }: { ticket: TicketData }) {
                 <div>
                   <div className="detail-label">Name</div>
                 </div>
-                <span className="detail-value">{ticket.purchaser_name}</span>
+                <span className="detail-value">{safePurchaserName}</span>
               </div>
               
               <div className="detail-item">
@@ -358,7 +364,7 @@ export default function TicketDesign({ ticket }: { ticket: TicketData }) {
                 <div>
                   <div className="detail-label">Booking Code</div>
                 </div>
-                <span className="detail-value">{ticket.booking_code}</span>
+                <span className="detail-value">{safeBookingCode}</span>
               </div>
               
               <div className="detail-item">
@@ -374,7 +380,7 @@ export default function TicketDesign({ ticket }: { ticket: TicketData }) {
                 <div>
                   <div className="detail-label">Status</div>
                 </div>
-                <span className="detail-value">{ticket.payment_status}</span>
+                <span className="detail-value">{safePaymentStatus}</span>
               </div>
               
               <div className="detail-item">
@@ -382,13 +388,13 @@ export default function TicketDesign({ ticket }: { ticket: TicketData }) {
                 <div>
                   <div className="detail-label">Amount</div>
                 </div>
-                <span className="detail-value">KSH {ticket.total_amount}</span>
+                <span className="detail-value">KSH {safeTotalAmount}</span>
               </div>
             </div>
             
             <div className="barcode">
               <img 
-                src={`https://barcode.tec-it.com/barcode.ashx?data=${ticket.qr_code}&code=Code128&translate-esc=false`}
+                src={`https://barcode.tec-it.com/barcode.ashx?data=${encodeURIComponent(safeQrCode)}&code=Code128&translate-esc=false`}
                 alt="Barcode"
               />
             </div>
@@ -403,4 +409,4 @@ export default function TicketDesign({ ticket }: { ticket: TicketData }) {
       </div>
     </>
   )
-}
+                  }
