@@ -45,13 +45,11 @@ const PaymentStatusLookup = () => {
   const [loading, setLoading] = useState(false);
   const [searched, setSearched] = useState(false);
 
-  // Pre-fill from URL query param ?code=CSA-XXXXXX
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
     const code = params.get("code");
     if (code) {
       setQuery(code);
-      // Auto-search
       setTimeout(() => {
         document.getElementById("lookup-form")?.dispatchEvent(
           new Event("submit", { bubbles: true, cancelable: true })
@@ -146,11 +144,9 @@ const PaymentStatusLookup = () => {
         <div className="space-y-4">
           {results.map((r) => {
             const remaining = Math.max(0, r.total_cost - r.total_paid);
-            const config =
-              statusConfig[r.payment_status] ?? statusConfig.pending;
+            const config = statusConfig[r.payment_status] ?? statusConfig.pending;
             const StatusIcon = config.icon;
-            const isPaid =
-              r.payment_status === "paid" || r.payment_status === "confirmed";
+            const isPaid = r.payment_status === "paid" || r.payment_status === "confirmed";
 
             return (
               <div key={r.id} className="glass rounded-2xl p-5 space-y-3">
@@ -170,29 +166,19 @@ const PaymentStatusLookup = () => {
                 <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-sm">
                   <div>
                     <p className="text-muted-foreground text-xs">Package</p>
-                    <p className="font-semibold text-foreground capitalize">
-                      {r.package_type}
-                    </p>
+                    <p className="font-semibold text-foreground capitalize">{r.package_type}</p>
                   </div>
                   <div>
                     <p className="text-muted-foreground text-xs">Total Cost</p>
-                    <p className="font-semibold text-foreground">
-                      KSh {Number(r.total_cost).toLocaleString()}
-                    </p>
+                    <p className="font-semibold text-foreground">KSh {Number(r.total_cost).toLocaleString()}</p>
                   </div>
                   <div>
                     <p className="text-muted-foreground text-xs">Paid</p>
-                    <p className="font-semibold text-foreground">
-                      KSh {Number(r.total_paid).toLocaleString()}
-                    </p>
+                    <p className="font-semibold text-foreground">KSh {Number(r.total_paid).toLocaleString()}</p>
                   </div>
                   <div>
                     <p className="text-muted-foreground text-xs">Balance</p>
-                    <p
-                      className={`font-semibold ${
-                        remaining > 0 ? "text-orange-400" : "text-green-400"
-                      }`}
-                    >
+                    <p className={`font-semibold ${remaining > 0 ? "text-orange-400" : "text-green-400"}`}>
                       KSh {remaining.toLocaleString()}
                     </p>
                   </div>
@@ -206,9 +192,7 @@ const PaymentStatusLookup = () => {
 
                   {isPaid && r.secure_ticket_token ? (
                     <>
-                      <p className="text-xs text-muted-foreground mt-2">
-                        Your Ticket Token
-                      </p>
+                      <p className="text-xs text-muted-foreground mt-2">Your Ticket Token</p>
                       <p className="font-mono text-xs break-all text-emerald-400">
                         {maskTicketToken(r.secure_ticket_token)}
                       </p>
@@ -216,9 +200,7 @@ const PaymentStatusLookup = () => {
                     </>
                   ) : r.payment_status === "partial" ? (
                     <>
-                      <p className="text-xs text-muted-foreground mt-2">
-                        Ticket locked until full payment
-                      </p>
+                      <p className="text-xs text-muted-foreground mt-2">Ticket locked until full payment</p>
                       <p className="font-mono text-xs text-yellow-400">
                         {maskTicketToken(r.secure_ticket_token)}
                       </p>
@@ -240,16 +222,10 @@ const PaymentStatusLookup = () => {
             <div key={s.id} className="glass rounded-2xl p-5 space-y-3">
               <div className="flex items-start justify-between gap-3">
                 <div>
-                  <h3 className="font-display font-bold text-foreground">
-                    {maskName(s.sponsor_name)}
-                  </h3>
+                  <h3 className="font-display font-bold text-foreground">{maskName(s.sponsor_name)}</h3>
                   <p className="text-xs text-muted-foreground">Sponsor • {s.level}</p>
                 </div>
-                <span
-                  className={`text-sm font-semibold ${
-                    s.verified ? "text-green-400" : "text-yellow-400"
-                  }`}
-                >
+                <span className={`text-sm font-semibold ${s.verified ? "text-green-400" : "text-yellow-400"}`}>
                   {s.verified ? "Verified" : "Pending Verification"}
                 </span>
               </div>
@@ -260,9 +236,7 @@ const PaymentStatusLookup = () => {
                 </div>
                 <div>
                   <p className="text-xs text-muted-foreground">Amount</p>
-                  <p className="font-semibold">
-                    KSh {Number(s.amount).toLocaleString()}
-                  </p>
+                  <p className="font-semibold">KSh {Number(s.amount).toLocaleString()}</p>
                 </div>
                 <div>
                   <p className="text-xs text-muted-foreground">Phone</p>
@@ -272,9 +246,7 @@ const PaymentStatusLookup = () => {
               {s.sponsor_code && (
                 <div className="pt-2 border-t border-border">
                   <p className="text-xs text-muted-foreground">Sponsor Code</p>
-                  <p className="font-mono font-bold text-primary">
-                    {maskBookingCode(s.sponsor_code)}
-                  </p>
+                  <p className="font-mono font-bold text-primary">{maskBookingCode(s.sponsor_code)}</p>
                 </div>
               )}
             </div>
@@ -299,6 +271,7 @@ function SecureDownload({ reg }: { reg: RegistrationResult }) {
       toast.error("Enter your booking code");
       return;
     }
+    // FIX: safely handle null ticket_code before calling .toUpperCase()
     const storedCode = (reg.ticket_code ?? "").toUpperCase();
     if (!storedCode || entered !== storedCode) {
       toast.error("Incorrect booking code. Please try again.");
@@ -306,7 +279,6 @@ function SecureDownload({ reg }: { reg: RegistrationResult }) {
     }
     setBusy(true);
     try {
-      // FIX: correct field mapping — generateTicket uses purchaser_name and booking_code
       await downloadTicketPdf({
         purchaser_name: reg.name ?? "—",
         booking_code: reg.ticket_code ?? "",
@@ -364,10 +336,7 @@ function SecureDownload({ reg }: { reg: RegistrationResult }) {
           {busy ? "Generating…" : "Verify & Download"}
         </button>
         <button
-          onClick={() => {
-            setOpen(false);
-            setCode("");
-          }}
+          onClick={() => { setOpen(false); setCode(""); }}
           className="px-2 rounded-md border border-border text-xs text-muted-foreground hover:text-foreground"
         >
           Cancel
@@ -375,4 +344,4 @@ function SecureDownload({ reg }: { reg: RegistrationResult }) {
       </div>
     </div>
   );
-    }
+}
