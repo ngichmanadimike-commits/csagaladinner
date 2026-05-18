@@ -27,16 +27,24 @@ const loadImage = (src: string) =>
   });
 
 export async function generateTicketPdf(data: TicketData): Promise<Blob> {
-  const ticketType = data.type_name || data.ticket_type || "Regular";
-  const displayNumber = data.ticket_number || data.ticket_code || "—";
-  const time = data.time || "7:00 PM – 11:00 PM";
-  const venue = data.venue || "Utalii Hotel";
-  const eventDate = data.eventDate || "Friday, 5th June 2026";
+  // Safe string helper – prevents .toUpperCase/.toLowerCase crashes on null/undefined
+  const safeStr = (v: unknown, fallback = ""): string =>
+    v != null && String(v).trim() !== "" ? String(v) : fallback;
+
+  const ticketType = safeStr(data.type_name || data.ticket_type, "Regular");
+  const displayNumber = safeStr(data.ticket_number || data.ticket_code, "—");
+  const time = safeStr(data.time, "7:00 PM – 11:00 PM");
+  const venue = safeStr(data.venue, "Utalii Hotel");
+  const eventDate = safeStr(data.eventDate, "Friday, 5th June 2026");
+  const paymentStatus = safeStr(data.payment_status, "pending");
+  const purchaserName = safeStr(data.purchaser_name, "—");
+  const bookingCode = safeStr(data.booking_code, "—");
+  const statusColor = paymentStatus.toLowerCase() === "paid" ? "#1b7a1b" : "#b8860b";
 
   const qrPayload = JSON.stringify({
-    code: data.booking_code,
-    token: data.qr_code,
-    name: data.purchaser_name,
+    code: bookingCode,
+    token: safeStr(data.qr_code),
+    name: purchaserName,
   });
   const qrDataUrl = await QRCode.toDataURL(qrPayload, { margin: 1, width: 320 });
 
@@ -148,12 +156,12 @@ export async function generateTicketPdf(data: TicketData): Promise<Blob> {
             <div class="detail-item">
               <i class="fa-solid fa-user"></i>
               <div><div class="detail-label">Name</div></div>
-              <span class="detail-value">${data.purchaser_name}</span>
+              <span class="detail-value">${purchaserName}</span>
             </div>
             <div class="detail-item">
               <i class="fa-solid fa-tag"></i>
               <div><div class="detail-label">Booking Code</div></div>
-              <span class="detail-value">${data.booking_code}</span>
+              <span class="detail-value">${bookingCode}</span>
             </div>
             <div class="detail-item">
               <i class="fa-solid fa-ticket"></i>
@@ -163,12 +171,12 @@ export async function generateTicketPdf(data: TicketData): Promise<Blob> {
             <div class="detail-item">
               <i class="fa-solid fa-wallet"></i>
               <div><div class="detail-label">Status</div></div>
-              <span class="detail-value" style="color:${data.payment_status.toLowerCase() === 'paid' ? '#1b7a1b' : '#b8860b'}">${data.payment_status.toUpperCase()}</span>
+              <span class="detail-value" style="color:${statusColor}">${paymentStatus.toUpperCase()}</span>
             </div>
             <div class="detail-item">
               <i class="fa-solid fa-coins"></i>
               <div><div class="detail-label">Amount</div></div>
-              <span class="detail-value">KSH ${Number(data.total_amount).toLocaleString()}/=</span>
+              <span class="detail-value">KSH ${Number(data.total_amount || 0).toLocaleString()}/=</span>
             </div>
           </div>
           <div class="qr-section">
@@ -217,6 +225,14 @@ async function generateFallbackPdf(
   ticketType: string, 
   displayNumber: string
 ): Promise<Blob> {
+  // Safe string helper
+  const safeStr = (v: unknown, fallback = ""): string =>
+    v != null && String(v).trim() !== "" ? String(v) : fallback;
+
+  const paymentStatus = safeStr(data.payment_status, "pending");
+  const purchaserName = safeStr(data.purchaser_name, "—");
+  const bookingCode = safeStr(data.booking_code, "—");
+
   const W = 1960, H = 760;
   const canvas = document.createElement("canvas");
   canvas.width = W;
@@ -268,11 +284,11 @@ async function generateFallbackPdf(
     ctx.stroke();
   };
 
-  drawStubRow("Name", data.purchaser_name, 80);
-  drawStubRow("Booking Code", data.booking_code, 180);
+  drawStubRow("Name", purchaserName, 80);
+  drawStubRow("Booking Code", bookingCode, 180);
   drawStubRow("Ticket Type", ticketType, 280);
-  drawStubRow("Status", data.payment_status.toUpperCase(), 380, data.payment_status.toLowerCase() === "paid" ? "#1b7a1b" : "#b8860b");
-  drawStubRow("Amount", `KSH ${Number(data.total_amount).toLocaleString()}/=`, 480);
+  drawStubRow("Status", paymentStatus.toUpperCase(), 380, paymentStatus.toLowerCase() === "paid" ? "#1b7a1b" : "#b8860b");
+  drawStubRow("Amount", `KSH ${Number(data.total_amount || 0).toLocaleString()}/=`, 480);
 
   const qrImg = await loadImage(qrDataUrl);
   ctx.drawImage(qrImg, stubX, 590, 180, 180);
@@ -298,4 +314,4 @@ export async function downloadTicketPdf(data: TicketData) {
   a.click();
   a.remove();
   setTimeout(() => URL.revokeObjectURL(url), 5000);
-}
+                                                      }
