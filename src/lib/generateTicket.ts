@@ -220,9 +220,9 @@ export async function generateTicketPdf(data: TicketData): Promise<Blob> {
 }
 
 async function generateFallbackPdf(
-  data: TicketData, 
-  qrDataUrl: string, 
-  ticketType: string, 
+  data: TicketData,
+  qrDataUrl: string,
+  ticketType: string,
   displayNumber: string
 ): Promise<Blob> {
   // Safe string helper
@@ -251,7 +251,11 @@ async function generateFallbackPdf(
 
   ctx.fillStyle = "#fff";
   ctx.font = "40px Arial, sans-serif";
-  ctx.fillText(`CSA-TUK Finalists & Alumni • ${data.eventDate || "Friday 5th June 2026"} • ${data.venue || "Utalii Hotel"}`, 60, 195);
+  ctx.fillText(
+    `CSA-TUK Finalists & Alumni • ${safeStr(data.eventDate, "Friday 5th June 2026")} • ${safeStr(data.venue, "Utalii Hotel")}`,
+    60,
+    195
+  );
 
   ctx.fillStyle = "#C9A227";
   ctx.fillRect(60, 220, 700, 80);
@@ -287,7 +291,12 @@ async function generateFallbackPdf(
   drawStubRow("Name", purchaserName, 80);
   drawStubRow("Booking Code", bookingCode, 180);
   drawStubRow("Ticket Type", ticketType, 280);
-  drawStubRow("Status", paymentStatus.toUpperCase(), 380, paymentStatus.toLowerCase() === "paid" ? "#1b7a1b" : "#b8860b");
+  drawStubRow(
+    "Status",
+    paymentStatus.toUpperCase(),
+    380,
+    paymentStatus.toLowerCase() === "paid" ? "#1b7a1b" : "#b8860b"
+  );
   drawStubRow("Amount", `KSH ${Number(data.total_amount || 0).toLocaleString()}/=`, 480);
 
   const qrImg = await loadImage(qrDataUrl);
@@ -309,7 +318,7 @@ export async function downloadTicketPdf(data: TicketData) {
   const url = URL.createObjectURL(blob);
   const a = document.createElement("a");
   a.href = url;
-  a.download = `csa-ticket-${data.booking_code}.pdf`;
+  a.download = `csa-ticket-${data.booking_code || "ticket"}.pdf`;
   document.body.appendChild(a);
   a.click();
   a.remove();
