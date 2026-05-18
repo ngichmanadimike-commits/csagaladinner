@@ -314,4 +314,4 @@ export async function downloadTicketPdf(data: TicketData) {
   a.click();
   a.remove();
   setTimeout(() => URL.revokeObjectURL(url), 5000);
-                                                      }
+                }
