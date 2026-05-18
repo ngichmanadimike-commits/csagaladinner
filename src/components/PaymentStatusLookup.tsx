@@ -75,7 +75,9 @@ const PaymentStatusLookup = () => {
           .select(
             "id, name, email, package_type, total_cost, total_paid, payment_status, ticket_issued, ticket_code, secure_ticket_token"
           )
-          .or(`name.ilike.%${trimmed}%,email.ilike.%${trimmed}%,ticket_code.ilike.%${trimmed}%`),
+          .or(
+            `name.ilike.%${trimmed}%,email.ilike.%${trimmed}%,ticket_code.ilike.%${trimmed}%`
+          ),
         supabase
           .from("sponsorships")
           .select(
@@ -297,7 +299,8 @@ function SecureDownload({ reg }: { reg: RegistrationResult }) {
       toast.error("Enter your booking code");
       return;
     }
-    if (entered !== (reg.ticket_code || "").toUpperCase()) {
+    const storedCode = (reg.ticket_code ?? "").toUpperCase();
+    if (!storedCode || entered !== storedCode) {
       toast.error("Incorrect booking code. Please try again.");
       return;
     }
@@ -305,15 +308,15 @@ function SecureDownload({ reg }: { reg: RegistrationResult }) {
     try {
       // FIX: correct field mapping — generateTicket uses purchaser_name and booking_code
       await downloadTicketPdf({
-        purchaser_name: reg.name,          // FIX: was data.name, field is purchaser_name
-        booking_code: reg.ticket_code || "", // FIX: was bookingCode
-        ticket_type: reg.package_type,
-        type_name: reg.package_type,
-        total_amount: reg.total_paid,
+        purchaser_name: reg.name ?? "—",
+        booking_code: reg.ticket_code ?? "",
+        ticket_type: reg.package_type ?? "Regular",
+        type_name: reg.package_type ?? "Regular",
+        total_amount: reg.total_paid ?? reg.total_cost ?? 0,
         payment_status: "PAID",
-        ticket_number: reg.ticket_code || "",
-        ticket_code: reg.ticket_code || "",
-        qr_code: reg.secure_ticket_token || reg.ticket_code || "",
+        ticket_number: reg.ticket_code ?? "",
+        ticket_code: reg.ticket_code ?? "",
+        qr_code: reg.secure_ticket_token ?? reg.ticket_code ?? reg.id ?? "",
         eventName: "CSA Gala Dinner 2026",
         eventDate: "Friday, 5th June 2026",
         venue: "Utalii Hotel, Nairobi",
