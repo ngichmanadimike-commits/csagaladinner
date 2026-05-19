@@ -1,83 +1,99 @@
-import { useState } from "react";
-import { Menu, X } from "lucide-react";
+import { useState, useEffect } from "react";
 import { useLocation } from "react-router-dom";
-import { useAuth } from "@/hooks/useAuth";
-import logo from "@/assets/white_logo.jpg";
+import { supabase } from "@/integrations/supabase/client";
 
 const baseLinks = [
   { label: "Tickets", href: "/#tickets" },
   { label: "Sponsor", href: "/#sponsor" },
   { label: "Partners", href: "/#partners" },
-  { label: "Event Insights", href: "/event-insights" },
+  { label: "Event Insights", href: "/insights" },   // ← FIXED: was /event-insights
   { label: "Gallery", href: "/gallery" },
   { label: "Lookup", href: "/lookup" },
   { label: "Contact", href: "/#connect" },
 ];
 
 const Navbar = () => {
-  const [open, setOpen] = useState(false);
   const location = useLocation();
-  const { isAdmin } = useAuth();
-  const navLinks = isAdmin
+  const [isAdmin, setIsAdmin] = useState(false);
+  const [menuOpen, setMenuOpen] = useState(false);
+
+  useEffect(() => {
+    supabase.auth.getUser().then(({ data: { user } }) => {
+      if (!user) return;
+      supabase
+        .from("user_roles")
+        .select("role")
+        .eq("user_id", user.id)
+        .then(({ data }) => {
+          if (data?.some((r) => r.role === "admin" || r.role === "super_admin")) {
+            setIsAdmin(true);
+          }
+        });
+    });
+  }, []);
+
+  const links = isAdmin
     ? [...baseLinks, { label: "Admin", href: "/admin" }]
     : baseLinks;
 
   const handleNavClick = (href: string) => {
-    setOpen(false);
+    setMenuOpen(false);
     if (href.startsWith("/#")) {
       if (location.pathname === "/") {
         const el = document.querySelector(href.replace("/", ""));
-        el?.scrollIntoView({ behavior: "smooth" });
-      } else {
-        window.location.href = href;
+        if (el) { el.scrollIntoView({ behavior: "smooth" }); return; }
       }
+      window.location.href = href;
     } else {
       window.location.href = href;
     }
   };
 
   return (
-    <nav className="fixed top-0 left-0 right-0 z-50 glass">
-      <div className="container mx-auto flex items-center justify-between py-3 px-4">
+    <nav className="fixed top-0 left-0 right-0 z-50 bg-background/80 backdrop-blur border-b border-border">
+      <div className="container mx-auto px-4 flex items-center justify-between h-16">
         <a href="/" className="flex items-center gap-3">
-          <img src={logo} alt="CSA Logo" className="h-12 w-12 rounded-full object-cover" />
-          <span className="font-display text-lg font-bold text-foreground hidden sm:block">CSA Gala 2026</span>
+          <img src="/images/csa-logo.png" alt="CSA" className="h-8 w-8 rounded-full" />
+          <span className="font-display font-bold text-foreground hidden sm:block">CSA Gala 2026</span>
         </a>
-        <div className="hidden md:flex items-center gap-6">
-          {navLinks.map((l) => (
+
+        {/* Desktop links */}
+        <div className="hidden md:flex items-center gap-1">
+          {links.map((l) => (
             <button
               key={l.href}
               onClick={() => handleNavClick(l.href)}
-              className="text-sm font-medium text-muted-foreground hover:text-primary transition-colors duration-300"
+              className="px-3 py-1.5 rounded-lg text-sm text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
             >
               {l.label}
             </button>
           ))}
-          <button
-            onClick={() => handleNavClick("/#tickets")}
-            className="px-5 py-2 rounded-lg bg-primary text-primary-foreground font-semibold text-sm hover:scale-105 hover:glow-sm transition-all duration-300"
-          >
-            Buy Ticket
-          </button>
         </div>
-        <button onClick={() => setOpen(!open)} className="md:hidden text-foreground">
-          {open ? <X size={24} /> : <Menu size={24} />}
+
+        {/* Mobile hamburger */}
+        <button
+          className="md:hidden p-2 rounded-lg hover:bg-muted"
+          onClick={() => setMenuOpen((o) => !o)}
+          aria-label="Toggle menu"
+        >
+          <span className="block w-5 h-0.5 bg-foreground mb-1" />
+          <span className="block w-5 h-0.5 bg-foreground mb-1" />
+          <span className="block w-5 h-0.5 bg-foreground" />
         </button>
       </div>
-      {open && (
-        <div className="md:hidden glass border-t border-border/50 px-4 pb-4 space-y-3">
-          {navLinks.map((l) => (
+
+      {/* Mobile menu */}
+      {menuOpen && (
+        <div className="md:hidden border-t border-border bg-background/95 backdrop-blur">
+          {links.map((l) => (
             <button
               key={l.href}
               onClick={() => handleNavClick(l.href)}
-              className="block w-full text-left py-2 text-muted-foreground hover:text-primary transition-colors"
+              className="w-full text-left px-4 py-3 text-sm text-muted-foreground hover:text-foreground hover:bg-muted transition-colors border-b border-border/50 last:border-0"
             >
               {l.label}
             </button>
           ))}
-          <button onClick={() => handleNavClick("/#tickets")} className="block w-full text-left py-2 text-primary font-semibold">
-            Buy Ticket
-          </button>
         </div>
       )}
     </nav>
