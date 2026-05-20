@@ -4,7 +4,7 @@ import { useAuth } from "@/hooks/useAuth";
 import {
   LayoutDashboard, CreditCard, Users, Calendar, LogOut, Menu, Shield,
   FileText, Image, Handshake, GraduationCap, Mail, Mic, Settings,
-  Ticket, Activity, Package, Tag, ShieldAlert,
+  Ticket, Activity, Package, Tag, ShieldAlert, ScanLine,
 } from "lucide-react";
 import { useState } from "react";
 
@@ -15,6 +15,7 @@ const navItems: { label: string; icon: any; path: string; superOnly?: boolean }[
   { label: "Payments", icon: CreditCard, path: "/admin/payments" },
   { label: "Donations", icon: CreditCard, path: "/admin/donations" },
   { label: "Booking Codes", icon: Ticket, path: "/admin/codes" },
+  { label: "QR Scanner", icon: ScanLine, path: "/admin/qr-scanner" },
   { label: "Ticket Packages", icon: Package, path: "/admin/packages" },
   { label: "Promotions", icon: Tag, path: "/admin/promotions" },
   { label: "Sponsorships", icon: GraduationCap, path: "/admin/sponsorships" },
@@ -38,8 +39,8 @@ const AdminLayout = ({ children }: { children: ReactNode }) => {
   const [sidebarOpen, setSidebarOpen] = useState(false);
 
   useEffect(() => {
-    if (!loading && !user) { 
-      navigate("/admin/login", { replace: true }); 
+    if (!loading && !user) {
+      navigate("/admin/login", { replace: true });
     }
   }, [loading, user, navigate]);
 
@@ -103,22 +104,3 @@ const AdminLayout = ({ children }: { children: ReactNode }) => {
 };
 
 export default AdminLayout;
-// Before
-import {
-  LayoutDashboard, CreditCard, Users, Calendar, LogOut, Menu, Shield,
-  FileText, Image, Handshake, GraduationCap, Mail, Mic, Settings,
-  Ticket, Activity, Package, Tag, ShieldAlert,
-} from "lucide-react";
-
-// After
-import {
-  LayoutDashboard, CreditCard, Users, Calendar, LogOut, Menu, Shield,
-  FileText, Image, Handshake, GraduationCap, Mail, Mic, Settings,
-  Ticket, Activity, Package, Tag, ShieldAlert, ScanLine,
-} from "lucide-react";
-// Before
-{ label: "Booking Codes", icon: Ticket, path: "/admin/codes" },
-
-// After
-{ label: "Booking Codes", icon: Ticket, path: "/admin/codes" },
-{ label: "QR Scanner", icon: ScanLine, path: "/admin/qr-scanner" },
