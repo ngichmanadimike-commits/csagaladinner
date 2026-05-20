@@ -103,3 +103,16 @@ const AdminLayout = ({ children }: { children: ReactNode }) => {
 };
 
 export default AdminLayout;
+// Before
+import {
+  LayoutDashboard, CreditCard, Users, Calendar, LogOut, Menu, Shield,
+  FileText, Image, Handshake, GraduationCap, Mail, Mic, Settings,
+  Ticket, Activity, Package, Tag, ShieldAlert,
+} from "lucide-react";
+
+// After
+import {
+  LayoutDashboard, CreditCard, Users, Calendar, LogOut, Menu, Shield,
+  FileText, Image, Handshake, GraduationCap, Mail, Mic, Settings,
+  Ticket, Activity, Package, Tag, ShieldAlert, ScanLine,
+} from "lucide-react";
