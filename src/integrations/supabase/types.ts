@@ -79,10 +79,9 @@ export type Database = {
           id: string
           title: string
           uploaded_by: string | null
-        }// Inside registrations > Row, add these 3 lines:
 discount_amount: number | null
 original_price: number | null
-promo_code: string | null
+promo_code: string | null}
         Insert: {
           active?: boolean
           category?: string | null
