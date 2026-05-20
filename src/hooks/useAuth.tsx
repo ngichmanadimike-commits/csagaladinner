@@ -43,34 +43,27 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   };
 
   useEffect(() => {
-    let lastUserId: string | null = null;
-
-    // Synchronous handler — never await inside, never block loading on role lookup
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+    // Get initial session first
+    supabase.auth.getSession().then(async ({ data: { session } }) => {
       setSession(session);
       setUser(session?.user ?? null);
-      setLoading(false);
-
-      const uid = session?.user?.id ?? null;
-      if (uid && uid !== lastUserId) {
-        lastUserId = uid;
-        // Defer to avoid deadlock with auth callback
-        setTimeout(() => checkAdmin(uid), 0);
-      } else if (!uid) {
-        lastUserId = null;
-        setIsAdmin(false);
+      if (session?.user?.id) {
+        await checkAdmin(session.user.id);
       }
+      setLoading(false);
     });
 
-    supabase.auth.getSession().then(({ data: { session } }) => {
+    // Then listen for auth changes
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (_event, session) => {
       setSession(session);
       setUser(session?.user ?? null);
-      setLoading(false);
-      const uid = session?.user?.id ?? null;
-      if (uid && uid !== lastUserId) {
-        lastUserId = uid;
-        checkAdmin(uid);
+      if (session?.user?.id) {
+        await checkAdmin(session.user.id);
+      } else {
+        setIsAdmin(false);
+        setIsSuperAdmin(false);
       }
+      setLoading(false);
     });
 
     return () => subscription.unsubscribe();
@@ -81,7 +74,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     setUser(null);
     setSession(null);
     setIsAdmin(false);
-      setIsSuperAdmin(false);
+    setIsSuperAdmin(false);
   };
 
   return (
