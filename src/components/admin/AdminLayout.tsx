@@ -116,3 +116,9 @@ import {
   FileText, Image, Handshake, GraduationCap, Mail, Mic, Settings,
   Ticket, Activity, Package, Tag, ShieldAlert, ScanLine,
 } from "lucide-react";
+// Before
+{ label: "Booking Codes", icon: Ticket, path: "/admin/codes" },
+
+// After
+{ label: "Booking Codes", icon: Ticket, path: "/admin/codes" },
+{ label: "QR Scanner", icon: ScanLine, path: "/admin/qr-scanner" },
