@@ -9,11 +9,10 @@ const AdminLogin = () => {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
-  const [checkingRole, setCheckingRole] = useState(false);
   const { user, isAdmin, loading: authLoading } = useAuth();
   const navigate = useNavigate();
 
-  // Once isAdmin becomes true, navigate to admin
+  // If already logged in and admin, go straight to dashboard
   useEffect(() => {
     if (!authLoading && user && isAdmin) {
       navigate("/admin", { replace: true });
@@ -26,43 +25,31 @@ const AdminLogin = () => {
 
     const { data, error } = await supabase.auth.signInWithPassword({ email, password });
 
-    setLoading(false);
-
     if (error) {
       toast.error(error.message);
+      setLoading(false);
       return;
     }
 
     if (data.user) {
-      // Wait for checkAdmin to complete before navigating
-      setCheckingRole(true);
-      toast.success("Logged in — checking admin access...");
+      // Check role directly after login
+      const { data: roleData } = await supabase
+        .from("user_roles")
+        .select("role")
+        .eq("user_id", data.user.id);
 
-      // Poll isAdmin state — it will flip to true once checkAdmin finishes
-      let attempts = 0;
-      const poll = setInterval(async () => {
-        attempts++;
+      const roles = (roleData || []).map((r: any) => r.role);
+      const hasAdmin = roles.includes("admin") || roles.includes("super_admin");
 
-        // Directly query the role instead of relying on state timing
-        const { data: roleData } = await supabase
-          .from("user_roles")
-          .select("role")
-          .eq("user_id", data.user.id);
+      setLoading(false);
 
-        const roles = (roleData || []).map((r: any) => r.role);
-        const hasAdmin = roles.includes("admin") || roles.includes("super_admin");
-
-        if (hasAdmin) {
-          clearInterval(poll);
-          setCheckingRole(false);
-          navigate("/admin", { replace: true });
-        } else if (attempts >= 5) {
-          clearInterval(poll);
-          setCheckingRole(false);
-          toast.error("Access denied — you don't have admin privileges.");
-          await supabase.auth.signOut();
-        }
-      }, 500);
+      if (hasAdmin) {
+        toast.success("Welcome back!");
+        navigate("/admin", { replace: true });
+      } else {
+        toast.error("Access denied — you don't have admin privileges.");
+        await supabase.auth.signOut();
+      }
     }
   };
 
@@ -119,13 +106,13 @@ const AdminLogin = () => {
 
           <button
             type="submit"
-            disabled={loading || checkingRole}
+            disabled={loading}
             className="w-full flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg bg-primary text-primary-foreground font-semibold hover:bg-primary/90 transition-colors disabled:opacity-50"
           >
-            {loading || checkingRole ? (
+            {loading ? (
               <div className="flex items-center gap-2">
                 <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-primary-foreground" />
-                {checkingRole ? "Verifying access..." : "Signing in..."}
+                Signing in...
               </div>
             ) : (
               <>
