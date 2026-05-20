@@ -87,3 +87,8 @@ function App() {
 }
 
 export default App;
+// Add this import alongside the other admin imports
+import AdminQRScanner from "@/pages/admin/AdminQRScanner";
+
+// Add this route alongside the other /admin routes
+<Route path="/admin/qr-scanner" element={<AdminQRScanner />} />
