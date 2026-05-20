@@ -66,7 +66,22 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       setLoading(false);
     });
 
-    return () => subscription.unsubscribe();
+    // Re-check admin role whenever the tab regains focus.
+    // This fixes the case where a user's role is removed then re-granted:
+    // their session JWT is still valid but the user_roles row changed.
+    // Without this, they must fully sign out + sign in to see the update.
+    const handleFocus = async () => {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (session?.user?.id) {
+        await checkAdmin(session.user.id);
+      }
+    };
+    window.addEventListener("focus", handleFocus);
+
+    return () => {
+      subscription.unsubscribe();
+      window.removeEventListener("focus", handleFocus);
+    };
   }, []);
 
   const signOut = async () => {
