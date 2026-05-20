@@ -50,13 +50,15 @@ const AdminQRScanner = () => {
   const [cameraActive, setCameraActive] = useState(false);
   const [cameraError, setCameraError] = useState<string | null>(null);
   const lastScannedCode = useRef<string | null>(null);
+  const [jsQRLoaded, setJsQRLoaded] = useState(!!(window as any).jsQR);
 
   useEffect(() => {
-    if (!(window as any).jsQR) {
-      const s = document.createElement("script");
-      s.src = "https://cdnjs.cloudflare.com/ajax/libs/jsQR/1.4.0/jsQR.min.js";
-      document.head.appendChild(s);
-    }
+    if ((window as any).jsQR) { setJsQRLoaded(true); return; }
+    const s = document.createElement("script");
+    s.src = "https://cdnjs.cloudflare.com/ajax/libs/jsQR/1.4.0/jsQR.min.js";
+    s.onload = () => setJsQRLoaded(true);
+    s.onerror = () => setCameraError("Failed to load QR library. Check your internet connection.");
+    document.head.appendChild(s);
   }, []);
 
   const fetchScans = useCallback(async () => {
@@ -152,7 +154,8 @@ const AdminQRScanner = () => {
     }
   }, [scanning, user, fetchScans]);
 
-  const tick = () => {
+  const tick = useCallback(() => {
+    if (!streamRef.current) return;
     const video = videoRef.current;
     const canvas = canvasRef.current;
     const jsQR = (window as any).jsQR;
@@ -174,9 +177,13 @@ const AdminQRScanner = () => {
       setTimeout(() => { lastScannedCode.current = null; }, 3000);
     }
     rafRef.current = requestAnimationFrame(tick);
-  };
+  }, [processCode]);
 
   const startCamera = async () => {
+    if (!jsQRLoaded) {
+      setCameraError("QR scanner library is still loading. Please wait a moment and try again.");
+      return;
+    }
     setCameraError(null);
     try {
       const stream = await navigator.mediaDevices.getUserMedia({
@@ -188,7 +195,7 @@ const AdminQRScanner = () => {
         await videoRef.current.play();
       }
       setCameraActive(true);
-      tick();
+      rafRef.current = requestAnimationFrame(tick);
     } catch (e: any) {
       setCameraError(e?.message ?? "Camera access denied");
     }
@@ -196,6 +203,7 @@ const AdminQRScanner = () => {
 
   const stopCamera = () => {
     if (rafRef.current) cancelAnimationFrame(rafRef.current);
+    rafRef.current = null;
     streamRef.current?.getTracks().forEach((t) => t.stop());
     streamRef.current = null;
     setCameraActive(false);
@@ -282,7 +290,6 @@ const AdminQRScanner = () => {
   return (
     <AdminLayout>
       <div className="max-w-4xl mx-auto space-y-6">
-
         <div className="flex items-center justify-between">
           <div>
             <h1 className="font-display text-2xl font-bold text-foreground flex items-center gap-2">
@@ -298,15 +305,23 @@ const AdminQRScanner = () => {
           </div>
         </div>
 
-        {/* Camera */}
         <div className="glass rounded-2xl p-5 space-y-4">
           <div className="flex items-center justify-between">
             <h2 className="font-semibold text-foreground flex items-center gap-2">
               <QrCode size={18} /> Camera Scanner
+              {!jsQRLoaded && (
+                <span className="text-xs text-muted-foreground font-normal animate-pulse">
+                  (loading QR library…)
+                </span>
+              )}
             </h2>
             {!cameraActive ? (
-              <button onClick={startCamera} className="px-4 py-2 rounded-lg bg-primary text-primary-foreground text-sm font-semibold hover:bg-primary/90 transition-colors">
-                Start Camera
+              <button
+                onClick={startCamera}
+                disabled={!jsQRLoaded}
+                className="px-4 py-2 rounded-lg bg-primary text-primary-foreground text-sm font-semibold hover:bg-primary/90 transition-colors disabled:opacity-50"
+              >
+                {jsQRLoaded ? "Start Camera" : "Loading…"}
               </button>
             ) : (
               <button onClick={stopCamera} className="px-4 py-2 rounded-lg bg-destructive text-destructive-foreground text-sm font-semibold hover:bg-destructive/90 transition-colors">
@@ -340,7 +355,6 @@ const AdminQRScanner = () => {
           <canvas ref={canvasRef} className="hidden" />
         </div>
 
-        {/* Manual entry */}
         <div className="glass rounded-2xl p-5 space-y-4">
           <h2 className="font-semibold text-foreground flex items-center gap-2">
             <Search size={18} /> Manual Code Entry
@@ -365,7 +379,6 @@ const AdminQRScanner = () => {
           </form>
         </div>
 
-        {/* Result */}
         {result && (
           <div className="space-y-2">
             <ResultCard />
@@ -378,7 +391,6 @@ const AdminQRScanner = () => {
           </div>
         )}
 
-        {/* Scanned list */}
         <div className="glass rounded-2xl p-5 space-y-4">
           <div className="flex items-center justify-between flex-wrap gap-2">
             <h2 className="font-semibold text-foreground flex items-center gap-2">
