@@ -79,9 +79,7 @@ export type Database = {
           id: string
           title: string
           uploaded_by: string | null
-discount_amount: number | null
-original_price: number | null
-promo_code: string | null}
+        }
         Insert: {
           active?: boolean
           category?: string | null
@@ -519,15 +517,18 @@ promo_code: string | null}
       registrations: {
         Row: {
           created_at: string
+          discount_amount: number | null
           email: string
           event_id: string
           id: string
           institution: string | null
           name: string
+          original_price: number | null
           package_type: string
           payment_status: string
           payment_type: string
           phone: string
+          promo_code: string | null
           quantity: number
           secure_ticket_token: string | null
           ticket_code: string | null
@@ -538,15 +539,18 @@ promo_code: string | null}
         }
         Insert: {
           created_at?: string
+          discount_amount?: number | null
           email: string
           event_id: string
           id?: string
           institution?: string | null
           name: string
+          original_price?: number | null
           package_type: string
           payment_status?: string
           payment_type?: string
           phone: string
+          promo_code?: string | null
           quantity?: number
           secure_ticket_token?: string | null
           ticket_code?: string | null
@@ -557,15 +561,18 @@ promo_code: string | null}
         }
         Update: {
           created_at?: string
+          discount_amount?: number | null
           email?: string
           event_id?: string
           id?: string
           institution?: string | null
           name?: string
+          original_price?: number | null
           package_type?: string
           payment_status?: string
           payment_type?: string
           phone?: string
+          promo_code?: string | null
           quantity?: number
           secure_ticket_token?: string | null
           ticket_code?: string | null
@@ -727,6 +734,44 @@ promo_code: string | null}
           verified_by?: string | null
         }
         Relationships: []
+      }
+      ticket_scans: {
+        Row: {
+          id: string
+          registration_id: string
+          ticket_code: string
+          scanned_at: string
+          scanned_by: string | null
+          device_info: string | null
+          notes: string | null
+        }
+        Insert: {
+          id?: string
+          registration_id: string
+          ticket_code: string
+          scanned_at?: string
+          scanned_by?: string | null
+          device_info?: string | null
+          notes?: string | null
+        }
+        Update: {
+          id?: string
+          registration_id?: string
+          ticket_code?: string
+          scanned_at?: string
+          scanned_by?: string | null
+          device_info?: string | null
+          notes?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "ticket_scans_registration_id_fkey"
+            columns: ["registration_id"]
+            isOneToOne: false
+            referencedRelation: "registrations"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       ticket_packages: {
         Row: {
@@ -928,7 +973,7 @@ type DatabaseWithoutInternals = Omit<Database, "__InternalSupabase">
 
 type DefaultSchema = DatabaseWithoutInternals[Extract<keyof Database, "public">]
 
-export type Tables<
+export type Tables
   DefaultSchemaTableNameOrOptions extends
     | keyof (DefaultSchema["Tables"] & DefaultSchema["Views"])
     | { schema: keyof DatabaseWithoutInternals },
@@ -957,7 +1002,7 @@ export type Tables<
       : never
     : never
 
-export type TablesInsert<
+export type TablesInsert
   DefaultSchemaTableNameOrOptions extends
     | keyof DefaultSchema["Tables"]
     | { schema: keyof DatabaseWithoutInternals },
@@ -982,7 +1027,7 @@ export type TablesInsert<
       : never
     : never
 
-export type TablesUpdate<
+export type TablesUpdate
   DefaultSchemaTableNameOrOptions extends
     | keyof DefaultSchema["Tables"]
     | { schema: keyof DatabaseWithoutInternals },
@@ -1007,7 +1052,7 @@ export type TablesUpdate<
       : never
     : never
 
-export type Enums<
+export type Enums
   DefaultSchemaEnumNameOrOptions extends
     | keyof DefaultSchema["Enums"]
     | { schema: keyof DatabaseWithoutInternals },
@@ -1016,15 +1061,14 @@ export type Enums<
   }
     ? keyof DatabaseWithoutInternals[DefaultSchemaEnumNameOrOptions["schema"]]["Enums"]
     : never = never,
-> = DefaultSchemaEnumNameOrOptions extends {
-  schema: keyof DatabaseWithoutInternals
+> = DefaultSchemaEnumNameOrOptions extends {\n  schema: keyof DatabaseWithoutInternals
 }
   ? DatabaseWithoutInternals[DefaultSchemaEnumNameOrOptions["schema"]]["Enums"][EnumName]
   : DefaultSchemaEnumNameOrOptions extends keyof DefaultSchema["Enums"]
     ? DefaultSchema["Enums"][DefaultSchemaEnumNameOrOptions]
     : never
 
-export type CompositeTypes<
+export type CompositeTypes
   PublicCompositeTypeNameOrOptions extends
     | keyof DefaultSchema["CompositeTypes"]
     | { schema: keyof DatabaseWithoutInternals },
