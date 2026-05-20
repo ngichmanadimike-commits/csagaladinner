@@ -38,6 +38,7 @@ interface Stats {
 
 const AdminOverview = () => {
   const navigate = useNavigate();
+  const [loading, setLoading] = useState(true);
   const [stats, setStats] = useState<Stats>({
     totalRegistrations: 0,
     confirmedTicketRevenue: 0,
@@ -183,6 +184,7 @@ const AdminOverview = () => {
       setChartData(
         Object.entries(buckets).map(([day, v]) => ({ day: day.slice(5), ...v }))
       );
+      setLoading(false);
     };
 
     fetchStats();
@@ -260,6 +262,25 @@ const AdminOverview = () => {
 
   return (
     <AdminLayout>
+      {loading ? (
+        <div className="space-y-6">
+          <div className="flex items-center justify-between mb-6">
+            <div className="h-8 w-48 bg-muted animate-pulse rounded-lg" />
+            <div className="h-9 w-36 bg-muted animate-pulse rounded-lg" />
+          </div>
+          <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+            {Array.from({ length: 8 }).map((_, i) => (
+              <div key={i} className="glass rounded-xl p-4 space-y-2">
+                <div className="h-4 w-24 bg-muted animate-pulse rounded" />
+                <div className="h-7 w-16 bg-muted animate-pulse rounded" />
+              </div>
+            ))}
+          </div>
+          <div className="glass rounded-xl p-4 h-56 flex items-center justify-center">
+            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary" />
+          </div>
+        </div>
+      ) : (
       <div className="flex items-center justify-between mb-6">
         <h1 className="font-display text-2xl font-bold text-foreground">Dashboard Overview</h1>
         <button
@@ -391,6 +412,7 @@ const AdminOverview = () => {
           </div>
         )}
       </div>
+      )}
     </AdminLayout>
   );
 };
