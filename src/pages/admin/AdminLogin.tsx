@@ -103,4 +103,47 @@ const AdminLogin = () => {
           </div>
 
           <div>
-            <label className="block text-sm font-medium text-foreground
+            <label className="block text-sm font-medium text-foreground mb-2">Password</label>
+            <div className="relative">
+              <Lock className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" size={18} />
+              <input
+                type="password"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                required
+                className="w-full pl-10 pr-4 py-2.5 rounded-lg border border-border bg-background text-foreground focus:outline-none focus:ring-2 focus:ring-primary"
+                placeholder="••••••••"
+              />
+            </div>
+          </div>
+
+          <button
+            type="submit"
+            disabled={loading || checkingRole}
+            className="w-full flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg bg-primary text-primary-foreground font-semibold hover:bg-primary/90 transition-colors disabled:opacity-50"
+          >
+            {loading || checkingRole ? (
+              <div className="flex items-center gap-2">
+                <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-primary-foreground" />
+                {checkingRole ? "Verifying access..." : "Signing in..."}
+              </div>
+            ) : (
+              <>
+                <LogIn size={18} />
+                Sign In
+              </>
+            )}
+          </button>
+        </form>
+
+        <div className="mt-6 text-center">
+          <a href="/" className="text-sm text-muted-foreground hover:text-primary transition-colors">
+            ← Back to site
+          </a>
+        </div>
+      </div>
+    </div>
+  );
+};
+
+export default AdminLogin;
