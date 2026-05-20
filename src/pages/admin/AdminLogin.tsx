@@ -9,9 +9,11 @@ const AdminLogin = () => {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
+  const [checkingRole, setCheckingRole] = useState(false);
   const { user, isAdmin, loading: authLoading } = useAuth();
   const navigate = useNavigate();
 
+  // Once isAdmin becomes true, navigate to admin
   useEffect(() => {
     if (!authLoading && user && isAdmin) {
       navigate("/admin", { replace: true });
@@ -32,8 +34,35 @@ const AdminLogin = () => {
     }
 
     if (data.user) {
-      toast.success("Logged in successfully");
-      navigate("/admin", { replace: true });
+      // Wait for checkAdmin to complete before navigating
+      setCheckingRole(true);
+      toast.success("Logged in — checking admin access...");
+
+      // Poll isAdmin state — it will flip to true once checkAdmin finishes
+      let attempts = 0;
+      const poll = setInterval(async () => {
+        attempts++;
+
+        // Directly query the role instead of relying on state timing
+        const { data: roleData } = await supabase
+          .from("user_roles")
+          .select("role")
+          .eq("user_id", data.user.id);
+
+        const roles = (roleData || []).map((r: any) => r.role);
+        const hasAdmin = roles.includes("admin") || roles.includes("super_admin");
+
+        if (hasAdmin) {
+          clearInterval(poll);
+          setCheckingRole(false);
+          navigate("/admin", { replace: true });
+        } else if (attempts >= 5) {
+          clearInterval(poll);
+          setCheckingRole(false);
+          toast.error("Access denied — you don't have admin privileges.");
+          await supabase.auth.signOut();
+        }
+      }, 500);
     }
   };
 
@@ -74,44 +103,4 @@ const AdminLogin = () => {
           </div>
 
           <div>
-            <label className="block text-sm font-medium text-foreground mb-2">Password</label>
-            <div className="relative">
-              <Lock className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" size={18} />
-              <input
-                type="password"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                required
-                className="w-full pl-10 pr-4 py-2.5 rounded-lg border border-border bg-background text-foreground focus:outline-none focus:ring-2 focus:ring-primary"
-                placeholder="••••••••"
-              />
-            </div>
-          </div>
-
-          <button
-            type="submit"
-            disabled={loading}
-            className="w-full flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg bg-primary text-primary-foreground font-semibold hover:bg-primary/90 transition-colors disabled:opacity-50"
-          >
-            {loading ? (
-              <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-primary-foreground" />
-            ) : (
-              <>
-                <LogIn size={18} />
-                Sign In
-              </>
-            )}
-          </button>
-        </form>
-
-        <div className="mt-6 text-center">
-          <a href="/" className="text-sm text-muted-foreground hover:text-primary transition-colors">
-            ← Back to site
-          </a>
-        </div>
-      </div>
-    </div>
-  );
-};
-
-export default AdminLogin;
+            <label className="block text-sm font-medium text-foreground
