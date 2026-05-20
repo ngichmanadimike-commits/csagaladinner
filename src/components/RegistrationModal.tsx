@@ -44,10 +44,10 @@ const RegistrationModal = ({ pkg, onClose }: { pkg: Pkg; onClose: () => void }) 
     title?: string;
   } | null>(null);
   const [promoChecking, setPromoChecking] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
 
   const installments = computeInstallments(pkg);
 
-  // ── Base amount before promo ──────────────────────────────────────────────
   const baseAmount =
     paymentType === "full"
       ? pkg.price * quantity
@@ -59,13 +59,9 @@ const RegistrationModal = ({ pkg, onClose }: { pkg: Pkg; onClose: () => void }) 
       installment === 0 &&
       Number(existingReg?.total_paid || 0) === 0);
 
-  // ── Amount to charge (after discount) ────────────────────────────────────
   const amount =
     promoApplied && promoEligible ? applyDiscount(baseAmount, promoApplied) : baseAmount;
 
-  // ── FIX: total_cost ALWAYS reflects the discounted price when promo applied
-  //    Previously only "full" payment mode updated effectiveTotalCost.
-  //    Now we compute it for ALL payment types so DB stores the correct price. ──
   const fullPrice = pkg.price * quantity;
   const effectiveTotalCost =
     promoApplied && promoEligible
@@ -131,6 +127,12 @@ const RegistrationModal = ({ pkg, onClose }: { pkg: Pkg; onClose: () => void }) 
   const ensureRegistration = async (): Promise<string | null> => {
     if (registrationId) return registrationId;
 
+    if (!form.name.trim() || !form.email.trim() || !form.phone.trim()) {
+      toast.error("Please fill in your name, email and phone before paying.");
+      setStep("form");
+      return null;
+    }
+
     const { data: eventData } = await supabase
       .from("events").select("id").eq("status", "published")
       .order("event_date", { ascending: true }).limit(1).single();
@@ -141,22 +143,30 @@ const RegistrationModal = ({ pkg, onClose }: { pkg: Pkg; onClose: () => void }) 
       .from("registrations")
       .insert({
         event_id: eventData.id,
-        name: form.name, email: form.email, phone: form.phone, institution: form.institution,
+        name: form.name.trim(),
+        email: form.email.trim().toLowerCase(),
+        phone: form.phone.trim(),
+        institution: form.institution.trim(),
         package_type: pkg.name, quantity,
-        // ── FIX: always store discounted price as total_cost ──
         total_cost: effectiveTotalCost,
-        // ── FIX: store original price separately for reference ──
         original_price: fullPrice,
         total_paid: 0, payment_status: "pending",
         payment_type: paymentType, ticket_issued: false,
-        // ── FIX: persist promo code on the registration row so admin can see it ──
         promo_code: promoApplied?.code ?? null,
         discount_amount: promoApplied && promoEligible ? (fullPrice - effectiveTotalCost) : 0,
       })
       .select("id, ticket_code, secure_ticket_token")
       .single();
 
-    if (error || !data) { toast.error("Failed to create registration: " + (error?.message || "unknown")); return null; }
+    if (error || !data) {
+      const msg = error?.message ?? "Unknown error";
+      if (msg.includes("duplicate") || msg.includes("unique")) {
+        toast.error("A registration with this email already exists for this event. Use your existing booking code instead.");
+      } else {
+        toast.error("Registration failed: " + msg);
+      }
+      return null;
+    }
 
     setRegistrationId(data.id);
     setTicketCode(data.ticket_code);
@@ -185,37 +195,42 @@ const RegistrationModal = ({ pkg, onClose }: { pkg: Pkg; onClose: () => void }) 
   };
 
   const handlePaymentSubmitted = async (info: { mpesaCode: string; phone: string; source: "stk" | "manual" }) => {
-    const regId = await ensureRegistration();
-    if (!regId) return;
+    if (submitting) return;
+    setSubmitting(true);
+    try {
+      const regId = await ensureRegistration();
+      if (!regId) return;
 
-    const { error } = await supabase.from("payments").insert({
-      registration_id: regId, amount,
-      mpesa_code: info.mpesaCode, phone: info.phone, source: info.source,
-      verified: info.source === "stk",
-      verified_at: info.source === "stk" ? new Date().toISOString() : null,
-    });
-    if (error) { toast.error("Failed to save payment: " + error.message); throw error; }
-
-    if (promoApplied && promoEligible) {
-      await supabase.from("promo_redemptions").insert({
-        promotion_id: promoApplied.id,
-        code: promoApplied.code,
-        registration_id: regId,
-        email: form.email,
-        phone: info.phone,
-        status: "applied",
-        discount_amount: baseAmount - amount,
+      const { error } = await supabase.from("payments").insert({
+        registration_id: regId, amount,
+        mpesa_code: info.mpesaCode, phone: info.phone, source: info.source,
+        verified: info.source === "stk",
+        verified_at: info.source === "stk" ? new Date().toISOString() : null,
       });
-      // Increment used_count on the promotion
-      await supabase.rpc("increment_promo_used_count", { _promotion_id: promoApplied.id });
-    }
+      if (error) { toast.error("Failed to save payment: " + error.message); throw error; }
 
-    sendPaymentEmail(regId, amount, paymentType === "full");
-    toast.success(
-      info.source === "stk"
-        ? "Payment confirmed! Check your email for details."
-        : "Payment recorded — you'll receive an email once verified."
-    );
+      if (promoApplied && promoEligible) {
+        await supabase.from("promo_redemptions").insert({
+          promotion_id: promoApplied.id,
+          code: promoApplied.code,
+          registration_id: regId,
+          email: form.email,
+          phone: info.phone,
+          status: "applied",
+          discount_amount: baseAmount - amount,
+        });
+        await supabase.rpc("increment_promo_used_count", { _promotion_id: promoApplied.id });
+      }
+
+      sendPaymentEmail(regId, amount, paymentType === "full");
+      toast.success(
+        info.source === "stk"
+          ? "Payment confirmed! Check your email for details."
+          : "Payment recorded — you'll receive an email once verified."
+      );
+    } finally {
+      setSubmitting(false);
+    }
   };
 
   return (
@@ -246,7 +261,6 @@ const RegistrationModal = ({ pkg, onClose }: { pkg: Pkg; onClose: () => void }) 
           </div>
         )}
 
-        {/* Quantity */}
         <div className="flex items-center gap-3 mb-6">
           <label className="text-sm text-muted-foreground">Quantity:</label>
           <div className="flex items-center gap-2">
@@ -310,7 +324,6 @@ const RegistrationModal = ({ pkg, onClose }: { pkg: Pkg; onClose: () => void }) 
               </div>
             )}
 
-            {/* Promo code */}
             <div className="rounded-lg border border-border p-3 space-y-2">
               <label className="text-xs uppercase tracking-wide text-muted-foreground flex items-center gap-1">
                 <Tag size={12} /> Promo code (optional)
@@ -319,7 +332,6 @@ const RegistrationModal = ({ pkg, onClose }: { pkg: Pkg; onClose: () => void }) 
                 <div className="flex items-center justify-between text-sm">
                   <div>
                     <span className="text-primary font-semibold">{promoApplied.code} — {formatDiscount(promoApplied)}</span>
-                    {/* ── FIX: Show the new discounted total clearly ── */}
                     <p className="text-xs text-muted-foreground mt-0.5">
                       New total: <span className="text-primary font-bold">KES {effectiveTotalCost.toLocaleString()}</span>
                       <span className="line-through ml-2 opacity-50">KES {fullPrice.toLocaleString()}</span>
@@ -340,7 +352,6 @@ const RegistrationModal = ({ pkg, onClose }: { pkg: Pkg; onClose: () => void }) 
             </div>
 
             <div className="space-y-3">
-              {/* Full payment */}
               <button
                 onClick={() => { setPaymentType("full"); setStep("mpesa"); }}
                 className="w-full py-3 rounded-lg bg-primary text-primary-foreground font-bold hover:scale-[1.02] transition-transform"
