@@ -70,7 +70,9 @@ const AdminLayout = ({ children }: { children: ReactNode }) => {
         </div>
       </div>
     );
-  }return (
+  }
+
+  return (
     <div className="min-h-screen bg-background flex">
       <aside className={`fixed inset-y-0 left-0 z-40 w-64 bg-card border-r border-border transform transition-transform duration-200 ${sidebarOpen ? "translate-x-0" : "-translate-x-full"} md:translate-x-0 md:static`}>
         <div className="p-4 border-b border-border">
@@ -104,7 +106,10 @@ const AdminLayout = ({ children }: { children: ReactNode }) => {
       </aside>
 
       {sidebarOpen && (
-        <div className="fixed inset-0 z-30 bg-background/50 md:hidden" onClick={() => setSidebarOpen(false)} />
+        <div
+          className="fixed inset-0 z-30 bg-background/50 md:hidden"
+          onClick={() => setSidebarOpen(false)}
+        />
       )}
 
       <div className="flex-1 flex flex-col min-h-screen">
