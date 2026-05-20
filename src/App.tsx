@@ -34,6 +34,7 @@ import AdminSettings from "@/pages/admin/AdminSettings";
 import AdminUsers from "@/pages/admin/AdminUsers";
 import AdminActivity from "@/pages/admin/AdminActivity";
 import AdminDangerZone from "@/pages/admin/AdminDangerZone";
+import AdminQRScanner from "@/pages/admin/AdminQRScanner";
 import Gallery from "@/pages/Gallery";
 import EventInsights from "@/pages/EventInsights";
 
@@ -77,6 +78,7 @@ function App() {
           <Route path="/admin/users" element={<AdminUsers />} />
           <Route path="/admin/activity" element={<AdminActivity />} />
           <Route path="/admin/danger-zone" element={<AdminDangerZone />} />
+          <Route path="/admin/qr-scanner" element={<AdminQRScanner />} />
 
           {/* 404 */}
           <Route path="*" element={<NotFound />} />
@@ -87,8 +89,3 @@ function App() {
 }
 
 export default App;
-// Add this import alongside the other admin imports
-import AdminQRScanner from "@/pages/admin/AdminQRScanner";
-
-// Add this route alongside the other /admin routes
-<Route path="/admin/qr-scanner" element={<AdminQRScanner />} />
