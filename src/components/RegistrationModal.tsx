@@ -1,12 +1,4 @@
 // src/components/RegistrationModal.tsx
-// Bug fixes applied:
-//   FIX A — ensureRegistration: if no published event exists, gracefully falls back
-//            to any event instead of silently blocking registration for everyone
-//   FIX B — promo rejection logging: removed registration_id from rejected insert
-//            (it was null at that point, causing a silent FK constraint failure)
-//   FIX C — handlePaymentSubmitted: setSubmitting(false) now only resets on error,
-//            not on success — prevents double-submit race condition
-//   FIX D — Improved user-facing error messages: no more raw Postgres error strings
 
 import { useState } from "react";
 import { X, Tag, CheckCircle2 } from "lucide-react";
@@ -58,16 +50,22 @@ const RegistrationModal = ({ pkg, onClose }: { pkg: Pkg; onClose: () => void }) 
 
   const installments = computeInstallments(pkg);
 
+  // FIX: For existing registrations use the outstanding balance, not the full price
+  const remainingBalance = existingReg
+    ? Math.max(0, Number(existingReg.total_cost) - Number(existingReg.total_paid))
+    : null;
+
   const baseAmount =
-    paymentType === "full"
+    existingReg
+      ? remainingBalance!
+      : paymentType === "full"
       ? pkg.price * quantity
       : (installments[installment] ?? pkg.price) * quantity;
 
   const promoEligible =
-    paymentType === "full" ||
-    (paymentType === "partial" &&
-      installment === 0 &&
-      Number(existingReg?.total_paid || 0) === 0);
+    !existingReg &&
+    (paymentType === "full" ||
+      (paymentType === "partial" && installment === 0));
 
   const amount =
     promoApplied && promoEligible ? applyDiscount(baseAmount, promoApplied) : baseAmount;
@@ -96,7 +94,7 @@ const RegistrationModal = ({ pkg, onClose }: { pkg: Pkg; onClose: () => void }) 
     setTicketCode(data.ticket_code);
     setSecureToken((data as any).secure_ticket_token);
     setForm({ name: data.name, email: data.email, phone: data.phone, institution: data.institution || "" });
-    setQuantity(data.quantity || 1);
+    // FIX: do NOT call setQuantity — quantity is locked in the DB record
     setStep("payment-choice");
     toast.success("Code verified — payments will cumulate to this booking");
   };
@@ -107,7 +105,7 @@ const RegistrationModal = ({ pkg, onClose }: { pkg: Pkg; onClose: () => void }) 
     setPromoChecking(true);
     const isFirstInstallment =
       paymentType === "full" ||
-      (paymentType === "partial" && installment === 0 && Number(existingReg?.total_paid || 0) === 0);
+      (paymentType === "partial" && installment === 0);
     const { data, error } = await supabase.rpc("validate_promo_code", {
       _code: code,
       _email: form.email || null,
@@ -120,18 +118,13 @@ const RegistrationModal = ({ pkg, onClose }: { pkg: Pkg; onClose: () => void }) 
     if (error || !res?.valid) {
       setPromoApplied(null);
       toast.error(res?.reason ? `Promo rejected: ${res.reason.replace(/_/g, " ")}` : "Invalid promo code");
-
-      // FIX B: Only log rejection if we have an email — and deliberately omit
-      // registration_id (it's null here) to avoid FK constraint failures that
-      // used to silently block the flow.
       if (form.email) {
         supabase.from("promo_redemptions").insert({
           code: code.toUpperCase(),
           email: form.email,
           status: "rejected",
           reason: res?.reason || "error",
-          // registration_id intentionally omitted — not available yet at this stage
-        }).then(() => {}); // fire-and-forget, never block the user
+        }).then(() => {});
       }
       return;
     }
@@ -143,7 +136,7 @@ const RegistrationModal = ({ pkg, onClose }: { pkg: Pkg; onClose: () => void }) 
     });
     toast.success(`${res.title} applied — ${formatDiscount({ discount_type: res.discount_type, discount_value: Number(res.discount_value) })}`);
   };
-  // Generates a local ticket code — never depends on Supabase
+
   const generateLocalTicketCode = (): string => {
     const chars = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
     let code = "CSA-";
@@ -152,6 +145,7 @@ const RegistrationModal = ({ pkg, onClose }: { pkg: Pkg; onClose: () => void }) 
   };
 
   const ensureRegistration = async (): Promise<string | null> => {
+    // Already have a registration (new or looked-up) — just return it
     if (registrationId) return registrationId;
 
     if (!form.name.trim() || !form.email.trim() || !form.phone.trim()) {
@@ -160,22 +154,36 @@ const RegistrationModal = ({ pkg, onClose }: { pkg: Pkg; onClose: () => void }) 
       return null;
     }
 
-    // Generate ticket code locally — registration NEVER blocks on event lookup
+    // Generate ticket code and token locally so registration never blocks on DB lookups
     const localTicketCode = generateLocalTicketCode();
     const localToken = crypto.randomUUID
       ? crypto.randomUUID()
       : Math.random().toString(36).slice(2);
 
-    // Try to get an event ID — silently ignored if it fails
+    // Try to find any event ID — tried published first, then any, fully optional
     let eventId: string | null = null;
     try {
-      const { data: eventData } = await supabase
+      // Try published event first
+      const { data: published } = await supabase
         .from("events")
         .select("id")
-        .order("created_at", { ascending: false })
+        .eq("status", "published")
+        .order("event_date", { ascending: true })
         .limit(1)
         .maybeSingle();
-      eventId = eventData?.id ?? null;
+
+      if (published?.id) {
+        eventId = published.id;
+      } else {
+        // Fall back to any event — admin may have forgotten to publish
+        const { data: anyEvent } = await supabase
+          .from("events")
+          .select("id")
+          .order("created_at", { ascending: false })
+          .limit(1)
+          .maybeSingle();
+        eventId = anyEvent?.id ?? null;
+      }
     } catch {
       // Ignored — registration proceeds without event_id
     }
@@ -194,8 +202,7 @@ const RegistrationModal = ({ pkg, onClose }: { pkg: Pkg; onClose: () => void }) 
       payment_type: paymentType,
       ticket_issued: false,
       promo_code: promoApplied?.code ?? null,
-      discount_amount:
-        promoApplied && promoEligible ? fullPrice - effectiveTotalCost : 0,
+      discount_amount: promoApplied && promoEligible ? fullPrice - effectiveTotalCost : 0,
       ticket_code: localTicketCode,
       secure_ticket_token: localToken,
     };
@@ -218,11 +225,15 @@ const RegistrationModal = ({ pkg, onClose }: { pkg: Pkg; onClose: () => void }) 
         return null;
       }
 
-      // If DB rejected due to event_id constraint, retry without it
+      // If DB rejected due to event_id FK constraint, retry without it
       if (msg.includes("violates") || msg.includes("constraint") || msg.includes("event_id")) {
+        const { payload: _omit, ...payloadWithoutEvent } = { payload, ...payload };
+        const retryPayload = { ...payload };
+        delete retryPayload.event_id;
+
         const { data: retryData, error: retryError } = await supabase
           .from("registrations")
-          .insert({ ...payload, event_id: undefined })
+          .insert(retryPayload)
           .select("id, ticket_code, secure_ticket_token")
           .single();
 
@@ -240,9 +251,7 @@ const RegistrationModal = ({ pkg, onClose }: { pkg: Pkg; onClose: () => void }) 
       }
 
       if (msg.includes("fetch") || msg.includes("network") || msg.includes("Failed to fetch")) {
-        toast.error("Network error — please check your connection and try again.", {
-          duration: 6000,
-        });
+        toast.error("Network error — please check your connection and try again.", { duration: 6000 });
         return null;
       }
 
@@ -255,8 +264,6 @@ const RegistrationModal = ({ pkg, onClose }: { pkg: Pkg; onClose: () => void }) 
     setSecureToken((data as any).secure_ticket_token ?? localToken);
     return data.id;
   };
-
-
 
   const sendPaymentEmail = async (regId: string, paidAmount: number, isFullyPaid: boolean) => {
     try {
@@ -281,19 +288,20 @@ const RegistrationModal = ({ pkg, onClose }: { pkg: Pkg; onClose: () => void }) 
   const handlePaymentSubmitted = async (info: { mpesaCode: string; phone: string; source: "stk" | "manual" }) => {
     if (submitting) return;
     setSubmitting(true);
-    // FIX C: Track success separately so we only reset the button on failure.
-    // On success we leave submitting=true — user is done, closing the modal.
     let success = false;
     try {
       const regId = await ensureRegistration();
       if (!regId) {
-        setSubmitting(false); // ensureRegistration failed — let user retry
+        setSubmitting(false);
         return;
       }
 
       const { error } = await supabase.from("payments").insert({
-        registration_id: regId, amount,
-        mpesa_code: info.mpesaCode, phone: info.phone, source: info.source,
+        registration_id: regId,
+        amount,
+        mpesa_code: info.mpesaCode,
+        phone: info.phone,
+        source: info.source,
         verified: info.source === "stk",
         verified_at: info.source === "stk" ? new Date().toISOString() : null,
       });
@@ -312,7 +320,7 @@ const RegistrationModal = ({ pkg, onClose }: { pkg: Pkg; onClose: () => void }) 
         await supabase.rpc("increment_promo_used_count", { _promotion_id: promoApplied.id });
       }
 
-      sendPaymentEmail(regId, amount, paymentType === "full");
+      sendPaymentEmail(regId, amount, paymentType === "full" && !existingReg);
       toast.success(
         info.source === "stk"
           ? "Payment confirmed! Check your email for details."
@@ -320,13 +328,10 @@ const RegistrationModal = ({ pkg, onClose }: { pkg: Pkg; onClose: () => void }) 
       );
       success = true;
     } catch (e: any) {
-      // Only show generic error if it wasn't already shown above
       if (!e?.message?.includes("Failed to save")) {
         toast.error("Something went wrong. Please try again.");
       }
     } finally {
-      // FIX C: Only re-enable submit button if payment failed.
-      // On success keep it disabled so user can't accidentally submit twice.
       if (!success) setSubmitting(false);
     }
   };
@@ -359,16 +364,19 @@ const RegistrationModal = ({ pkg, onClose }: { pkg: Pkg; onClose: () => void }) 
           </div>
         )}
 
-        <div className="flex items-center gap-3 mb-6">
-          <label className="text-sm text-muted-foreground">Quantity:</label>
-          <div className="flex items-center gap-2">
-            <button type="button" onClick={() => setQuantity(Math.max(1, quantity - 1))}
-              className="w-8 h-8 rounded-lg bg-muted border border-border text-foreground flex items-center justify-center hover:border-primary">−</button>
-            <span className="w-10 text-center font-bold text-foreground">{quantity}</span>
-            <button type="button" onClick={() => setQuantity(quantity + 1)}
-              className="w-8 h-8 rounded-lg bg-muted border border-border text-foreground flex items-center justify-center hover:border-primary">+</button>
+        {/* FIX: Quantity controls hidden for existing registrations — qty is locked in the DB */}
+        {!existingReg && (
+          <div className="flex items-center gap-3 mb-6">
+            <label className="text-sm text-muted-foreground">Quantity:</label>
+            <div className="flex items-center gap-2">
+              <button type="button" onClick={() => setQuantity(Math.max(1, quantity - 1))}
+                className="w-8 h-8 rounded-lg bg-muted border border-border text-foreground flex items-center justify-center hover:border-primary">−</button>
+              <span className="w-10 text-center font-bold text-foreground">{quantity}</span>
+              <button type="button" onClick={() => setQuantity(quantity + 1)}
+                className="w-8 h-8 rounded-lg bg-muted border border-border text-foreground flex items-center justify-center hover:border-primary">+</button>
+            </div>
           </div>
-        </div>
+        )}
 
         {step === "start" && (
           <div className="space-y-4">
@@ -419,34 +427,37 @@ const RegistrationModal = ({ pkg, onClose }: { pkg: Pkg; onClose: () => void }) 
                 <p className="text-muted-foreground text-xs mt-1">
                   Paid so far: KES {Number(existingReg.total_paid).toLocaleString()} of KES {Number(existingReg.total_cost).toLocaleString()}
                 </p>
+                {remainingBalance !== null && remainingBalance > 0 && (
+                  <p className="text-orange-400 text-xs font-semibold mt-0.5">
+                    Balance due: KES {remainingBalance.toLocaleString()}
+                  </p>
+                )}
+                {remainingBalance === 0 && (
+                  <p className="text-green-400 text-xs font-semibold mt-0.5">Fully paid ✓</p>
+                )}
               </div>
             )}
 
-            <div className="rounded-lg border border-border p-3 space-y-2">
-              <label className="text-xs uppercase tracking-wide text-muted-foreground flex items-center gap-1">
-                <Tag size={12} /> Promo code (optional)
-              </label>
-              {promoApplied ? (
-                <div className="flex items-center justify-between text-sm">
-                  <div>
-                    <span className="text-primary font-semibold">{promoApplied.code} — {formatDiscount(promoApplied)}</span>
-                    <p className="text-xs text-muted-foreground mt-0.5">
-                      New total: <span className="text-primary font-bold">KES {effectiveTotalCost.toLocaleString()}</span>
-                      <span className="line-through ml-2 opacity-50">KES {fullPrice.toLocaleString()}</span>
-                    </p>
+            {/* Promo — only shown for new registrations */}
+            {!existingReg && (
+              <div className="rounded-lg border border-border p-3 space-y-2">
+                <label className="text-xs uppercase tracking-wide text-muted-foreground flex items-center gap-1">
+                  <Tag size={12} /> Promo code (optional)
+                </label>
+                {promoApplied ? (
+                  <div className="flex items-center justify-between text-sm">
+                    <div>
+                      <span className="text-primary font-semibold">{promoApplied.code} — {formatDiscount(promoApplied)}</span>
+                      <p className="text-xs text-muted-foreground mt-0.5">
+                        New total: <span className="text-primary font-bold">KES {effectiveTotalCost.toLocaleString()}</span>
+                        <span className="line-through ml-2 opacity-50">KES {fullPrice.toLocaleString()}</span>
+                      </p>
+                    </div>
+                    <button onClick={() => setPromoApplied(null)} className="text-xs text-muted-foreground underline ml-3">Remove</button>
                   </div>
-                  <button onClick={() => setPromoApplied(null)} className="text-xs text-muted-foreground underline ml-3">Remove</button>
-                </div>
-              ) : (
-                <div className="flex gap-2">
-                  <input value={promoInput} onChange={(e) => setPromoInput(e.target.value.toUpperCase())}
-                    placeholder="SAVE20" className="flex-1 px-3 py-2 rounded-lg bg-muted border border-border text-sm font-mono" />
-                  <button onClick={validatePromo} disabled={!promoInput || promoChecking}
-                    className="px-3 rounded-lg border border-primary text-primary text-sm font-semibold disabled:opacity-50">
-                    {promoChecking ? "…" : "Apply"}
-                  </button>
-                </div>
-              )}
-            </div>
-
-            <div className="space-y-3
+                ) : (
+                  <div className="flex gap-2">
+                    <input value={promoInput} onChange={(e) => setPromoInput(e.target.value.toUpperCase())}
+                      placeholder="SAVE20" className="flex-1 px-3 py-2 rounded-lg bg-muted border border-border text-sm font-mono" />
+                    <button onClick={validatePromo} disabled={!promoInput || promoChecking}
+                      className="px-3 rounded-lg border border-primary text
