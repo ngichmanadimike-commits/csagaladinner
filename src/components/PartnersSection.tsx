@@ -13,8 +13,8 @@ interface PartnerPackage {
 }
 
 const PartnersSection = () => {
-  const = useState<PartnerPackage[]>([]);
-  const = useState(true);[packages][setPackages][loading][setLoading]
+  const [packages, setPackages] = useState<PartnerPackage[]>([]);
+  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     fetchPackages();
@@ -22,10 +22,10 @@ const PartnersSection = () => {
 
   const fetchPackages = async () => {
     const { data, error } = await supabase
-     .from("partner_packages")
-     .select("*")
-     .eq("active", true)
-     .order("display_order");
+      .from("partner_packages")
+      .select("*")
+      .eq("active", true)
+      .order("display_order");
 
     if (!error && data) {
       setPackages(data as PartnerPackage[]);
@@ -38,9 +38,7 @@ const PartnersSection = () => {
     return (
       <section className="py-20">
         <div className="container mx-auto px-4 text-center">
-          <p className="text-muted-foreground">
-            Loading partner packages...
-          </p>
+          <p className="text-muted-foreground">Loading partner packages...</p>
         </div>
       </section>
     );
@@ -67,9 +65,7 @@ const PartnersSection = () => {
               className="glass rounded-2xl p-8 border-border hover:border-primary/40 transition-all duration-300"
             >
               <div className="mb-6">
-                <h3 className="text-2xl font-bold mb-2">
-                  {pkg.name}
-                </h3>
+                <h3 className="text-2xl font-bold mb-2">{pkg.name}</h3>
 
                 <p className="text-muted-foreground text-sm">
                   {pkg.description}
@@ -84,18 +80,13 @@ const PartnersSection = () => {
 
               <div className="space-y-3 mb-8">
                 {pkg.perks?.map((perk, index) => (
-                  <div
-                    key={index}
-                    className="flex items-start gap-3"
-                  >
+                  <div key={index} className="flex items-start gap-3">
                     <Check
                       className="text-primary mt-1 flex-shrink-0"
                       size={18}
                     />
 
-                    <span className="text-sm text-foreground">
-                      {perk}
-                    </span>
+                    <span className="text-sm text-foreground">{perk}</span>
                   </div>
                 ))}
               </div>
