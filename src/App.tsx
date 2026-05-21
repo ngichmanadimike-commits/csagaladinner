@@ -1,120 +1,40 @@
-import {
-  BrowserRouter,
-  Routes,
-  Route,
-  Navigate,
-} from "react-router-dom";
+import { Toaster } from "@/components/ui/toaster";
+import { Toaster as Sonner } from "@/components/ui/sonner";
+import { TooltipProvider } from "@/components/ui/tooltip";
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { BrowserRouter, Routes, Route } from "react-router-dom";
+import Index from "./pages/Index";
+import Login from "./pages/Login";
+import NotFound from "./pages/NotFound";
 
-import { useEffect, useState } from "react";
-
-import HomePage from "./pages/HomePage";
-import AdminOverview from "./pages/admin/AdminOverview";
-import AdminLogin from "./pages/admin/AdminLogin";
+// Import admin pages if they exist
+import EventInsights from "./pages/EventInsights";
 import Gallery from "./pages/Gallery";
+import Lookup from "./pages/Lookup";
+import ResetPassword from "./pages/ResetPassword";
 import TicketPage from "./pages/TicketPage";
-import ScannerPage from "./pages/admin/ScannerPage";
 
-import ErrorBoundary from "./components/ErrorBoundary";
+const queryClient = new QueryClient();
 
-function AdminProtectedRoute({
-  children,
-}: {
-  children: JSX.Element;
-}) {
-
-  const [authorized, setAuthorized] =
-    useState<boolean | null>(null);
-
-  useEffect(() => {
-
-    const admin =
-      localStorage.getItem("admin-auth");
-
-    if (admin) {
-      setAuthorized(true);
-    } else {
-      setAuthorized(false);
-    }
-
-  }, []);
-
-  if (authorized === null) {
-    return (
-      <div
-        style={{
-          minHeight: "100vh",
-          display: "flex",
-          justifyContent: "center",
-          alignItems: "center",
-          background: "#111",
-          color: "#fff",
-        }}
-      >
-        Loading...
-      </div>
-    );
-  }
-
-  if (!authorized) {
-    return (
-      <Navigate to="/admin/login" />
-    );
-  }
-
-  return children;
-}
-
-export default function App() {
-
-  return (
-    <ErrorBoundary>
-
+const App = () => (
+  <QueryClientProvider client={queryClient}>
+    <TooltipProvider>
+      <Toaster />
+      <Sonner />
       <BrowserRouter>
-
         <Routes>
-
-          <Route
-            path="/"
-            element={<HomePage />}
-          />
-
-          <Route
-            path="/gallery"
-            element={<Gallery />}
-          />
-
-          <Route
-            path="/ticket/:id"
-            element={<TicketPage />}
-          />
-
-          <Route
-            path="/admin/login"
-            element={<AdminLogin />}
-          />
-
-          <Route
-            path="/admin/dashboard"
-            element={
-              <AdminProtectedRoute>
-                <AdminOverview />
-              </AdminProtectedRoute>
-            }
-          />
-
-          <Route
-            path="/admin/scanner"
-            element={
-              <AdminProtectedRoute>
-                <ScannerPage />
-              </AdminProtectedRoute>
-            }
-          />
-
+          <Route path="/" element={<Index />} />
+          <Route path="/login" element={<Login />} />
+          <Route path="/event-insights" element={<EventInsights />} />
+          <Route path="/gallery" element={<Gallery />} />
+          <Route path="/lookup" element={<Lookup />} />
+          <Route path="/reset-password" element={<ResetPassword />} />
+          <Route path="/ticket" element={<TicketPage />} />
+          <Route path="*" element={<NotFound />} />
         </Routes>
-
       </BrowserRouter>
+    </TooltipProvider>
+  </QueryClientProvider>
+);
 
-    </ErrorBoundary>
-  );
-                       }
+export default App;
