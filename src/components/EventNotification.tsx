@@ -1,39 +1,27 @@
+// src/components/EventNotification.tsx
+// Changes made:
+//   1. Removed the separate supabase events DB query — now uses shared useEventData hook
+//      (this was a duplicate of HeroSection's query, fired on every page load)
+//   2. Supabase import removed (no longer needed in this file)
+
 import { useState, useEffect } from "react";
 import { X } from "lucide-react";
-import { supabase } from "@/integrations/supabase/client";
-
-// Local flyer fallback
 import flyerImage from "@/assets/IMG-20260512-WA0019.jpg";
+import { useEventData } from "@/hooks/useEventData";
 
 const SESSION_KEY = "csaEventNotificationSeen";
 
 const EventNotification = () => {
   const [isOpen, setIsOpen] = useState(false);
-  const [flyerUrl, setFlyerUrl] = useState<string>(flyerImage);
-  const [eventTitle, setEventTitle] = useState("CSA Gala Dinner 2026");
+
+  // PERF FIX: no DB query here — we reuse the cached result from useEventData.
+  // By the time this popup appears (800ms delay), HeroSection will have already
+  // fetched and cached the event, so this is a zero-cost lookup.
+  const { event } = useEventData();
+  const flyerUrl = event?.flyer_url || flyerImage;
+  const eventTitle = event?.title || "CSA Gala Dinner 2026";
 
   useEffect(() => {
-    const fetchEvent = async () => {
-      try {
-        const { data } = await supabase
-          .from("events")
-          .select("title, flyer_url")
-          .eq("status", "published")
-          .order("event_date", { ascending: true })
-          .limit(1)
-          .single();
-
-        if (data) {
-          if (data.title) setEventTitle(data.title);
-          if (data.flyer_url) setFlyerUrl(data.flyer_url);
-        }
-      } catch {
-        // Keep defaults silently
-      }
-    };
-
-    fetchEvent();
-
     const alreadySeen = sessionStorage.getItem(SESSION_KEY);
     if (!alreadySeen) {
       const timer = setTimeout(() => setIsOpen(true), 800);
