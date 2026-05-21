@@ -1,4 +1,3 @@
-```tsx id="r7m6k1"
 import { ReactNode } from "react";
 import { Link, useLocation } from "react-router-dom";
 import {
@@ -86,4 +85,3 @@ const AdminLayout = ({ children }: Props) => {
 };
 
 export default AdminLayout;
-```
