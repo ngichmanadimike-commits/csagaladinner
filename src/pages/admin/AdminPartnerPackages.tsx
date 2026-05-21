@@ -1,4 +1,3 @@
-```tsx
 import { useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import AdminLayout from "@/components/admin/AdminLayout";
@@ -30,9 +29,9 @@ const AdminPartnerPackages = () => {
 
   const fetchPackages = async () => {
     const { data, error } = await supabase
-      .from("partner_packages")
-      .select("*")
-      .order("display_order");
+    .from("partner_packages")
+    .select("*")
+    .order("display_order");
 
     if (error) toast.error("Failed to load packages: " + error.message);
 
@@ -46,7 +45,7 @@ const AdminPartnerPackages = () => {
 
   const updateLocal = (i: number, patch: Partial<PkgRow>) => {
     setPackages((prev) =>
-      prev.map((p, idx) => (idx === i ? { ...p, ...patch } : p))
+      prev.map((p, idx) => (idx === i? {...p,...patch } : p))
     );
   };
 
@@ -69,9 +68,9 @@ const AdminPartnerPackages = () => {
 
     if (p.id) {
       const { error } = await supabase
-        .from("partner_packages")
-        .update(payload)
-        .eq("id", p.id);
+      .from("partner_packages")
+      .update(payload)
+      .eq("id", p.id);
 
       if (error) {
         toast.error(error.message);
@@ -79,10 +78,10 @@ const AdminPartnerPackages = () => {
       }
     } else {
       const { data, error } = await supabase
-        .from("partner_packages")
-        .insert(payload)
-        .select("id")
-        .single();
+      .from("partner_packages")
+      .insert(payload)
+      .select("id")
+      .single();
 
       if (error) {
         toast.error(error.message);
@@ -91,7 +90,7 @@ const AdminPartnerPackages = () => {
 
       setPackages((prev) =>
         prev.map((pkg, idx) =>
-          idx === i ? { ...pkg, id: data.id } : pkg
+          idx === i? {...pkg, id: data.id } : pkg
         )
       );
     }
@@ -103,16 +102,16 @@ const AdminPartnerPackages = () => {
     const p = packages[i];
 
     if (!p.id) {
-      setPackages((prev) => prev.filter((_, idx) => idx !== i));
+      setPackages((prev) => prev.filter((_, idx) => idx!== i));
       return;
     }
 
     if (!confirm(`Delete "${p.name}"?`)) return;
 
     const { error } = await supabase
-      .from("partner_packages")
-      .delete()
-      .eq("id", p.id);
+    .from("partner_packages")
+    .delete()
+    .eq("id", p.id);
 
     if (error) {
       toast.error(error.message);
@@ -121,13 +120,13 @@ const AdminPartnerPackages = () => {
 
     toast.success("Deleted");
 
-    setPackages((prev) => prev.filter((_, idx) => idx !== i));
+    setPackages((prev) => prev.filter((_, idx) => idx!== i));
   };
 
   const addNew = () =>
     setPackages((prev) => [
-      ...prev,
-      { ...blank(), display_order: prev.length + 1 },
+    ...prev,
+     {...blank(), display_order: prev.length + 1 },
     ]);
 
   if (loading)
@@ -179,7 +178,7 @@ const AdminPartnerPackages = () => {
                       updateLocal(i, { name: e.target.value })
                     }
                     placeholder="Gold Partner"
-                    className="w-full px-3 py-2 rounded-lg bg-muted border border-border text-sm"
+                    className="w-full px-3 py-2 rounded-lg bg-muted border-border text-sm"
                   />
                 </div>
 
@@ -196,7 +195,7 @@ const AdminPartnerPackages = () => {
                         display_order: Number(e.target.value),
                       })
                     }
-                    className="w-full px-3 py-2 rounded-lg bg-muted border border-border text-sm"
+                    className="w-full px-3 py-2 rounded-lg bg-muted border-border text-sm"
                   />
                 </div>
               </div>
@@ -213,7 +212,7 @@ const AdminPartnerPackages = () => {
                   onChange={(e) =>
                     updateLocal(i, { price: Number(e.target.value) })
                   }
-                  className="w-full px-3 py-2 rounded-lg bg-muted border border-border text-sm"
+                  className="w-full px-3 py-2 rounded-lg bg-muted border-border text-sm"
                 />
               </div>
 
@@ -228,7 +227,7 @@ const AdminPartnerPackages = () => {
                     updateLocal(i, { description: e.target.value })
                   }
                   placeholder="Premium visibility"
-                  className="w-full px-3 py-2 rounded-lg bg-muted border border-border text-sm"
+                  className="w-full px-3 py-2 rounded-lg bg-muted border-border text-sm"
                 />
               </div>
             </div>
@@ -247,7 +246,7 @@ const AdminPartnerPackages = () => {
                       perks: e.target.value.split("\n"),
                     })
                   }
-                  className="w-full px-3 py-2 rounded-lg bg-muted border border-border text-sm resize-none"
+                  className="w-full px-3 py-2 rounded-lg bg-muted border-border text-sm resize-none"
                 />
               </div>
 
@@ -272,7 +271,7 @@ const AdminPartnerPackages = () => {
 
                 <button
                   onClick={() => remove(i)}
-                  className="px-3 py-2 rounded-lg border border-border text-destructive hover:bg-destructive/10 text-sm"
+                  className="px-3 py-2 rounded-lg border-border text-destructive hover:bg-destructive/10 text-sm"
                 >
                   <Trash2 size={14} />
                 </button>
@@ -286,4 +285,3 @@ const AdminPartnerPackages = () => {
 };
 
 export default AdminPartnerPackages;
-```
