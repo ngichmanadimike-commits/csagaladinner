@@ -1,4 +1,3 @@
-```tsx id="3pqlxp"
 import { useEffect, useState } from "react";
 import AdminLayout from "@/components/admin/AdminLayout";
 import { supabase } from "@/integrations/supabase/client";
@@ -16,10 +15,10 @@ const AdminEventConfig = () => {
 
   const fetchEvent = async () => {
     const { data } = await supabase
-      .from("events")
-      .select("*")
-      .limit(1)
-      .maybeSingle();
+     .from("events")
+     .select("*")
+     .limit(1)
+     .maybeSingle();
 
     if (data) {
       setTitle(data.title || "");
@@ -40,8 +39,8 @@ const AdminEventConfig = () => {
     const fileName = `${Date.now()}-${file.name}`;
 
     const { error } = await supabase.storage
-      .from("site-images")
-      .upload(fileName, file);
+     .from("site-images")
+     .upload(fileName, file);
 
     if (error) {
       toast.error(error.message);
@@ -50,8 +49,8 @@ const AdminEventConfig = () => {
     }
 
     const { data } = supabase.storage
-      .from("site-images")
-      .getPublicUrl(fileName);
+     .from("site-images")
+     .getPublicUrl(fileName);
 
     setFlyerUrl(data.publicUrl);
 
@@ -68,9 +67,9 @@ const AdminEventConfig = () => {
     };
 
     const { error } = await supabase
-      .from("events")
-      .update(payload)
-      .neq("id", "");
+     .from("events")
+     .update(payload)
+     .neq("id", "");
 
     if (error) {
       toast.error(error.message);
@@ -104,7 +103,7 @@ const AdminEventConfig = () => {
               onChange={(e) =>
                 setTitle(e.target.value)
               }
-              className="w-full px-4 py-3 rounded-xl border border-border bg-muted"
+              className="w-full px-4 py-3 rounded-xl border-border bg-muted"
               placeholder="CSA Gala Dinner 2026"
             />
           </div>
@@ -120,7 +119,7 @@ const AdminEventConfig = () => {
                 setDescription(e.target.value)
               }
               rows={5}
-              className="w-full px-4 py-3 rounded-xl border border-border bg-muted resize-none"
+              className="w-full px-4 py-3 rounded-xl border-border bg-muted resize-none"
             />
           </div>
 
@@ -147,7 +146,7 @@ const AdminEventConfig = () => {
               <img
                 src={flyerUrl}
                 alt="Flyer"
-                className="rounded-xl border border-border max-h-[400px]"
+                className="rounded-xl border-border max-h-[400px]"
               />
             </div>
           )}
@@ -165,4 +164,3 @@ const AdminEventConfig = () => {
 };
 
 export default AdminEventConfig;
-```
