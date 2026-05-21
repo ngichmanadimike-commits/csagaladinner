@@ -1,61 +1,51 @@
-// src/hooks/useEventData.ts
 import { useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 
 interface EventData {
   id: string;
   title: string;
-  flyer_url: string | null;
-  voting_url: string | null;
+  date: string;
+  location: string;
+  description: string;
+  is_active: boolean;
 }
 
-let eventCache: EventData | null = null;
-let eventCacheTs = 0;
-const EVENT_TTL_MS = 5 * 60 * 1000;
-
-export function useEventData() {
-  const [event, setEvent] = useState<EventData | null>(eventCache);
-  const [loading, setLoading] = useState(!eventCache);
+export const useEventData = () => {
+  const [event, setEvent] = useState<EventData | null>(null);
+  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    if (eventCache && Date.now() - eventCacheTs < EVENT_TTL_MS) {
-      setEvent(eventCache);
-      setLoading(false);
-      return;
-    }
-
-    let active = true;
-
-    (async () => {
-      // Try published first
-      let { data } = await supabase
+    const fetchEvent = async () => {
+      const { data, error } = await supabase
         .from("events")
-        .select("id, title, flyer_url, voting_url")
-        
-        .order("event_date", { ascending: true })
+        .select("*")
+        .eq("is_active", true)
+        .order("date", { ascending: true })
         .limit(1)
         .maybeSingle();
 
-      // Fall back to any event if no published one exists
-      if (!data) {
-        const { data: anyEvent } = await supabase
-          .from("events")
-          .select("id, title, flyer_url, voting_url")
-          .order("created_at", { ascending: false })
-          .limit(1)
-          .maybeSingle();
-        data = anyEvent;
+      if (!error && data) {
+        setEvent(data as EventData);
       }
 
-      if (!active) return;
-      eventCache = (data as EventData) ?? null;
-      eventCacheTs = Date.now();
-      setEvent(eventCache);
       setLoading(false);
-    })();
+    };
 
-    return () => { active = false; };
+    fetchEvent();
+
+    const channel = supabase
+      .channel("event-realtime")
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "events" },
+        fetchEvent
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
   }, []);
 
   return { event, loading };
-          
+};
