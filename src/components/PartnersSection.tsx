@@ -1,80 +1,111 @@
+```tsx id="8db4hk"
 import { useEffect, useState } from "react";
-import { motion } from "framer-motion";
 import { supabase } from "@/integrations/supabase/client";
-import gbaLogo from "@/assets/gba_logo.png";
-import decoLogo from "@/assets/deco_logo.png";
-import iqskLogo from "@/assets/iqsk_logo.png";
+import { Check } from "lucide-react";
 
-const fallbackPartners = [
-  { name: "Green Build Academy", url: "https://greenbuildhub.co.ke/", logo: gbaLogo },
-  { name: "Deco Roofing Systems", url: "https://decoroofing.co.ke/", logo: decoLogo },
-  { name: "IQSK", url: "https://iqskenya.org/", logo: iqskLogo },
-];
+interface PartnerPackage {
+  id: string;
+  name: string;
+  price: number;
+  description: string;
+  perks: string[];
+  display_order: number;
+  active: boolean;
+}
 
 const PartnersSection = () => {
-  const [partners, setPartners] = useState<Array<{ name: string; url: string; logo: string }>>(fallbackPartners);
+  const [packages, setPackages] = useState<PartnerPackage[]>([]);
+  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    supabase
-      .from("partners")
-      .select("name, website_url, logo_url")
-      .eq("active", true)
-      .order("display_order", { ascending: true })
-      .then(({ data }) => {
-        if (data && data.length > 0) {
-          setPartners(data.map((p) => ({ name: p.name, url: p.website_url || "#", logo: p.logo_url || "" })));
-        }
-      });
+    fetchPackages();
   }, []);
 
-  return (
-    <section id="partners" className="py-24 bg-secondary/30">
-      <div className="container mx-auto px-4">
-        <motion.div
-          initial={{ opacity: 0, y: 30 }}
-          whileInView={{ opacity: 1, y: 0 }}
-          viewport={{ once: true }}
-          className="text-center mb-12"
-        >
-          <h2 className="font-display text-3xl md:text-5xl font-bold mb-4">
-            Our <span className="text-gradient">Partners</span>
-          </h2>
-          <p className="text-muted-foreground">Organizations supporting the future of construction</p>
-        </motion.div>
+  const fetchPackages = async () => {
+    const { data, error } = await supabase
+      .from("partner_packages")
+      .select("*")
+      .eq("active", true)
+      .order("display_order");
 
-        <div className="flex flex-wrap justify-center gap-8 mb-12">
-          {partners.map((p, i) => (
-            <motion.a
-              key={p.name}
-              href={p.url}
-              target="_blank"
-              rel="noopener noreferrer"
-              initial={{ opacity: 0, y: 20 }}
-              whileInView={{ opacity: 1, y: 0 }}
-              viewport={{ once: true }}
-              transition={{ delay: i * 0.1 }}
-              className="glass rounded-2xl px-8 py-6 min-w-[200px] flex flex-col items-center justify-center hover:border-primary/50 hover:glow-sm transition-all duration-300 group"
-            >
-              <div className="w-28 h-28 flex items-center justify-center mb-3 rounded-xl bg-white/90 p-3">
-                <img
-                  src={p.logo}
-                  alt={p.name}
-                  className="max-w-full max-h-full object-contain"
-                />
-              </div>
-              <p className="font-display text-lg font-bold group-hover:text-primary transition-colors text-center">{p.name}</p>
-              <p className="text-xs text-muted-foreground mt-1">Visit Website &rarr;</p>
-            </motion.a>
-          ))}
+    if (!error && data) {
+      setPackages(data as PartnerPackage[]);
+    }
+
+    setLoading(false);
+  };
+
+  if (loading) {
+    return (
+      <section className="py-20">
+        <div className="container mx-auto px-4 text-center">
+          <p className="text-muted-foreground">
+            Loading partner packages...
+          </p>
+        </div>
+      </section>
+    );
+  }
+
+  return (
+    <section id="partners" className="py-20">
+      <div className="container mx-auto px-4">
+        <div className="text-center mb-14">
+          <h2 className="font-display text-4xl md:text-5xl font-bold mb-4">
+            Partnership Packages
+          </h2>
+
+          <p className="text-muted-foreground max-w-2xl mx-auto">
+            Partner with us and showcase your brand during the CSA Gala Dinner
+            2026 event experience.
+          </p>
         </div>
 
-        <div className="text-center">
-          <a
-            href="#partner-form"
-            className="inline-flex items-center gap-2 px-8 py-3 rounded-lg border-2 border-primary text-primary font-bold hover:bg-primary hover:text-primary-foreground transition-all duration-300"
-          >
-            Become a Partner
-          </a>
+        <div className="grid md:grid-cols-3 gap-6">
+          {packages.map((pkg) => (
+            <div
+              key={pkg.id}
+              className="glass rounded-2xl p-8 border border-border hover:border-primary/40 transition-all duration-300"
+            >
+              <div className="mb-6">
+                <h3 className="text-2xl font-bold mb-2">
+                  {pkg.name}
+                </h3>
+
+                <p className="text-muted-foreground text-sm">
+                  {pkg.description}
+                </p>
+              </div>
+
+              <div className="mb-6">
+                <span className="text-4xl font-bold">
+                  KES {pkg.price.toLocaleString()}
+                </span>
+              </div>
+
+              <div className="space-y-3 mb-8">
+                {pkg.perks?.map((perk, index) => (
+                  <div
+                    key={index}
+                    className="flex items-start gap-3"
+                  >
+                    <Check
+                      className="text-primary mt-1 flex-shrink-0"
+                      size={18}
+                    />
+
+                    <span className="text-sm text-foreground">
+                      {perk}
+                    </span>
+                  </div>
+                ))}
+              </div>
+
+              <button className="w-full py-3 rounded-xl bg-primary text-primary-foreground font-semibold hover:opacity-90 transition">
+                Become a Partner
+              </button>
+            </div>
+          ))}
         </div>
       </div>
     </section>
@@ -82,3 +113,4 @@ const PartnersSection = () => {
 };
 
 export default PartnersSection;
+```
