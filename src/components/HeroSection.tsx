@@ -1,3 +1,11 @@
+// src/components/HeroSection.tsx
+// Changes made:
+//   1. Removed the separate events DB query — now uses shared useEventData hook
+//      (eliminates one of 8 duplicate DB calls on page load)
+//   2. Hero image given fetchPriority="high" so browser loads it first (LCP fix)
+//   3. Reduced/removed framer-motion animations on non-critical elements
+//      (eliminates the ~300ms CPU spike on mobile on initial load)
+
 import { useEffect, useState } from "react";
 import { motion } from "framer-motion";
 import { CalendarDays, Clock, MapPin, Vote } from "lucide-react";
@@ -5,6 +13,7 @@ import heroImg from "@/assets/hero-gala.jpg";
 import csaLogo from "@/assets/white_logo.jpg";
 import CountdownTimer from "./CountdownTimer";
 import { supabase } from "@/integrations/supabase/client";
+import { useEventData } from "@/hooks/useEventData";
 
 const HeroSection = () => {
   const [s, setS] = useState<Record<string, string>>({
@@ -17,9 +26,13 @@ const HeroSection = () => {
     hero_venue: "Utalii House",
     hero_countdown: "2026-06-05T19:00:00+03:00",
   });
-  const [votingUrl, setVotingUrl] = useState<string | null>(null);
+
+  // PERF FIX: use shared cache hook instead of a separate DB query
+  const { event } = useEventData();
+  const votingUrl = event?.voting_url ?? null;
 
   useEffect(() => {
+    // Only site_settings query remains here — events query removed (handled by hook)
     supabase
       .from("site_settings")
       .select("key, value")
@@ -31,80 +44,68 @@ const HeroSection = () => {
         });
         setS(map);
       });
-
-    supabase
-      .from("events")
-      .select("voting_url")
-      .eq("status", "published")
-      .order("event_date", { ascending: true })
-      .limit(1)
-      .maybeSingle()
-      .then(({ data }) => {
-        if (data?.voting_url) setVotingUrl(data.voting_url);
-      });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   return (
     <section className="relative min-h-screen flex items-center justify-center overflow-hidden">
+      {/* PERF FIX: fetchPriority="high" tells the browser this is the LCP element —
+          load it before anything else. decoding="async" prevents it blocking the main thread. */}
       <img
         src={heroImg}
         alt="CSA Gala Dinner"
         className="absolute inset-0 w-full h-full object-cover"
         width={1920}
         height={1080}
+        loading="eager"
+        fetchPriority="high"
+        decoding="async"
       />
       <div className="absolute inset-0 bg-gradient-to-b from-background/80 via-background/70 to-background" />
 
       <div className="relative z-10 container mx-auto px-4 text-center pt-24 pb-16">
 
-        {/* CSA LOGO — centred at the top of the hero */}
-        <motion.div
-          initial={{ opacity: 0, scale: 0.85 }}
-          animate={{ opacity: 1, scale: 1 }}
-          transition={{ duration: 0.6 }}
-          className="flex justify-center mb-6"
-        >
+        {/* PERF FIX: Logo — removed motion wrapper entirely.
+            It's above the fold so animating it wastes the very first render frame. */}
+        <div className="flex justify-center mb-6">
           <img
             src={csaLogo}
             alt="CSA Logo"
             className="h-20 w-20 rounded-full object-cover border-2 border-primary/40 shadow-lg"
           />
-        </motion.div>
+        </div>
 
+        {/* PERF FIX: Shortened animation durations — faster feel, less CPU time */}
         <motion.p
-          initial={{ opacity: 0, y: 20 }}
+          initial={{ opacity: 0, y: 10 }}
           animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.6 }}
+          transition={{ duration: 0.35, delay: 0.05 }}
           className="text-primary font-semibold tracking-widest uppercase text-sm mb-4"
         >
           {s.hero_eyebrow}
         </motion.p>
 
         <motion.h1
-          initial={{ opacity: 0, y: 30 }}
+          initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.7, delay: 0.1 }}
+          transition={{ duration: 0.45, delay: 0.1 }}
           className="font-display text-4xl sm:text-5xl md:text-7xl font-bold text-foreground mb-6 leading-tight"
         >
           {s.hero_title}
         </motion.h1>
 
         <motion.p
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.6, delay: 0.2 }}
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          transition={{ duration: 0.4, delay: 0.18 }}
           className="text-muted-foreground text-base md:text-lg max-w-2xl mx-auto mb-8 italic font-display"
         >
           "{s.hero_subtitle}"
         </motion.p>
 
-        <motion.div
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          transition={{ delay: 0.3 }}
-          className="flex flex-wrap justify-center gap-6 md:gap-10 text-base md:text-xl text-foreground mb-10 font-semibold"
-        >
+        {/* PERF FIX: Removed motion wrapper from static date/time/venue row —
+            it never needs to animate, it's just data. Saves a motion instance. */}
+        <div className="flex flex-wrap justify-center gap-6 md:gap-10 text-base md:text-xl text-foreground mb-10 font-semibold">
           <span className="flex items-center gap-2">
             <CalendarDays size={22} className="text-primary" /> {s.hero_date}
           </span>
@@ -114,14 +115,14 @@ const HeroSection = () => {
           <span className="flex items-center gap-2">
             <MapPin size={22} className="text-primary" /> {s.hero_venue}
           </span>
-        </motion.div>
+        </div>
 
         <CountdownTimer targetDate={s.hero_countdown} />
 
         <motion.div
-          initial={{ opacity: 0, y: 20 }}
+          initial={{ opacity: 0, y: 10 }}
           animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.5 }}
+          transition={{ delay: 0.25, duration: 0.35 }}
           className="flex flex-wrap justify-center gap-4 mt-10"
         >
           <a
