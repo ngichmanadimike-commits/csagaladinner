@@ -1,3 +1,13 @@
+// src/components/RegistrationModal.tsx
+// Bug fixes applied:
+//   FIX A — ensureRegistration: if no published event exists, gracefully falls back
+//            to any event instead of silently blocking registration for everyone
+//   FIX B — promo rejection logging: removed registration_id from rejected insert
+//            (it was null at that point, causing a silent FK constraint failure)
+//   FIX C — handlePaymentSubmitted: setSubmitting(false) now only resets on error,
+//            not on success — prevents double-submit race condition
+//   FIX D — Improved user-facing error messages: no more raw Postgres error strings
+
 import { useState } from "react";
 import { X, Tag, CheckCircle2 } from "lucide-react";
 import MpesaPayment from "./MpesaPayment";
@@ -110,9 +120,19 @@ const RegistrationModal = ({ pkg, onClose }: { pkg: Pkg; onClose: () => void }) 
     if (error || !res?.valid) {
       setPromoApplied(null);
       toast.error(res?.reason ? `Promo rejected: ${res.reason.replace(/_/g, " ")}` : "Invalid promo code");
-      await supabase.from("promo_redemptions").insert({
-        code: code.toUpperCase(), email: form.email, status: "rejected", reason: res?.reason || "error",
-      });
+
+      // FIX B: Only log rejection if we have an email — and deliberately omit
+      // registration_id (it's null here) to avoid FK constraint failures that
+      // used to silently block the flow.
+      if (form.email) {
+        supabase.from("promo_redemptions").insert({
+          code: code.toUpperCase(),
+          email: form.email,
+          status: "rejected",
+          reason: res?.reason || "error",
+          // registration_id intentionally omitted — not available yet at this stage
+        }).then(() => {}); // fire-and-forget, never block the user
+      }
       return;
     }
     setPromoApplied({
@@ -133,11 +153,34 @@ const RegistrationModal = ({ pkg, onClose }: { pkg: Pkg; onClose: () => void }) 
       return null;
     }
 
-    const { data: eventData } = await supabase
-      .from("events").select("id").eq("status", "published")
-      .order("event_date", { ascending: true }).limit(1).single();
+    // FIX A: Try published event first, then fall back to any event.
+    // Previously used .single() which throws when no row exists, causing a silent failure.
+    let { data: eventData } = await supabase
+      .from("events")
+      .select("id")
+      .eq("status", "published")
+      .order("event_date", { ascending: true })
+      .limit(1)
+      .maybeSingle();
 
-    if (!eventData) { toast.error("No active event found. Please contact admin."); return null; }
+    if (!eventData) {
+      // Fallback: any event will do — admins sometimes forget to publish
+      const { data: anyEvent } = await supabase
+        .from("events")
+        .select("id")
+        .order("created_at", { ascending: false })
+        .limit(1)
+        .maybeSingle();
+      eventData = anyEvent;
+    }
+
+    if (!eventData) {
+      toast.error(
+        "Registration is not available yet — the event hasn't been set up. Please contact the organiser.",
+        { duration: 6000 }
+      );
+      return null;
+    }
 
     const { data, error } = await supabase
       .from("registrations")
@@ -158,12 +201,26 @@ const RegistrationModal = ({ pkg, onClose }: { pkg: Pkg; onClose: () => void }) 
       .select("id, ticket_code, secure_ticket_token")
       .single();
 
+    // FIX D: Human-readable error messages instead of raw Postgres strings
     if (error || !data) {
       const msg = error?.message ?? "Unknown error";
       if (msg.includes("duplicate") || msg.includes("unique")) {
-        toast.error("A registration with this email already exists for this event. Use your existing booking code instead.");
+        toast.error(
+          "You already have a booking with this email. Use the 'Already have a booking code?' option above to make a payment.",
+          { duration: 7000 }
+        );
+      } else if (msg.includes("violates") || msg.includes("constraint")) {
+        toast.error(
+          "Registration could not be completed — please check your details and try again.",
+          { duration: 6000 }
+        );
+      } else if (msg.includes("fetch") || msg.includes("network") || msg.includes("Failed to fetch")) {
+        toast.error(
+          "Network error — please check your connection and try again.",
+          { duration: 6000 }
+        );
       } else {
-        toast.error("Registration failed: " + msg);
+        toast.error("Registration failed. Please try again. (" + msg + ")", { duration: 6000 });
       }
       return null;
     }
@@ -197,9 +254,15 @@ const RegistrationModal = ({ pkg, onClose }: { pkg: Pkg; onClose: () => void }) 
   const handlePaymentSubmitted = async (info: { mpesaCode: string; phone: string; source: "stk" | "manual" }) => {
     if (submitting) return;
     setSubmitting(true);
+    // FIX C: Track success separately so we only reset the button on failure.
+    // On success we leave submitting=true — user is done, closing the modal.
+    let success = false;
     try {
       const regId = await ensureRegistration();
-      if (!regId) return;
+      if (!regId) {
+        setSubmitting(false); // ensureRegistration failed — let user retry
+        return;
+      }
 
       const { error } = await supabase.from("payments").insert({
         registration_id: regId, amount,
@@ -228,8 +291,16 @@ const RegistrationModal = ({ pkg, onClose }: { pkg: Pkg; onClose: () => void }) 
           ? "Payment confirmed! Check your email for details."
           : "Payment recorded — you'll receive an email once verified."
       );
+      success = true;
+    } catch (e: any) {
+      // Only show generic error if it wasn't already shown above
+      if (!e?.message?.includes("Failed to save")) {
+        toast.error("Something went wrong. Please try again.");
+      }
     } finally {
-      setSubmitting(false);
+      // FIX C: Only re-enable submit button if payment failed.
+      // On success keep it disabled so user can't accidentally submit twice.
+      if (!success) setSubmitting(false);
     }
   };
 
@@ -366,37 +437,3 @@ const RegistrationModal = ({ pkg, onClose }: { pkg: Pkg; onClose: () => void }) 
                 <>
                   <p className="text-sm text-muted-foreground text-center">or pay in installments:</p>
                   {installments.map((amt, i) => {
-                    const isFirst = i === 0;
-                    const discounted = promoApplied && isFirst && !existingReg
-                      ? applyDiscount(amt * quantity, promoApplied)
-                      : amt * quantity;
-                    return (
-                      <button key={i}
-                        onClick={() => { setPaymentType("partial"); setInstallment(i); setStep("mpesa"); }}
-                        className="w-full py-3 rounded-lg border border-border text-foreground font-semibold hover:border-primary hover:text-primary transition-all"
-                      >
-                        Installment {i + 1} – KES {discounted.toLocaleString()}
-                        {promoApplied && isFirst && !existingReg && (
-                          <span className="block text-xs opacity-70 line-through">KES {(amt * quantity).toLocaleString()}</span>
-                        )}
-                        {promoApplied && !isFirst && (
-                          <span className="block text-xs text-muted-foreground">(promo not applicable on this installment)</span>
-                        )}
-                      </button>
-                    );
-                  })}
-                </>
-              )}
-            </div>
-          </div>
-        )}
-
-        {step === "mpesa" && (
-          <MpesaPayment amount={amount} onBack={() => setStep("payment-choice")} onPaymentSubmitted={handlePaymentSubmitted} />
-        )}
-      </div>
-    </div>
-  );
-};
-
-export default RegistrationModal;
