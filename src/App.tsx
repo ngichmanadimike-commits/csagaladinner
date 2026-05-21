@@ -1,4 +1,3 @@
-```tsx id="0b7b9d"
 import { Toaster } from "sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
@@ -68,4 +67,3 @@ const App = () => (
 );
 
 export default App;
-```
