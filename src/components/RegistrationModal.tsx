@@ -143,6 +143,13 @@ const RegistrationModal = ({ pkg, onClose }: { pkg: Pkg; onClose: () => void }) 
     });
     toast.success(`${res.title} applied — ${formatDiscount({ discount_type: res.discount_type, discount_value: Number(res.discount_value) })}`);
   };
+  // Generates a local ticket code — never depends on Supabase
+  const generateLocalTicketCode = (): string => {
+    const chars = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
+    let code = "CSA-";
+    for (let i = 0; i < 6; i++) code += chars[Math.floor(Math.random() * chars.length)];
+    return code;
+  };
 
   const ensureRegistration = async (): Promise<string | null> => {
     if (registrationId) return registrationId;
@@ -151,6 +158,105 @@ const RegistrationModal = ({ pkg, onClose }: { pkg: Pkg; onClose: () => void }) 
       toast.error("Please fill in your name, email and phone before paying.");
       setStep("form");
       return null;
+    }
+
+    // Generate ticket code locally — registration NEVER blocks on event lookup
+    const localTicketCode = generateLocalTicketCode();
+    const localToken = crypto.randomUUID
+      ? crypto.randomUUID()
+      : Math.random().toString(36).slice(2);
+
+    // Try to get an event ID — silently ignored if it fails
+    let eventId: string | null = null;
+    try {
+      const { data: eventData } = await supabase
+        .from("events")
+        .select("id")
+        .order("created_at", { ascending: false })
+        .limit(1)
+        .maybeSingle();
+      eventId = eventData?.id ?? null;
+    } catch {
+      // Ignored — registration proceeds without event_id
+    }
+
+    const payload: Record<string, unknown> = {
+      name: form.name.trim(),
+      email: form.email.trim().toLowerCase(),
+      phone: form.phone.trim(),
+      institution: form.institution.trim(),
+      package_type: pkg.name,
+      quantity,
+      total_cost: effectiveTotalCost,
+      original_price: fullPrice,
+      total_paid: 0,
+      payment_status: "pending",
+      payment_type: paymentType,
+      ticket_issued: false,
+      promo_code: promoApplied?.code ?? null,
+      discount_amount:
+        promoApplied && promoEligible ? fullPrice - effectiveTotalCost : 0,
+      ticket_code: localTicketCode,
+      secure_ticket_token: localToken,
+    };
+    if (eventId) payload.event_id = eventId;
+
+    const { data, error } = await supabase
+      .from("registrations")
+      .insert(payload)
+      .select("id, ticket_code, secure_ticket_token")
+      .single();
+
+    if (error || !data) {
+      const msg = error?.message ?? "Unknown error";
+
+      if (msg.includes("duplicate") || msg.includes("unique")) {
+        toast.error(
+          "You already have a booking with this email. Use 'Already have a booking code?' above to make a payment.",
+          { duration: 7000 }
+        );
+        return null;
+      }
+
+      // If DB rejected due to event_id constraint, retry without it
+      if (msg.includes("violates") || msg.includes("constraint") || msg.includes("event_id")) {
+        const { data: retryData, error: retryError } = await supabase
+          .from("registrations")
+          .insert({ ...payload, event_id: undefined })
+          .select("id, ticket_code, secure_ticket_token")
+          .single();
+
+        if (!retryError && retryData) {
+          setRegistrationId(retryData.id);
+          setTicketCode(retryData.ticket_code ?? localTicketCode);
+          setSecureToken((retryData as any).secure_ticket_token ?? localToken);
+          return retryData.id;
+        }
+        toast.error(
+          "Registration could not be completed — please check your details and try again.",
+          { duration: 6000 }
+        );
+        return null;
+      }
+
+      if (msg.includes("fetch") || msg.includes("network") || msg.includes("Failed to fetch")) {
+        toast.error("Network error — please check your connection and try again.", {
+          duration: 6000,
+        });
+        return null;
+      }
+
+      toast.error("Registration failed. Please try again. (" + msg + ")", { duration: 6000 });
+      return null;
+    }
+
+    setRegistrationId(data.id);
+    setTicketCode(data.ticket_code ?? localTicketCode);
+    setSecureToken((data as any).secure_ticket_token ?? localToken);
+    return data.id;
+  };
+
+  
     }
 
     // FIX A: Try published event first, then fall back to any event.
