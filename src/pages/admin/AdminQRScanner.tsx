@@ -65,11 +65,11 @@ const AdminQRScanner = () => {
   const fetchScans = useCallback(async () => {
     setLoadingScans(true);
     const { data } = await supabase
-     .from("ticket_scans")
-     .select(`id, ticket_code, scanned_at, scanned_by,
+    .from("ticket_scans")
+    .select(`id, ticket_code, scanned_at, scanned_by,
         registrations ( name, email, phone, package_type, quantity, payment_status )`)
-     .order("scanned_at", { ascending: false })
-     .limit(200);
+    .order("scanned_at", { ascending: false })
+    .limit(200);
     setScans((data as ScanRecord[]) || []);
     setLoadingScans(false);
   }, []);
@@ -77,9 +77,9 @@ const AdminQRScanner = () => {
   useEffect(() => {
     fetchScans();
     const channel = supabase
-     .channel("ticket_scans_rt")
-     .on("postgres_changes", { event: "INSERT", schema: "public", table: "ticket_scans" }, fetchScans)
-     .subscribe();
+    .channel("ticket_scans_rt")
+    .on("postgres_changes", { event: "INSERT", schema: "public", table: "ticket_scans" }, fetchScans)
+    .subscribe();
     return () => { supabase.removeChannel(channel); };
   }, [fetchScans]);
 
@@ -103,10 +103,10 @@ const AdminQRScanner = () => {
 
     try {
       const { data: reg, error: regErr } = await supabase
-       .from("registrations")
-       .select("id, name, package_type, quantity, payment_status, ticket_code")
-       .eq("ticket_code", code)
-       .maybeSingle();
+      .from("registrations")
+      .select("id, name, package_type, quantity, payment_status, ticket_code")
+      .eq("ticket_code", code)
+      .maybeSingle();
 
       if (regErr) { setResult({ status: "error", message: regErr.message }); return; }
       if (!reg) { setResult({ status: "not_found" }); return; }
@@ -117,10 +117,10 @@ const AdminQRScanner = () => {
       }
 
       const { data: existingScan } = await supabase
-       .from("ticket_scans")
-       .select("scanned_at, scanned_by")
-       .eq("ticket_code", code)
-       .maybeSingle();
+      .from("ticket_scans")
+      .select("scanned_at, scanned_by")
+      .eq("ticket_code", code)
+      .maybeSingle();
 
       if (existingScan) {
         setResult({
@@ -232,7 +232,8 @@ const AdminQRScanner = () => {
 
   const ResultCard = () => {
     if (!result) return null;
-    if (result.status === "success")
+
+    if (result.status === "success") {
       return (
         <div className="rounded-xl bg-emerald-500/10 border-emerald-500/40 p-5 flex items-start gap-4">
           <CheckCircle2 size={32} className="text-emerald-400 shrink-0 mt-0.5" />
@@ -243,7 +244,9 @@ const AdminQRScanner = () => {
           </div>
         </div>
       );
-    if (result.status === "already_used")
+    }
+
+    if (result.status === "already_used") {
       return (
         <div className="rounded-xl bg-yellow-500/10 border-yellow-500/40 p-5 flex items-start gap-4">
           <Ban size={32} className="text-yellow-400 shrink-0 mt-0.5" />
@@ -256,6 +259,191 @@ const AdminQRScanner = () => {
           </div>
         </div>
       );
-    if (result.status === "not_found")
+    }
+
+    if (result.status === "not_found") {
       return (
         <div className="rounded-xl bg-red-500/10 border-red-500/40 p-5 flex items-start gap-4">
+          <XCircle size={32} className="text-red-400 shrink-0 mt-0.5" />
+          <div>
+            <p className="font-bold text-red-300 text-lg">TICKET NOT FOUND</p>
+            <p className="text-muted-foreground text-sm">This ticket code does not exist in the system.</p>
+          </div>
+        </div>
+      );
+    }
+
+    if (result.status === "unpaid") {
+      return (
+        <div className="rounded-xl bg-orange-500/10 border-orange-500/40 p-5 flex items-start gap-4">
+          <AlertTriangle size={32} className="text-orange-400 shrink-0 mt-0.5" />
+          <div>
+            <p className="font-bold text-orange-300 text-lg">PAYMENT NOT COMPLETE</p>
+            <p className="text-foreground font-semibold">{result.name}</p>
+            <p className="text-muted-foreground text-sm">Status: {result.payment_status}</p>
+          </div>
+        </div>
+      );
+    }
+
+    if (result.status === "error") {
+      return (
+        <div className="rounded-xl bg-red-500/10 border-red-500/40 p-5 flex items-start gap-4">
+          <XCircle size={32} className="text-red-400 shrink-0 mt-0.5" />
+          <div>
+            <p className="font-bold text-red-300 text-lg">ERROR</p>
+            <p className="text-muted-foreground text-sm">{result.message}</p>
+          </div>
+        </div>
+      );
+    }
+
+    return null;
+  };
+
+  const filteredScans = scans.filter((s) =>
+    s.ticket_code.toLowerCase().includes(searchScans.toLowerCase()) ||
+    s.registrations?.name.toLowerCase().includes(searchScans.toLowerCase()) ||
+    s.registrations?.email.toLowerCase().includes(searchScans.toLowerCase())
+  );
+
+  return (
+    <AdminLayout>
+      <div className="space-y-6">
+        <div className="flex items-center justify-between">
+          <h1 className="font-display text-2xl font-bold text-foreground">QR Scanner</h1>
+          <button
+            onClick={fetchScans}
+            className="flex items-center gap-2 px-3 py-2 rounded-lg border-border hover:bg-muted"
+          >
+            <RefreshCw size={16} /> Refresh
+          </button>
+        </div>
+
+        <div className="grid lg:grid-cols-2 gap-6">
+          {/* Scanner */}
+          <div className="space-y-4">
+            <div className="glass rounded-xl p-4">
+              <h2 className="font-semibold mb-3 flex items-center gap-2">
+                <QrCode size={20} /> Scan Ticket
+              </h2>
+
+              {!cameraActive? (
+                <button
+                  onClick={startCamera}
+                  disabled={!jsQRLoaded}
+                  className="w-full py-3 rounded-lg bg-primary text-primary-foreground font-semibold disabled:opacity-50"
+                >
+                  {jsQRLoaded? "Start Camera" : "Loading Scanner..."}
+                </button>
+              ) : (
+                <button
+                  onClick={stopCamera}
+                  className="w-full py-3 rounded-lg bg-destructive text-destructive-foreground font-semibold"
+                >
+                  Stop Camera
+                </button>
+              )}
+
+              {cameraError && (
+                <div className="mt-3 p-3 rounded-lg bg-red-500/10 text-red-400 text-sm">
+                  {cameraError}
+                </div>
+              )}
+
+              <div className="mt-4 relative rounded-lg overflow-hidden bg-black">
+                <video ref={videoRef} className="w-full h-64 object-cover" muted playsInline />
+                <canvas ref={canvasRef} className="hidden" />
+                {cameraActive && (
+                  <div className="absolute inset-0 border-2 border-primary pointer-events-none">
+                    <div className="absolute inset-0 m-8 border-2 border-dashed border-primary/50" />
+                  </div>
+                )}
+              </div>
+
+              <form onSubmit={handleManual} className="mt-4 flex gap-2">
+                <input
+                  ref={inputRef}
+                  type="text"
+                  value={manualCode}
+                  onChange={(e) => setManualCode(e.target.value)}
+                  placeholder="Enter ticket code manually"
+                  className="flex-1 px-3 py-2 rounded-lg border-border bg-background"
+                />
+                <button
+                  type="submit"
+                  disabled={scanning}
+                  className="px-4 py-2 rounded-lg bg-primary text-primary-foreground font-semibold disabled:opacity-50"
+                >
+                  {scanning? "Checking..." : "Submit"}
+                </button>
+              </form>
+            </div>
+
+            {result && <ResultCard />}
+          </div>
+
+          {/* Scan History */}
+          <div className="glass rounded-xl p-4">
+            <div className="flex items-center justify-between mb-4">
+              <h2 className="font-semibold flex items-center gap-2">
+                <List size={20} /> Recent Scans
+              </h2>
+              <div className="relative">
+                <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
+                <input
+                  type="text"
+                  value={searchScans}
+                  onChange={(e) => setSearchScans(e.target.value)}
+                  placeholder="Search..."
+                  className="pl-9 pr-3 py-2 rounded-lg border-border bg-background text-sm"
+                />
+              </div>
+            </div>
+
+            {loadingScans? (
+              <div className="space-y-2">
+                {Array.from({ length: 5 }).map((_, i) => (
+                  <div key={i} className="h-16 bg-muted animate-pulse rounded-lg" />
+                ))}
+              </div>
+            ) : filteredScans.length === 0? (
+              <div className="text-center py-8 text-muted-foreground">
+                <Ticket size={32} className="mx-auto mb-2 opacity-50" />
+                <p>No scans found</p>
+              </div>
+            ) : (
+              <div className="space-y-2 max-h-96 overflow-y-auto">
+                {filteredScans.map((scan) => (
+                  <div key={scan.id} className="p-3 rounded-lg border-border">
+                    <div className="flex items-start justify-between">
+                      <div>
+                        <p className="font-semibold text-foreground">{scan.registrations?.name || "Unknown"}</p>
+                        <p className="text-sm text-muted-foreground">{scan.ticket_code}</p>
+                        <p className="text-xs text-muted-foreground mt-1">
+                          {scan.registrations?.package_type} × {scan.registrations?.quantity}
+                        </p>
+                      </div>
+                      <div className="text-right">
+                        <p className="text-xs text-muted-foreground flex items-center gap-1">
+                          <Clock size={12} /> {fmt(scan.scanned_at)}
+                        </p>
+                        {scan.scanned_by && (
+                          <p className="text-xs text-muted-foreground flex items-center gap-1 mt-1">
+                            <User size={12} /> {scan.scanned_by}
+                          </p>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        </div>
+      </div>
+    </AdminLayout>
+  );
+};
+
+export default AdminQRScanner;
