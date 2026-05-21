@@ -256,86 +256,7 @@ const RegistrationModal = ({ pkg, onClose }: { pkg: Pkg; onClose: () => void }) 
     return data.id;
   };
 
-  
-    }
 
-    // FIX A: Try published event first, then fall back to any event.
-    // Previously used .single() which throws when no row exists, causing a silent failure.
-    let { data: eventData } = await supabase
-      .from("events")
-      .select("id")
-      .eq("status", "published")
-      .order("event_date", { ascending: true })
-      .limit(1)
-      .maybeSingle();
-
-    if (!eventData) {
-      // Fallback: any event will do — admins sometimes forget to publish
-      const { data: anyEvent } = await supabase
-        .from("events")
-        .select("id")
-        .order("created_at", { ascending: false })
-        .limit(1)
-        .maybeSingle();
-      eventData = anyEvent;
-    }
-
-    if (!eventData) {
-      toast.error(
-        "Registration is not available yet — the event hasn't been set up. Please contact the organiser.",
-        { duration: 6000 }
-      );
-      return null;
-    }
-
-    const { data, error } = await supabase
-      .from("registrations")
-      .insert({
-        event_id: eventData.id,
-        name: form.name.trim(),
-        email: form.email.trim().toLowerCase(),
-        phone: form.phone.trim(),
-        institution: form.institution.trim(),
-        package_type: pkg.name, quantity,
-        total_cost: effectiveTotalCost,
-        original_price: fullPrice,
-        total_paid: 0, payment_status: "pending",
-        payment_type: paymentType, ticket_issued: false,
-        promo_code: promoApplied?.code ?? null,
-        discount_amount: promoApplied && promoEligible ? (fullPrice - effectiveTotalCost) : 0,
-      })
-      .select("id, ticket_code, secure_ticket_token")
-      .single();
-
-    // FIX D: Human-readable error messages instead of raw Postgres strings
-    if (error || !data) {
-      const msg = error?.message ?? "Unknown error";
-      if (msg.includes("duplicate") || msg.includes("unique")) {
-        toast.error(
-          "You already have a booking with this email. Use the 'Already have a booking code?' option above to make a payment.",
-          { duration: 7000 }
-        );
-      } else if (msg.includes("violates") || msg.includes("constraint")) {
-        toast.error(
-          "Registration could not be completed — please check your details and try again.",
-          { duration: 6000 }
-        );
-      } else if (msg.includes("fetch") || msg.includes("network") || msg.includes("Failed to fetch")) {
-        toast.error(
-          "Network error — please check your connection and try again.",
-          { duration: 6000 }
-        );
-      } else {
-        toast.error("Registration failed. Please try again. (" + msg + ")", { duration: 6000 });
-      }
-      return null;
-    }
-
-    setRegistrationId(data.id);
-    setTicketCode(data.ticket_code);
-    setSecureToken((data as any).secure_ticket_token);
-    return data.id;
-  };
 
   const sendPaymentEmail = async (regId: string, paidAmount: number, isFullyPaid: boolean) => {
     try {
@@ -528,18 +449,4 @@ const RegistrationModal = ({ pkg, onClose }: { pkg: Pkg; onClose: () => void }) 
               )}
             </div>
 
-            <div className="space-y-3">
-              <button
-                onClick={() => { setPaymentType("full"); setStep("mpesa"); }}
-                className="w-full py-3 rounded-lg bg-primary text-primary-foreground font-bold hover:scale-[1.02] transition-transform"
-              >
-                Full Payment – KES {(promoApplied ? applyDiscount(pkg.price * quantity, promoApplied) : pkg.price * quantity).toLocaleString()}
-                {promoApplied && (
-                  <span className="block text-xs opacity-80 line-through">KES {(pkg.price * quantity).toLocaleString()}</span>
-                )}
-              </button>
-
-              {pkg.partial && (
-                <>
-                  <p className="text-sm text-muted-foreground text-center">or pay in installments:</p>
-                  {installments.map((amt, i) => {
+            <div className="space-y-3
