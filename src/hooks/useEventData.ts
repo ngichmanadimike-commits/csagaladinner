@@ -58,4 +58,4 @@ export function useEventData() {
   }, []);
 
   return { event, loading };
-}
+          
