@@ -1,11 +1,7 @@
-// src/pages/TicketPage.tsx
-// BUG FIX: This file previously exported AdminTickets (the admin table view) instead
-// of the public-facing ticket viewer. Fixed to show the actual ticket for the user.
-
 import { useEffect, useState } from "react";
 import { useParams, Link } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
-import { Loader2, AlertTriangle, Home, Download } from "lucide-react";
+import { Loader2, AlertTriangle, Home } from "lucide-react";
 import TicketDesign from "@/components/TicketDesign";
 
 const TicketPage = () => {
@@ -15,16 +11,27 @@ const TicketPage = () => {
   const [notFound, setNotFound] = useState(false);
 
   useEffect(() => {
-    if (!ticket_number) { setNotFound(true); setLoading(false); return; }
+    if (!ticket_number) {
+      setNotFound(true);
+      setLoading(false);
+      return;
+    }
 
     supabase
       .from("registrations")
-      .select("id, name, email, phone, package_type, total_cost, total_paid, payment_status, ticket_code, secure_ticket_token, created_at, quantity")
+      .select(
+        "id, name, email, phone, package_type, total_cost, total_paid, payment_status, ticket_code, secure_ticket_token, created_at, quantity"
+      )
       .eq("ticket_code", ticket_number.toUpperCase())
       .maybeSingle()
       .then(({ data, error }) => {
         setLoading(false);
-        if (error || !data) { setNotFound(true); return; }
+
+        if (error || !data) {
+          setNotFound(true);
+          return;
+        }
+
         setTicket({
           ticket_number: data.ticket_code,
           purchaser_name: data.name,
@@ -53,16 +60,28 @@ const TicketPage = () => {
     return (
       <div className="min-h-screen bg-background flex flex-col items-center justify-center gap-4 p-6 text-center">
         <AlertTriangle className="text-yellow-400" size={48} />
-        <h1 className="font-display text-2xl font-bold text-foreground">Ticket Not Found</h1>
+
+        <h1 className="font-display text-2xl font-bold text-foreground">
+          Ticket Not Found
+        </h1>
+
         <p className="text-muted-foreground max-w-sm">
-          We couldn't find a ticket with the code <span className="font-mono text-primary">{ticket_number}</span>.
-          Double-check the code and try again.
+          We couldn't find a ticket with the code
+          <span className="font-mono text-primary"> {ticket_number}</span>
         </p>
+
         <div className="flex gap-3 mt-2">
-          <Link to="/lookup" className="px-5 py-2.5 rounded-lg bg-primary text-primary-foreground font-semibold text-sm">
+          <Link
+            to="/lookup"
+            className="px-5 py-2.5 rounded-lg bg-primary text-primary-foreground font-semibold text-sm"
+          >
             Look Up Booking
           </Link>
-          <Link to="/" className="px-5 py-2.5 rounded-lg border border-border text-foreground font-semibold text-sm flex items-center gap-2">
+
+          <Link
+            to="/"
+            className="px-5 py-2.5 rounded-lg border border-border text-foreground font-semibold text-sm flex items-center gap-2"
+          >
             <Home size={16} /> Home
           </Link>
         </div>
@@ -75,11 +94,19 @@ const TicketPage = () => {
       <div className="w-full max-w-lg">
         <TicketDesign ticket={ticket} />
       </div>
+
       <div className="flex gap-3">
-        <Link to="/" className="px-5 py-2.5 rounded-lg border border-border text-foreground font-semibold text-sm flex items-center gap-2">
+        <Link
+          to="/"
+          className="px-5 py-2.5 rounded-lg border border-border text-foreground font-semibold text-sm flex items-center gap-2"
+        >
           <Home size={16} /> Home
         </Link>
-        <Link to="/lookup" className="px-5 py-2.5 rounded-lg bg-primary text-primary-foreground font-semibold text-sm">
+
+        <Link
+          to="/lookup"
+          className="px-5 py-2.5 rounded-lg bg-primary text-primary-foreground font-semibold text-sm"
+        >
           Payment Status
         </Link>
       </div>
