@@ -1,4 +1,3 @@
-```tsx id="8db4hk"
 import { useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { Check } from "lucide-react";
@@ -14,8 +13,8 @@ interface PartnerPackage {
 }
 
 const PartnersSection = () => {
-  const [packages, setPackages] = useState<PartnerPackage[]>([]);
-  const [loading, setLoading] = useState(true);
+  const = useState<PartnerPackage[]>([]);
+  const = useState(true);[packages][setPackages][loading][setLoading]
 
   useEffect(() => {
     fetchPackages();
@@ -23,10 +22,10 @@ const PartnersSection = () => {
 
   const fetchPackages = async () => {
     const { data, error } = await supabase
-      .from("partner_packages")
-      .select("*")
-      .eq("active", true)
-      .order("display_order");
+     .from("partner_packages")
+     .select("*")
+     .eq("active", true)
+     .order("display_order");
 
     if (!error && data) {
       setPackages(data as PartnerPackage[]);
@@ -65,7 +64,7 @@ const PartnersSection = () => {
           {packages.map((pkg) => (
             <div
               key={pkg.id}
-              className="glass rounded-2xl p-8 border border-border hover:border-primary/40 transition-all duration-300"
+              className="glass rounded-2xl p-8 border-border hover:border-primary/40 transition-all duration-300"
             >
               <div className="mb-6">
                 <h3 className="text-2xl font-bold mb-2">
@@ -113,4 +112,3 @@ const PartnersSection = () => {
 };
 
 export default PartnersSection;
-```
