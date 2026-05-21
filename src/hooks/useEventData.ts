@@ -31,7 +31,7 @@ export function useEventData() {
       let { data } = await supabase
         .from("events")
         .select("id, title, flyer_url, voting_url")
-        .eq("status", "published")
+        
         .order("event_date", { ascending: true })
         .limit(1)
         .maybeSingle();
