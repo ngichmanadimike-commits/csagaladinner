@@ -1,3 +1,8 @@
+// app/ticket/[ticket_number]/page.tsx
+// BUG FIX: Previously queried "ticket_purchases" which doesn't match the app's
+// actual data model — registrations are stored in the "registrations" table.
+// Fixed to query registrations by ticket_code and map correctly to TicketDesign props.
+
 import { createClient } from '@supabase/supabase-js'
 import { notFound } from 'next/navigation'
 import TicketDesign from '@/components/TicketDesign'
@@ -8,28 +13,29 @@ const supabase = createClient(
 )
 
 export default async function TicketPage({ params }: { params: { ticket_number: string } }) {
-  
-  const { data: ticket, error } = await supabase
-    .from('ticket_purchases')
-    .select('*')
-    .eq('ticket_number', params.ticket_number)
+  const { data: reg, error } = await supabase
+    .from('registrations')
+    .select('id, name, email, phone, package_type, total_cost, total_paid, payment_status, ticket_code, secure_ticket_token, created_at, quantity')
+    .eq('ticket_code', params.ticket_number.toUpperCase())
     .single()
 
-  if (error || !ticket) {
+  if (error || !reg) {
     notFound()
   }
 
-  // Map your table columns to what the design expects
   const ticketData = {
-    ticket_number: ticket.ticket_number,
-    purchaser_name: ticket.purchaser_name,
-    booking_code: ticket.booking_code,
-    type_name: ticket.ticket_type || 'Regular',
-    total_amount: ticket.total_amount,
-    payment_status: ticket.payment_status,
-    purchase_date: ticket.purchase_date,
-    qr_code: ticket.qr_code || ticket.booking_code
+    ticket_number: reg.ticket_code,
+    purchaser_name: reg.name,
+    booking_code: reg.ticket_code,
+    type_name: reg.package_type || 'General',
+    total_amount: Number(reg.total_cost),
+    payment_status: reg.payment_status,
+    purchase_date: reg.created_at,
+    qr_code: reg.secure_ticket_token ?? reg.ticket_code ?? reg.id,
+    quantity: reg.quantity ?? 1,
+    email: reg.email,
+    phone: reg.phone,
   }
 
   return <TicketDesign ticket={ticketData} />
-    }
+}
