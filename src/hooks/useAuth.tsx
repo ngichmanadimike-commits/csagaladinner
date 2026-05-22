@@ -1,4 +1,11 @@
-import { useState, useEffect, createContext, useContext, ReactNode, useCallback } from "react";
+import {
+  useState,
+  useEffect,
+  createContext,
+  useContext,
+  ReactNode,
+  useCallback,
+} from "react";
 import { supabase } from "@/integrations/supabase/client";
 import type { User, Session } from "@supabase/supabase-js";
 
@@ -34,14 +41,25 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       return;
     }
     try {
-      const { data } = await supabase
+      const { data, error } = await supabase
         .from("user_roles")
         .select("role")
         .eq("user_id", userId);
-      const roles = (data ?? []).map((r: any) => r.role);
-      setIsAdmin(roles.includes("admin") || roles.includes("super_admin"));
-      setIsSuperAdmin(roles.includes("super_admin"));
+
+      if (error) {
+        console.error("loadRoles error:", error);
+        setIsAdmin(false);
+        setIsSuperAdmin(false);
+        return;
+      }
+
+      const roles = (data ?? []).map((r: any) => String(r.role));
+      const admin = roles.includes("admin") || roles.includes("super_admin");
+      const superAdmin = roles.includes("super_admin");
+      setIsAdmin(admin);
+      setIsSuperAdmin(superAdmin);
     } catch (e) {
+      console.error("loadRoles exception:", e);
       setIsAdmin(false);
       setIsSuperAdmin(false);
     }
@@ -50,16 +68,19 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   useEffect(() => {
     let mounted = true;
 
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(
-      async (_event, newSession) => {
-        if (!mounted) return;
-        setSession(newSession);
-        setUser(newSession?.user ?? null);
-        await loadRoles(newSession?.user?.id);
-        if (mounted) setLoading(false);
-      }
-    );
+    // Subscribe to auth changes FIRST
+    const {
+      data: { subscription },
+    } = supabase.auth.onAuthStateChange(async (_event, newSession) => {
+      if (!mounted) return;
+      setSession(newSession);
+      setUser(newSession?.user ?? null);
+      // Wait for roles BEFORE setting loading false
+      await loadRoles(newSession?.user?.id);
+      if (mounted) setLoading(false);
+    });
 
+    // Then hydrate existing session
     supabase.auth.getSession().then(async ({ data: { session: existing } }) => {
       if (!mounted) return;
       setSession(existing);
@@ -83,7 +104,9 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   };
 
   return (
-    <AuthContext.Provider value={{ user, session, isAdmin, isSuperAdmin, loading, signOut }}>
+    <AuthContext.Provider
+      value={{ user, session, isAdmin, isSuperAdmin, loading, signOut }}
+    >
       {children}
     </AuthContext.Provider>
   );
