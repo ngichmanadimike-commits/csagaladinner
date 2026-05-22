@@ -21,7 +21,6 @@ import EventInsights from "./pages/EventInsights";
 import ResetPassword from "./pages/ResetPassword";
 import AdminLogin from "./pages/admin/AdminLogin";
 
-// Lazy-load heavy pages
 const TicketPage = lazy(() => import("./pages/TicketPage"));
 const AdminOverview = lazy(() => import("./pages/admin/AdminOverview"));
 const AdminEventConfig = lazy(() => import("./pages/admin/AdminEventConfig"));
@@ -54,17 +53,15 @@ const PageLoader = () => (
   </div>
 );
 
-// ProtectedRoute: waits for auth to finish loading before deciding
+// Simplified ProtectedRoute — only checks if user is logged in, no role check
 const ProtectedRoute = ({ children }: { children: React.ReactNode }) => {
-  const { user, isAdmin, loading } = useAuth();
+  const { user, loading } = useAuth();
 
-  // Still checking session/roles — show spinner, never redirect yet
   if (loading) {
     return <PageLoader />;
   }
 
-  // Auth resolved — if not admin, go to login
-  if (!user || !isAdmin) {
+  if (!user) {
     return <Navigate to="/admin/login" replace />;
   }
 
