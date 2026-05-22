@@ -43,17 +43,24 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   };
 
   useEffect(() => {
-    // Get initial session first
+    // Safety timeout — if Supabase doesn't respond in 5s, stop loading
+    const timeout = setTimeout(() => {
+      setLoading(false);
+    }, 5000);
+
     supabase.auth.getSession().then(async ({ data: { session } }) => {
+      clearTimeout(timeout);
       setSession(session);
       setUser(session?.user ?? null);
       if (session?.user?.id) {
         await checkAdmin(session.user.id);
       }
       setLoading(false);
+    }).catch(() => {
+      clearTimeout(timeout);
+      setLoading(false);
     });
 
-    // Then listen for auth changes
     const { data: { subscription } } = supabase.auth.onAuthStateChange(async (_event, session) => {
       setSession(session);
       setUser(session?.user ?? null);
@@ -66,10 +73,6 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       setLoading(false);
     });
 
-    // Re-check admin role whenever the tab regains focus.
-    // This fixes the case where a user's role is removed then re-granted:
-    // their session JWT is still valid but the user_roles row changed.
-    // Without this, they must fully sign out + sign in to see the update.
     const handleFocus = async () => {
       const { data: { session } } = await supabase.auth.getSession();
       if (session?.user?.id) {
@@ -79,6 +82,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     window.addEventListener("focus", handleFocus);
 
     return () => {
+      clearTimeout(timeout);
       subscription.unsubscribe();
       window.removeEventListener("focus", handleFocus);
     };
