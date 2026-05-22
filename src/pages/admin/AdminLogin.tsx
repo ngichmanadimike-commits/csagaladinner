@@ -1,136 +1,142 @@
 import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
-import { useAuth } from "@/hooks/useAuth";
 import { supabase } from "@/integrations/supabase/client";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import { toast } from "sonner";
-import { LogIn, Mail, Lock } from "lucide-react";
+import { LogIn, Mail, Lock, ArrowLeft } from "lucide-react";
 
-const AdminLogin = () => {
+export default function AdminLogin() {
+  const navigate = useNavigate();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
-  const { user, isAdmin, loading: authLoading } = useAuth();
-  const navigate = useNavigate();
 
-  // If already logged in and admin, go straight to dashboard
+  // If already signed in as admin, skip the form
   useEffect(() => {
-    if (!authLoading && user && isAdmin) {
-      navigate("/admin/dashboard", { replace: true });
-    }
-  }, [user, isAdmin, authLoading, navigate]);
-
-  const handleLogin = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setLoading(true);
-
-    const { data, error } = await supabase.auth.signInWithPassword({ email, password });
-
-    if (error) {
-      toast.error(error.message);
-      setLoading(false);
-      return;
-    }
-
-    if (data.user) {
-      // Check role directly after login
-      const { data: roleData } = await supabase
+    (async () => {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session?.user) return;
+      const { data: roles } = await supabase
         .from("user_roles")
         .select("role")
-        .eq("user_id", data.user.id);
+        .eq("user_id", session.user.id);
+      const isAdmin = (roles ?? []).some(
+        (r: any) => r.role === "admin" || r.role === "super_admin"
+      );
+      if (isAdmin) navigate("/admin/dashboard", { replace: true });
+    })();
+  }, [navigate]);
 
-      const roles = (roleData || []).map((r: any) => r.role);
-      const hasAdmin = roles.includes("admin") || roles.includes("super_admin");
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (loading) return;
+    setLoading(true);
 
-      setLoading(false);
+    try {
+      // 1. Sign in
+      const { data: signInData, error: signInError } =
+        await supabase.auth.signInWithPassword({
+          email: email.trim(),
+          password,
+        });
 
-      if (hasAdmin) {
-        toast.success("Welcome back!");
-        navigate("/admin/dashboard", { replace: true });
-      } else {
-        toast.error("Access denied — you don't have admin privileges.");
-        await supabase.auth.signOut();
+      if (signInError || !signInData.user) {
+        toast.error(signInError?.message ?? "Invalid email or password");
+        return;
       }
+
+      // 2. Check role
+      const { data: roles, error: rolesError } = await supabase
+        .from("user_roles")
+        .select("role")
+        .eq("user_id", signInData.user.id);
+
+      if (rolesError) {
+        console.error("user_roles query failed:", rolesError);
+        toast.error("Could not verify admin role. Check RLS policy on user_roles.");
+        await supabase.auth.signOut();
+        return;
+      }
+
+      const isAdmin = (roles ?? []).some(
+        (r: any) => r.role === "admin" || r.role === "super_admin"
+      );
+
+      if (!isAdmin) {
+        toast.error("Access denied — this account is not an admin");
+        await supabase.auth.signOut();
+        return;
+      }
+
+      toast.success("Signed in");
+      navigate("/admin/dashboard", { replace: true });
+    } catch (err: any) {
+      console.error("Login error:", err);
+      toast.error(err?.message ?? "Something went wrong");
+    } finally {
+      // CRITICAL: always reset so the button can never get stuck on "Signing in…"
+      setLoading(false);
     }
   };
 
-  if (authLoading) {
-    return (
-      <div className="min-h-screen bg-background flex items-center justify-center">
-        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary" />
-      </div>
-    );
-  }
-
   return (
-    <div className="min-h-screen bg-background flex items-center justify-center p-4">
-      <div className="glass rounded-2xl p-8 w-full max-w-md">
-        <div className="text-center mb-8">
-          <h1 className="font-display text-2xl font-bold text-foreground mb-2">
-            CSA Admin Login
-          </h1>
-          <p className="text-muted-foreground text-sm">
-            Sign in to access the admin dashboard
-          </p>
-        </div>
+    <div className="min-h-screen flex items-center justify-center bg-background p-4">
+      <div className="w-full max-w-md bg-card border rounded-2xl p-8">
+        <h1 className="text-3xl font-serif text-center mb-2">CSA Admin Login</h1>
+        <p className="text-muted-foreground text-center mb-8">
+          Sign in to access the admin dashboard
+        </p>
 
-        <form onSubmit={handleLogin} className="space-y-4">
-          <div>
-            <label className="block text-sm font-medium text-foreground mb-2">Email</label>
+        <form onSubmit={handleSubmit} className="space-y-5">
+          <div className="space-y-2">
+            <Label htmlFor="email">Email</Label>
             <div className="relative">
-              <Mail className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" size={18} />
-              <input
+              <Mail className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+              <Input
+                id="email"
                 type="email"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
                 required
-                className="w-full pl-10 pr-4 py-2.5 rounded-lg border border-border bg-background text-foreground focus:outline-none focus:ring-2 focus:ring-primary"
-                placeholder="admin@csagaladinner.co.ke"
+                autoComplete="email"
+                className="pl-10"
               />
             </div>
           </div>
 
-          <div>
-            <label className="block text-sm font-medium text-foreground mb-2">Password</label>
+          <div className="space-y-2">
+            <Label htmlFor="password">Password</Label>
             <div className="relative">
-              <Lock className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" size={18} />
-              <input
+              <Lock className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+              <Input
+                id="password"
                 type="password"
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
                 required
-                className="w-full pl-10 pr-4 py-2.5 rounded-lg border border-border bg-background text-foreground focus:outline-none focus:ring-2 focus:ring-primary"
-                placeholder="••••••••"
+                autoComplete="current-password"
+                className="pl-10"
               />
             </div>
           </div>
 
+          <Button type="submit" className="w-full" disabled={loading}>
+            <LogIn className="mr-2 h-4 w-4" />
+            {loading ? "Signing in…" : "Sign In"}
+          </Button>
+
           <button
-            type="submit"
-            disabled={loading}
-            className="w-full flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg bg-primary text-primary-foreground font-semibold hover:bg-primary/90 transition-colors disabled:opacity-50"
+            type="button"
+            onClick={() => navigate("/")}
+            className="w-full text-sm text-muted-foreground hover:text-foreground flex items-center justify-center gap-1"
           >
-            {loading ? (
-              <div className="flex items-center gap-2">
-                <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-primary-foreground" />
-                Signing in...
-              </div>
-            ) : (
-              <>
-                <LogIn size={18} />
-                Sign In
-              </>
-            )}
+            <ArrowLeft className="h-3 w-3" /> Back to site
           </button>
         </form>
-
-        <div className="mt-6 text-center">
-          <a href="/" className="text-sm text-muted-foreground hover:text-primary transition-colors">
-            ← Back to site
-          </a>
-        </div>
       </div>
     </div>
   );
-};
-
-export default AdminLogin;
+    }
+              
