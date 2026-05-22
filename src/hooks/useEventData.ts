@@ -8,6 +8,7 @@ interface EventData {
   location: string;
   description: string;
   is_active: boolean;
+  voting_url?: string | null;
 }
 
 export const useEventData = () => {
