@@ -33,36 +33,43 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       setIsSuperAdmin(false);
       return;
     }
-    const { data } = await supabase
-      .from("user_roles")
-      .select("role")
-      .eq("user_id", userId);
-    const roles = (data ?? []).map((r: any) => r.role);
-    setIsAdmin(roles.includes("admin") || roles.includes("super_admin"));
-    setIsSuperAdmin(roles.includes("super_admin"));
+    try {
+      const { data } = await supabase
+        .from("user_roles")
+        .select("role")
+        .eq("user_id", userId);
+      const roles = (data ?? []).map((r: any) => r.role);
+      setIsAdmin(roles.includes("admin") || roles.includes("super_admin"));
+      setIsSuperAdmin(roles.includes("super_admin"));
+    } catch (e) {
+      setIsAdmin(false);
+      setIsSuperAdmin(false);
+    }
   }, []);
 
   useEffect(() => {
-    // 1. Subscribe FIRST so we never miss an auth event
+    let mounted = true;
+
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
-      (_event, newSession) => {
+      async (_event, newSession) => {
+        if (!mounted) return;
         setSession(newSession);
         setUser(newSession?.user ?? null);
-        // Defer the DB call so we don't deadlock the auth callback
-        setTimeout(() => loadRoles(newSession?.user?.id), 0);
-        setLoading(false);
+        await loadRoles(newSession?.user?.id);
+        if (mounted) setLoading(false);
       }
     );
 
-    // 2. Then hydrate from any existing session
-    supabase.auth.getSession().then(({ data: { session: existing } }) => {
+    supabase.auth.getSession().then(async ({ data: { session: existing } }) => {
+      if (!mounted) return;
       setSession(existing);
       setUser(existing?.user ?? null);
-      loadRoles(existing?.user?.id);
-      setLoading(false);
+      await loadRoles(existing?.user?.id);
+      if (mounted) setLoading(false);
     });
 
     return () => {
+      mounted = false;
       subscription.unsubscribe();
     };
   }, [loadRoles]);
@@ -73,13 +80,3 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     setSession(null);
     setIsAdmin(false);
     setIsSuperAdmin(false);
-  };
-
-  return (
-    <AuthContext.Provider value={{ user, session, isAdmin, isSuperAdmin, loading, signOut }}>
-      {children}
-    </AuthContext.Provider>
-  );
-};
-
-export const useAuth = () => useContext(AuthContext);
