@@ -1,4 +1,11 @@
-import { useState, useEffect, createContext, useContext, ReactNode } from "react";
+import {
+  useState,
+  useEffect,
+  createContext,
+  useContext,
+  ReactNode,
+} from "react";
+
 import { supabase } from "@/integrations/supabase/client";
 import type { User, Session } from "@supabase/supabase-js";
 
@@ -27,44 +34,100 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const [isSuperAdmin, setIsSuperAdmin] = useState(false);
   const [loading, setLoading] = useState(true);
 
+  const checkUserRole = async (userId: string) => {
+    try {
+      const { data, error } = await supabase
+        .from("user_roles")
+        .select("role")
+        .eq("user_id", userId);
+
+      if (error) {
+        console.error("Role check error:", error);
+        setIsAdmin(false);
+        setIsSuperAdmin(false);
+        return;
+      }
+
+      const roles = (data || []).map((r: any) => r.role);
+
+      const adminStatus =
+        roles.includes("admin") || roles.includes("super_admin");
+
+      const superAdminStatus = roles.includes("super_admin");
+
+      setIsAdmin(adminStatus);
+      setIsSuperAdmin(superAdminStatus);
+    } catch (err) {
+      console.error("Unexpected role check error:", err);
+      setIsAdmin(false);
+      setIsSuperAdmin(false);
+    }
+  };
+
   useEffect(() => {
-    const timeout = setTimeout(() => {
-      setLoading(false);
-    }, 5000);
+    let mounted = true;
 
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      clearTimeout(timeout);
-      setSession(session);
-      setUser(session?.user ?? null);
-      setIsAdmin(!!session?.user);
-      setLoading(false);
-    }).catch(() => {
-      clearTimeout(timeout);
-      setLoading(false);
-    });
+    const initializeAuth = async () => {
+      try {
+        setLoading(true);
 
-    const { data: { subscription } = supabase.auth.onAuthStateChange((_event, session) => {
-      setSession(session);
-      setUser(session?.user ?? null);
-      setIsAdmin(!!session?.user);
-      setLoading(false);
-    });
+        const {
+          data: { session },
+          error,
+        } = await supabase.auth.getSession();
 
-    const handleFocus = async () => {
-      const { data: { session } = await supabase.auth.getSession();
-      setIsAdmin(!!session?.user);
+        if (error) {
+          console.error("Session error:", error);
+          return;
+        }
+
+        if (!mounted) return;
+
+        setSession(session);
+        setUser(session?.user ?? null);
+
+        if (session?.user) {
+          await checkUserRole(session.user.id);
+        } else {
+          setIsAdmin(false);
+          setIsSuperAdmin(false);
+        }
+      } catch (err) {
+        console.error("Auth initialization error:", err);
+      } finally {
+        if (mounted) {
+          setLoading(false);
+        }
+      }
     };
-    window.addEventListener("focus", handleFocus);
+
+    initializeAuth();
+
+    const {
+      data: { subscription },
+    } = supabase.auth.onAuthStateChange(async (_event, session) => {
+      setSession(session);
+      setUser(session?.user ?? null);
+
+      if (session?.user) {
+        await checkUserRole(session.user.id);
+      } else {
+        setIsAdmin(false);
+        setIsSuperAdmin(false);
+      }
+
+      setLoading(false);
+    });
 
     return () => {
-      clearTimeout(timeout);
+      mounted = false;
       subscription.unsubscribe();
-      window.removeEventListener("focus", handleFocus);
     };
   }, []);
 
   const signOut = async () => {
     await supabase.auth.signOut();
+
     setUser(null);
     setSession(null);
     setIsAdmin(false);
@@ -72,7 +135,16 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   };
 
   return (
-    <AuthContext.Provider value={{ user, session, isAdmin, isSuperAdmin, loading, signOut }}>
+    <AuthContext.Provider
+      value={{
+        user,
+        session,
+        isAdmin,
+        isSuperAdmin,
+        loading,
+        signOut,
+      }}
+    >
       {children}
     </AuthContext.Provider>
   );
