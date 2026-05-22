@@ -13,6 +13,22 @@ import Gallery from "./pages/Gallery";
 import Lookup from "./pages/Lookup";
 import ResetPassword from "./pages/ResetPassword";
 import TicketPage from "./pages/TicketPage";
+import { AuthProvider } from "@/hooks/useAuth";
+
+const App = () => (
+  <QueryClientProvider client={queryClient}>
+    <AuthProvider>          {/* ← ADD THIS */}
+      <TooltipProvider>
+        <Toaster />
+        <BrowserRouter>
+          <Routes>
+            ...
+          </Routes>
+        </BrowserRouter>
+      </TooltipProvider>
+    </AuthProvider>         {/* ← AND THIS */}
+  </QueryClientProvider>
+);
 
 const queryClient = new QueryClient();
 
