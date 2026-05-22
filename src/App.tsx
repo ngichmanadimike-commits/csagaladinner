@@ -6,29 +6,11 @@ import { BrowserRouter, Routes, Route } from "react-router-dom";
 import Index from "./pages/Index";
 import Login from "./pages/Login";
 import NotFound from "./pages/NotFound";
-
-// Import admin pages if they exist
 import EventInsights from "./pages/EventInsights";
 import Gallery from "./pages/Gallery";
 import Lookup from "./pages/Lookup";
 import ResetPassword from "./pages/ResetPassword";
 import TicketPage from "./pages/TicketPage";
-import { AuthProvider } from "@/hooks/useAuth";
-
-const App = () => (
-  <QueryClientProvider client={queryClient}>
-    <AuthProvider>          {/* ← ADD THIS */}
-      <TooltipProvider>
-        <Toaster />
-        <BrowserRouter>
-          <Routes>
-            ...
-          </Routes>
-        </BrowserRouter>
-      </TooltipProvider>
-    </AuthProvider>         {/* ← AND THIS */}
-  </QueryClientProvider>
-);
 
 const queryClient = new QueryClient();
 
