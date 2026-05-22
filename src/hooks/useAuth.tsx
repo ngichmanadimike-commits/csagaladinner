@@ -50,9 +50,16 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       setLoading(false);
     });
 
+    const handleFocus = async () => {
+      const { data: { session } = await supabase.auth.getSession();
+      setIsAdmin(!!session?.user);
+    };
+    window.addEventListener("focus", handleFocus);
+
     return () => {
       clearTimeout(timeout);
       subscription.unsubscribe();
+      window.removeEventListener("focus", handleFocus);
     };
   }, []);
 
