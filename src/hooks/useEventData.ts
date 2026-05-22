@@ -9,6 +9,7 @@ interface EventData {
   description: string;
   is_active: boolean;
   voting_url?: string | null;
+  flyer_url?: string | null;
 }
 
 export const useEventData = () => {
@@ -16,6 +17,8 @@ export const useEventData = () => {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
+    let cancelled = false;
+
     const fetchEvent = async () => {
       const { data, error } = await supabase
         .from("events")
@@ -25,25 +28,26 @@ export const useEventData = () => {
         .limit(1)
         .maybeSingle();
 
-      if (!error && data) {
+      if (!cancelled && !error && data) {
         setEvent(data as EventData);
       }
-
-      setLoading(false);
+      if (!cancelled) setLoading(false);
     };
 
     fetchEvent();
 
+    // IMPORTANT: .on() must be called BEFORE .subscribe()
     const channel = supabase
       .channel("event-realtime")
       .on(
         "postgres_changes",
         { event: "*", schema: "public", table: "events" },
-        fetchEvent
+        () => { fetchEvent(); }
       )
       .subscribe();
 
     return () => {
+      cancelled = true;
       supabase.removeChannel(channel);
     };
   }, []);
