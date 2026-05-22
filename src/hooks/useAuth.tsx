@@ -1,11 +1,4 @@
-import {
-  useState,
-  useEffect,
-  createContext,
-  useContext,
-  ReactNode,
-} from "react";
-
+import { useState, useEffect, createContext, useContext, ReactNode, useCallback } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import type { User, Session } from "@supabase/supabase-js";
 
@@ -34,100 +27,48 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const [isSuperAdmin, setIsSuperAdmin] = useState(false);
   const [loading, setLoading] = useState(true);
 
-  const checkUserRole = async (userId: string) => {
-    try {
-      const { data, error } = await supabase
-        .from("user_roles")
-        .select("role")
-        .eq("user_id", userId);
-
-      if (error) {
-        console.error("Role check error:", error);
-        setIsAdmin(false);
-        setIsSuperAdmin(false);
-        return;
-      }
-
-      const roles = (data || []).map((r: any) => r.role);
-
-      const adminStatus =
-        roles.includes("admin") || roles.includes("super_admin");
-
-      const superAdminStatus = roles.includes("super_admin");
-
-      setIsAdmin(adminStatus);
-      setIsSuperAdmin(superAdminStatus);
-    } catch (err) {
-      console.error("Unexpected role check error:", err);
+  const loadRoles = useCallback(async (userId: string | undefined) => {
+    if (!userId) {
       setIsAdmin(false);
       setIsSuperAdmin(false);
+      return;
     }
-  };
+    const { data } = await supabase
+      .from("user_roles")
+      .select("role")
+      .eq("user_id", userId);
+    const roles = (data ?? []).map((r: any) => r.role);
+    setIsAdmin(roles.includes("admin") || roles.includes("super_admin"));
+    setIsSuperAdmin(roles.includes("super_admin"));
+  }, []);
 
   useEffect(() => {
-    let mounted = true;
-
-    const initializeAuth = async () => {
-      try {
-        setLoading(true);
-
-        const {
-          data: { session },
-          error,
-        } = await supabase.auth.getSession();
-
-        if (error) {
-          console.error("Session error:", error);
-          return;
-        }
-
-        if (!mounted) return;
-
-        setSession(session);
-        setUser(session?.user ?? null);
-
-        if (session?.user) {
-          await checkUserRole(session.user.id);
-        } else {
-          setIsAdmin(false);
-          setIsSuperAdmin(false);
-        }
-      } catch (err) {
-        console.error("Auth initialization error:", err);
-      } finally {
-        if (mounted) {
-          setLoading(false);
-        }
+    // 1. Subscribe FIRST so we never miss an auth event
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(
+      (_event, newSession) => {
+        setSession(newSession);
+        setUser(newSession?.user ?? null);
+        // Defer the DB call so we don't deadlock the auth callback
+        setTimeout(() => loadRoles(newSession?.user?.id), 0);
+        setLoading(false);
       }
-    };
+    );
 
-    initializeAuth();
-
-    const {
-      data: { subscription },
-    } = supabase.auth.onAuthStateChange(async (_event, session) => {
-      setSession(session);
-      setUser(session?.user ?? null);
-
-      if (session?.user) {
-        await checkUserRole(session.user.id);
-      } else {
-        setIsAdmin(false);
-        setIsSuperAdmin(false);
-      }
-
+    // 2. Then hydrate from any existing session
+    supabase.auth.getSession().then(({ data: { session: existing } }) => {
+      setSession(existing);
+      setUser(existing?.user ?? null);
+      loadRoles(existing?.user?.id);
       setLoading(false);
     });
 
     return () => {
-      mounted = false;
       subscription.unsubscribe();
     };
-  }, []);
+  }, [loadRoles]);
 
   const signOut = async () => {
     await supabase.auth.signOut();
-
     setUser(null);
     setSession(null);
     setIsAdmin(false);
@@ -135,16 +76,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   };
 
   return (
-    <AuthContext.Provider
-      value={{
-        user,
-        session,
-        isAdmin,
-        isSuperAdmin,
-        loading,
-        signOut,
-      }}
-    >
+    <AuthContext.Provider value={{ user, session, isAdmin, isSuperAdmin, loading, signOut }}>
       {children}
     </AuthContext.Provider>
   );
