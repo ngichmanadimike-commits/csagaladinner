@@ -15,7 +15,7 @@ const AdminLogin = () => {
   // If already logged in and admin, go straight to dashboard
   useEffect(() => {
     if (!authLoading && user && isAdmin) {
-      navigate("/admin", { replace: true });
+      navigate("/admin/dashboard", { replace: true });
     }
   }, [user, isAdmin, authLoading, navigate]);
 
