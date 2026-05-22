@@ -12,45 +12,56 @@ interface EventData {
   flyer_url?: string | null;
 }
 
+// ── Singleton state shared across all hook instances ──────────────────────────
+// This ensures only ONE Supabase channel is ever created, even if multiple
+// components call useEventData() at the same time.
+let cachedEvent: EventData | null = null;
+let cachedLoading = true;
+let subscribers: Array<() => void> = [];
+let channelCreated = false;
+
+function notify() {
+  subscribers.forEach((fn) => fn());
+}
+
+function initChannel() {
+  if (channelCreated) return;
+  channelCreated = true;
+
+  const fetchEvent = async () => {
+    const { data, error } = await supabase
+      .from("events")
+      .select("*")
+      .eq("is_active", true)
+      .order("date", { ascending: true })
+      .limit(1)
+      .maybeSingle();
+
+    if (!error && data) cachedEvent = data as EventData;
+    cachedLoading = false;
+    notify();
+  };
+
+  fetchEvent();
+
+  supabase
+    .channel("event-realtime")
+    .on("postgres_changes", { event: "*", schema: "public", table: "events" }, fetchEvent)
+    .subscribe();
+}
+
+// ── Hook ──────────────────────────────────────────────────────────────────────
 export const useEventData = () => {
-  const [event, setEvent] = useState<EventData | null>(null);
-  const [loading, setLoading] = useState(true);
+  const [, rerender] = useState(0);
 
   useEffect(() => {
-    let cancelled = false;
-
-    const fetchEvent = async () => {
-      const { data, error } = await supabase
-        .from("events")
-        .select("*")
-        .eq("is_active", true)
-        .order("date", { ascending: true })
-        .limit(1)
-        .maybeSingle();
-
-      if (!cancelled && !error && data) {
-        setEvent(data as EventData);
-      }
-      if (!cancelled) setLoading(false);
-    };
-
-    fetchEvent();
-
-    // IMPORTANT: .on() must be called BEFORE .subscribe()
-    const channel = supabase
-      .channel("event-realtime")
-      .on(
-        "postgres_changes",
-        { event: "*", schema: "public", table: "events" },
-        () => { fetchEvent(); }
-      )
-      .subscribe();
-
+    const handler = () => rerender((n) => n + 1);
+    subscribers.push(handler);
+    initChannel();
     return () => {
-      cancelled = true;
-      supabase.removeChannel(channel);
+      subscribers = subscribers.filter((s) => s !== handler);
     };
   }, []);
 
-  return { event, loading };
+  return { event: cachedEvent, loading: cachedLoading };
 };
