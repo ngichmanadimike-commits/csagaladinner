@@ -80,3 +80,13 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     setSession(null);
     setIsAdmin(false);
     setIsSuperAdmin(false);
+  };
+
+  return (
+    <AuthContext.Provider value={{ user, session, isAdmin, isSuperAdmin, loading, signOut }}>
+      {children}
+    </AuthContext.Provider>
+  );
+};
+
+export const useAuth = () => useContext(AuthContext);
