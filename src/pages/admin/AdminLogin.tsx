@@ -45,7 +45,7 @@ const AdminLogin = () => {
 
       if (hasAdmin) {
         toast.success("Welcome back!");
-        navigate("/admin", { replace: true });
+        navigate("/admin/dashboard", { replace: true });
       } else {
         toast.error("Access denied — you don't have admin privileges.");
         await supabase.auth.signOut();
