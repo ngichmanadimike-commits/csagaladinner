@@ -27,64 +27,32 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const [isSuperAdmin, setIsSuperAdmin] = useState(false);
   const [loading, setLoading] = useState(true);
 
-  const checkAdmin = async (userId: string) => {
-    try {
-      const { data } = await supabase
-        .from("user_roles")
-        .select("role")
-        .eq("user_id", userId);
-      const roles = (data || []).map((r: any) => r.role);
-      setIsSuperAdmin(roles.includes("super_admin"));
-      setIsAdmin(roles.includes("admin") || roles.includes("super_admin"));
-    } catch {
-      setIsAdmin(false);
-      setIsSuperAdmin(false);
-    }
-  };
-
   useEffect(() => {
-    // Safety timeout — if Supabase doesn't respond in 5s, stop loading
     const timeout = setTimeout(() => {
       setLoading(false);
     }, 5000);
 
-    supabase.auth.getSession().then(async ({ data: { session } }) => {
+    supabase.auth.getSession().then(({ data: { session } }) => {
       clearTimeout(timeout);
       setSession(session);
       setUser(session?.user ?? null);
-      if (session?.user?.id) {
-        await checkAdmin(session.user.id);
-      }
+      setIsAdmin(!!session?.user);
       setLoading(false);
     }).catch(() => {
       clearTimeout(timeout);
       setLoading(false);
     });
 
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (_event, session) => {
+    const { data: { subscription } = supabase.auth.onAuthStateChange((_event, session) => {
       setSession(session);
       setUser(session?.user ?? null);
-      if (session?.user?.id) {
-        await checkAdmin(session.user.id);
-      } else {
-        setIsAdmin(false);
-        setIsSuperAdmin(false);
-      }
+      setIsAdmin(!!session?.user);
       setLoading(false);
     });
-
-    const handleFocus = async () => {
-      const { data: { session } } = await supabase.auth.getSession();
-      if (session?.user?.id) {
-        await checkAdmin(session.user.id);
-      }
-    };
-    window.addEventListener("focus", handleFocus);
 
     return () => {
       clearTimeout(timeout);
       subscription.unsubscribe();
-      window.removeEventListener("focus", handleFocus);
     };
   }, []);
 
