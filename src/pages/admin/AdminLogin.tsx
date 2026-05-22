@@ -16,15 +16,19 @@ export default function AdminLogin() {
   // If already signed in as admin, skip the form
   useEffect(() => {
     (async () => {
-      const { data: { session } } = await supabase.auth.getSession();
+      const {
+        data: { session },
+      } = await supabase.auth.getSession();
       if (!session?.user) return;
+
       const { data: roles } = await supabase
         .from("user_roles")
         .select("role")
         .eq("user_id", session.user.id);
-      const isAdmin = (roles ?? []).some(
-        (r: any) => r.role === "admin" || r.role === "super_admin"
-      );
+
+      const roleList = (roles ?? []).map((r: any) => String(r.role));
+      const isAdmin =
+        roleList.includes("admin") || roleList.includes("super_admin");
       if (isAdmin) navigate("/admin/dashboard", { replace: true });
     })();
   }, [navigate]);
@@ -35,7 +39,7 @@ export default function AdminLogin() {
     setLoading(true);
 
     try {
-      // 1. Sign in
+      // Step 1: Sign in
       const { data: signInData, error: signInError } =
         await supabase.auth.signInWithPassword({
           email: email.trim(),
@@ -47,36 +51,37 @@ export default function AdminLogin() {
         return;
       }
 
-      // 2. Check role
+      // Step 2: Check role — treat query errors as "not admin" but still log them
       const { data: roles, error: rolesError } = await supabase
         .from("user_roles")
         .select("role")
         .eq("user_id", signInData.user.id);
 
       if (rolesError) {
-        console.error("user_roles query failed:", rolesError);
-        toast.error("Could not verify admin role. Check RLS policy on user_roles.");
-        await supabase.auth.signOut();
-        return;
+        console.error("user_roles query error:", rolesError);
+        // Don't block — still check what we got
       }
 
-      const isAdmin = (roles ?? []).some(
-        (r: any) => r.role === "admin" || r.role === "super_admin"
-      );
+      const roleList = (roles ?? []).map((r: any) => String(r.role));
+      const isAdmin =
+        roleList.includes("admin") || roleList.includes("super_admin");
 
       if (!isAdmin) {
-        toast.error("Access denied — this account is not an admin");
+        toast.error(
+          rolesError
+            ? "Could not verify admin role — please try again"
+            : "Access denied — this account is not an admin"
+        );
         await supabase.auth.signOut();
         return;
       }
 
-      toast.success("Signed in");
+      toast.success("Signed in successfully");
       navigate("/admin/dashboard", { replace: true });
     } catch (err: any) {
       console.error("Login error:", err);
       toast.error(err?.message ?? "Something went wrong");
     } finally {
-      // CRITICAL: always reset so the button can never get stuck on "Signing in…"
       setLoading(false);
     }
   };
@@ -138,5 +143,4 @@ export default function AdminLogin() {
       </div>
     </div>
   );
-    }
-              
+}
