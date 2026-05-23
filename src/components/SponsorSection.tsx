@@ -23,10 +23,10 @@ const SponsorSection = () => {
   const total = Math.round(students * COST_PER_STUDENT * levels[levelIdx].multiplier);
 
   const handlePaymentSubmitted = async (info: { mpesaCode: string; phone: string; source: "stk" | "manual" }) => {
-   const { data, error } = await supabase.from("sponsorships").insert({
+    const { data, error } = await supabase.from("sponsorships").insert({
       sponsor_name: sponsor.name,
-      sponsor_phone: sponsor.phone || info.phone,
       sponsor_email: sponsor.email || null,
+      sponsor_phone: sponsor.phone || info.phone,
       level: levels[levelIdx].label,
       num_students: students,
       amount: total,
@@ -36,6 +36,7 @@ const SponsorSection = () => {
       verified: info.source === "stk",
       verified_at: info.source === "stk" ? new Date().toISOString() : null,
     }).select("sponsor_code").single();
+
     if (error) {
       toast.error("Failed to save sponsorship: " + error.message);
       throw error;
@@ -44,7 +45,7 @@ const SponsorSection = () => {
       setSponsorCode(data.sponsor_code);
       toast.success(`Sponsor code: ${data.sponsor_code}`);
     }
-    toast.success("Sponsorship recorded — thank you!"); 
+    toast.success("Sponsorship recorded — thank you!");
   };
 
   const canProceed = sponsor.name.trim() && sponsor.phone.trim();
