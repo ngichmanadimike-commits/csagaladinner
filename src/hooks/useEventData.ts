@@ -1,64 +1,70 @@
-import { useEffect, useState } from "react";
+import { useState, useEffect } from "react";
 import { supabase } from "@/integrations/supabase/client";
 
 interface EventData {
   id: number;
   name: string;
-  title: string | null;
+  theme: string;
   event_date: string | null;
   venue: string | null;
-  description: string | null;
   status: string | null;
-  voting_url?: string | null;
-  nomination_url?: string | null;
-  flyer_url?: string | null;
+  flyer_url: string | null;
+  title: string | null;
+  description: string | null;
+  nomination_url: string | null;
+  voting_url: string | null;
 }
 
 let cachedEvent: EventData | null = null;
-let cachedLoading = true;
-let subscribers: Array<() => void> = [];
-let channelCreated = false;
+let fetchPromise: Promise<EventData | null> | null = null;
 
-function notify() {
-  subscribers.forEach((fn) => fn());
+async function fetchActiveEvent(): Promise<EventData | null> {
+  if (cachedEvent) return cachedEvent;
+  if (fetchPromise) return fetchPromise;
+
+  fetchPromise = supabase
+    .from("events")
+    .select("*")
+    .eq("status", "published")
+    .order("event_date", { ascending: true })
+    .limit(1)
+    .single()
+    .then(({ data, error }) => {
+      if (error || !data) {
+        return supabase
+          .from("events")
+          .select("*")
+          .order("created_at", { ascending: false })
+          .limit(1)
+          .single()
+          .then(({ data: d }) => {
+            if (d) cachedEvent = d as EventData;
+            return cachedEvent;
+          });
+      }
+      cachedEvent = data as EventData;
+      fetchPromise = null;
+      return cachedEvent;
+    });
+
+  return fetchPromise;
 }
 
-function initChannel() {
-  if (channelCreated) return;
-  channelCreated = true;
-
-  const fetchEvent = async () => {
-    const { data, error } = await supabase
-      .from("events")
-      .select("id, name, title, event_date, venue, description, status, voting_url, nomination_url, flyer_url")
-      .order("created_at", { ascending: false })
-      .limit(1)
-      .maybeSingle();
-
-    if (!error && data) cachedEvent = data as EventData;
-    cachedLoading = false;
-    notify();
-  };
-
-  fetchEvent();
-
-  supabase
-    .channel("event-realtime")
-    .on("postgres_changes", { event: "*", schema: "public", table: "events" }, fetchEvent)
-    .subscribe();
-}
-
-export const useEventData = () => {
-  const [, rerender] = useState(0);
+export function useEventData() {
+  const [event, setEvent] = useState<EventData | null>(cachedEvent);
+  const [loading, setLoading] = useState(!cachedEvent);
 
   useEffect(() => {
-    const handler = () => rerender((n) => n + 1);
-    subscribers.push(handler);
-    initChannel();
-    return () => {
-      subscribers = subscribers.filter((s) => s !== handler);
-    };
+    if (cachedEvent) {
+      setEvent(cachedEvent);
+      setLoading(false);
+      return;
+    }
+    fetchActiveEvent().then((e) => {
+      setEvent(e);
+      setLoading(false);
+    });
   }, []);
 
-  return { event: cachedEvent, loading: cachedLoading };
-};
+  return { event, loading };
+    }
