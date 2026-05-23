@@ -3,8 +3,8 @@ import { supabase } from "@/integrations/supabase/client";
 
 interface EventData {
   id: number;
-  title: string | null;
   name: string;
+  title: string | null;
   event_date: string | null;
   venue: string | null;
   description: string | null;
