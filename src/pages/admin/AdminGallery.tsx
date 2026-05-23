@@ -1,4 +1,5 @@
-import AdminLayout from "./AdminLayout";
+import AdminLayout from "../../components/admin/AdminLayout";
+
 const AdminGallery = () => (
   <AdminLayout>
     <div>
@@ -7,4 +8,5 @@ const AdminGallery = () => (
     </div>
   </AdminLayout>
 );
+
 export default AdminGallery;
