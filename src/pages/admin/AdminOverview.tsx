@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
-import AdminLayout from "./AdminLayout";
+import AdminLayout from "../../components/admin/AdminLayout";
 import { Users, CreditCard, Ticket, Heart, TrendingUp, Clock } from "lucide-react";
 
 interface Stats {
