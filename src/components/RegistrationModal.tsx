@@ -250,4 +250,4 @@ const RegistrationModal = ({
   );
 };
 
-export default RegistrationModal;a
+export default RegistrationModal;
