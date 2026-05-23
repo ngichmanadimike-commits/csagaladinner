@@ -69,7 +69,7 @@ const AdminPromotions = () => {
       .from("promo_redemptions")
       .select("id, code, registration_id, email, phone, status, discount_amount, created_at")
       .eq("code", code)
-      .eq("status", "applied")
+      .eq("status","redeemed" )
       .order("created_at", { ascending: false });
 
     if (error) { toast.error("Failed to load redemptions"); setLoadingRed(null); return; }
