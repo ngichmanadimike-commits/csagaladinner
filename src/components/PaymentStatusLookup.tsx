@@ -1,9 +1,7 @@
 import { useState, useEffect } from "react";
 import { supabase } from "@/integrations/supabase/client";
-import { Search, Loader2, CheckCircle, Clock, AlertCircle, Download } from "lucide-react";
+import { Search, Loader2, CheckCircle2, Clock, AlertCircle, ExternalLink, Copy, Eye, EyeOff } from "lucide-react";
 import { toast } from "sonner";
-import { maskName, maskEmail, maskTicketToken, maskBookingCode } from "@/lib/mask";
-import { downloadTicketPdf } from "@/lib/generateTicket";
 
 interface RegistrationResult {
   id: string;
@@ -15,7 +13,6 @@ interface RegistrationResult {
   payment_status: string;
   ticket_issued: boolean;
   ticket_code: string | null;
-  secure_ticket_token: string | null;
 }
 
 interface SponsorResult {
@@ -31,19 +28,24 @@ interface SponsorResult {
   sponsor_code: string | null;
 }
 
-const statusConfig: Record<string, { icon: typeof CheckCircle; label: string; class: string }> = {
-  paid: { icon: CheckCircle, label: "Fully Paid", class: "text-green-400" },
-  confirmed: { icon: CheckCircle, label: "Confirmed", class: "text-green-400" },
-  partial: { icon: Clock, label: "Partial Payment", class: "text-yellow-400" },
-  pending: { icon: AlertCircle, label: "Pending", class: "text-orange-400" },
-};
+interface PaymentRecord {
+  id: string;
+  registration_id: string;
+  amount: number;
+  mpesa_code: string | null;
+  payment_method: string;
+  verified: boolean;
+  created_at: string;
+}
 
 const PaymentStatusLookup = () => {
   const [query, setQuery] = useState("");
   const [results, setResults] = useState<RegistrationResult[]>([]);
   const [sponsorResults, setSponsorResults] = useState<SponsorResult[]>([]);
+  const [payments, setPayments] = useState<Record<string, PaymentRecord[]>>({});
   const [loading, setLoading] = useState(false);
   const [searched, setSearched] = useState(false);
+  const [showDetails, setShowDetails] = useState<Record<string, boolean>>({});
 
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
@@ -54,7 +56,7 @@ const PaymentStatusLookup = () => {
         document.getElementById("lookup-form")?.dispatchEvent(
           new Event("submit", { bubbles: true, cancelable: true })
         );
-      }, 300);
+      }, 400);
     }
   }, []);
 
@@ -67,32 +69,38 @@ const PaymentStatusLookup = () => {
     setSearched(true);
 
     try {
-      const [{ data, error }, sponsorRes] = await Promise.all([
+      const [{ data: regs, error }, { data: sponsors }] = await Promise.all([
         supabase
           .from("registrations")
-          .select(
-            "id, name, email, package_type, total_cost, total_paid, payment_status, ticket_issued, ticket_code, secure_ticket_token"
-          )
-          .or(
-            `name.ilike.%${trimmed}%,email.ilike.%${trimmed}%,ticket_code.ilike.%${trimmed}%`
-          ),
+          .select("id, name, email, package_type, total_cost, total_paid, payment_status, ticket_issued, ticket_code")
+          .or(`email.ilike.%${trimmed}%,ticket_code.ilike.%${trimmed}%`),
         supabase
           .from("sponsorships")
-          .select(
-            "id, sponsor_name, sponsor_email, sponsor_phone, num_students, level, amount, verified, payment_status, sponsor_code"
-          )
-          .or(
-            `sponsor_name.ilike.%${trimmed}%,sponsor_email.ilike.%${trimmed}%,sponsor_code.ilike.%${trimmed}%`
-          ),
+          .select("id, sponsor_name, sponsor_email, sponsor_phone, num_students, level, amount, verified, payment_status, sponsor_code")
+          .or(`sponsor_email.ilike.%${trimmed}%,sponsor_code.ilike.%${trimmed}%`),
       ]);
 
-      if (error) {
-        toast.error(error.message);
-        return;
-      }
+      if (error) { toast.error(error.message); return; }
 
-      setResults(data ?? []);
-      setSponsorResults((sponsorRes.data as any) ?? []);
+      const regList = (regs ?? []) as RegistrationResult[];
+      setResults(regList);
+      setSponsorResults((sponsors ?? []) as SponsorResult[]);
+
+      if (regList.length > 0) {
+        const ids = regList.map(r => r.id);
+        const { data: pays } = await supabase
+          .from("payments")
+          .select("id, registration_id, amount, mpesa_code, payment_method, verified, created_at")
+          .in("registration_id", ids)
+          .order("created_at", { ascending: false });
+
+        const grouped: Record<string, PaymentRecord[]> = {};
+        (pays || []).forEach((p: any) => {
+          grouped[p.registration_id] ||= [];
+          grouped[p.registration_id].push(p);
+        });
+        setPayments(grouped);
+      }
     } catch (err: any) {
       toast.error("Search failed: " + err.message);
     } finally {
@@ -100,154 +108,273 @@ const PaymentStatusLookup = () => {
     }
   };
 
+  const copy = (text: string, label: string) => {
+    navigator.clipboard.writeText(text).then(() => toast.success(`${label} copied!`));
+  };
+
+  const maskEmail = (email: string) => {
+    const [local, domain] = email.split("@");
+    if (!domain) return "****";
+    const maskedLocal = local.length > 2 ? local[0] + "*".repeat(local.length - 2) + local[local.length - 1] : "***";
+    return `${maskedLocal}@${domain}`;
+  };
+
+  const maskName = (name: string) => {
+    return name.split(" ").map(part => 
+      part.length > 1 ? part[0] + "*".repeat(part.length - 1) : part
+    ).join(" ");
+  };
+
+  const maskCode = (code: string) => {
+    if (code.length <= 6) return "****";
+    return code.slice(0, 3) + "****" + code.slice(-3);
+  };
+
   return (
     <section id="payment-status" className="py-16 px-4">
       <div className="max-w-2xl mx-auto">
-        <div className="text-center mb-8">
-          <h2 className="font-display text-3xl md:text-4xl font-bold text-foreground mb-2">
-            Check Payment Status
-          </h2>
-          <p className="text-muted-foreground">
-            Enter your name, email, or booking code to view your registration &amp; payment details.
-          </p>
-        </div>
 
         <form id="lookup-form" onSubmit={handleSearch} className="flex gap-2 mb-8">
           <div className="flex-1 relative">
-            <Search
-              className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground"
-              size={18}
-            />
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" size={18} />
             <input
-              type="text"
-              value={query}
-              onChange={(e) => setQuery(e.target.value)}
-              placeholder="Booking code, name, or email..."
-              className="w-full pl-10 pr-4 py-3 rounded-xl bg-muted border border-border text-foreground text-sm focus:outline-none focus:ring-2 focus:ring-primary/50"
+              type="text" value={query}
+              onChange={e => setQuery(e.target.value)}
+              placeholder="Enter booking code or email..."
+              className="w-full pl-10 pr-4 py-3 rounded-xl bg-muted border-border text-foreground text-sm focus:outline-none focus:ring-2 focus:ring-primary/50"
             />
           </div>
-          <button
-            type="submit"
-            disabled={loading}
-            className="px-6 py-3 rounded-xl bg-primary text-primary-foreground font-semibold hover:scale-[1.02] transition-transform disabled:opacity-50 flex items-center gap-2"
-          >
+          <button type="submit" disabled={loading}
+            className="px-6 py-3 rounded-xl bg-primary text-primary-foreground font-semibold hover:scale-[1.02] transition-transform disabled:opacity-50 flex items-center gap-2">
             {loading ? <Loader2 size={18} className="animate-spin" /> : "Search"}
           </button>
         </form>
 
         {searched && !loading && results.length === 0 && sponsorResults.length === 0 && (
-          <div className="text-center py-8 text-muted-foreground">
-            No registration or sponsorship found. Try your booking/sponsor code, name, or email.
+          <div className="text-center py-10 text-muted-foreground glass rounded-xl">
+            <AlertCircle className="mx-auto mb-3 opacity-40" size={36} />
+            <p className="font-semibold">No registration found</p>
+            <p className="text-sm mt-1">Try your exact booking code or email address.</p>
           </div>
         )}
 
-        <div className="space-y-4">
-          {results.map((r) => {
-            const remaining = Math.max(0, r.total_cost - r.total_paid);
-            const config = statusConfig[r.payment_status] ?? statusConfig.pending;
-            const StatusIcon = config.icon;
+        <div className="space-y-5">
+          {results.map(r => {
             const isPaid = r.payment_status === "paid" || r.payment_status === "confirmed";
+            const isPending = r.payment_status === "pending";
+            const isPartial = r.payment_status === "partial";
+            const regPayments = payments[r.id] || [];
+            const hasSubmittedPayment = regPayments.length > 0;
+            const remaining = Math.max(0, r.total_cost - r.total_paid);
+            const show = showDetails[r.id] || false;
 
             return (
-              <div key={r.id} className="glass rounded-2xl p-5 space-y-3">
-                <div className="flex items-start justify-between gap-3">
+              <div key={r.id} className="glass rounded-2xl p-5 space-y-4">
+
+                <div className="flex items-start justify-between gap-3 flex-wrap">
                   <div>
-                    <h3 className="font-display font-bold text-foreground">
-                      {maskName(r.name)}
+                    <h3 className="font-bold text-foreground text-lg">
+                      {show ? r.name : maskName(r.name)}
                     </h3>
-                    <p className="text-xs text-muted-foreground">{maskEmail(r.email)}</p>
-                  </div>
-                  <span className={`flex items-center gap-1.5 text-sm font-semibold ${config.class}`}>
-                    <StatusIcon size={16} />
-                    {config.label}
-                  </span>
-                </div>
-
-                <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-sm">
-                  <div>
-                    <p className="text-muted-foreground text-xs">Package</p>
-                    <p className="font-semibold text-foreground capitalize">{r.package_type}</p>
-                  </div>
-                  <div>
-                    <p className="text-muted-foreground text-xs">Total Cost</p>
-                    <p className="font-semibold text-foreground">KSh {Number(r.total_cost).toLocaleString()}</p>
-                  </div>
-                  <div>
-                    <p className="text-muted-foreground text-xs">Paid</p>
-                    <p className="font-semibold text-foreground">KSh {Number(r.total_paid).toLocaleString()}</p>
-                  </div>
-                  <div>
-                    <p className="text-muted-foreground text-xs">Balance</p>
-                    <p className={`font-semibold ${remaining > 0 ? "text-orange-400" : "text-green-400"}`}>
-                      KSh {remaining.toLocaleString()}
+                    <p className="text-xs text-muted-foreground">
+                      {show ? r.email : maskEmail(r.email)}
                     </p>
                   </div>
+                  <div className="flex items-center gap-2">
+                    <button 
+                      onClick={() => setShowDetails(s => ({ ...s, [r.id]: !show }))}
+                      className="p-2 rounded-lg hover:bg-muted text-muted-foreground hover:text-foreground"
+                    >
+                      {show ? <EyeOff size={16} /> : <Eye size={16} />}
+                    </button>
+                    {isPaid && (
+                      <span className="flex items-center gap-1.5 text-sm font-bold text-emerald-400 bg-emerald-400/10 px-3 py-1 rounded-full">
+                        <CheckCircle2 size={15} /> Approved
+                      </span>
+                    )}
+                    {isPending && hasSubmittedPayment && (
+                      <span className="flex items-center gap-1.5 text-sm font-bold text-yellow-400 bg-yellow-400/10 px-3 py-1 rounded-full">
+                        <Clock size={15} /> Awaiting Approval
+                      </span>
+                    )}
+                    {isPending && !hasSubmittedPayment && (
+                      <span className="flex items-center gap-1.5 text-sm font-bold text-orange-400 bg-orange-400/10 px-3 py-1 rounded-full">
+                        <AlertCircle size={15} /> Payment Pending
+                      </span>
+                    )}
+                    {isPartial && (
+                      <span className="flex items-center gap-1.5 text-sm font-bold text-yellow-400 bg-yellow-400/10 px-3 py-1 rounded-full">
+                        <Clock size={15} /> Partial Payment
+                      </span>
+                    )}
+                  </div>
                 </div>
 
-                <div className="pt-2 border-t border-border">
-                  <p className="text-xs text-muted-foreground">Booking Code</p>
-                  <p className="font-mono font-bold text-primary">
-                    {maskBookingCode(r.ticket_code)}
-                  </p>
-
-                  {isPaid && r.secure_ticket_token ? (
-                    <>
-                      <p className="text-xs text-muted-foreground mt-2">Your Ticket Token</p>
-                      <p className="font-mono text-xs break-all text-emerald-400">
-                        {maskTicketToken(r.secure_ticket_token)}
-                      </p>
-                      <SecureDownload reg={r} />
-                    </>
-                  ) : r.payment_status === "partial" ? (
-                    <>
-                      <p className="text-xs text-muted-foreground mt-2">Ticket locked until full payment</p>
-                      <p className="font-mono text-xs text-yellow-400">
-                        {maskTicketToken(r.secure_ticket_token)}
-                      </p>
-                      <p className="text-xs text-muted-foreground mt-1">
-                        Pay the remaining KSh {remaining.toLocaleString()} to unlock your ticket.
-                      </p>
-                    </>
-                  ) : (
-                    <p className="text-xs text-muted-foreground mt-2">
-                      Complete a payment to receive your ticket.
+                <div className="bg-primary/5 border-primary/20 rounded-xl px-4 py-3 flex items-center justify-between">
+                  <div>
+                    <p className="text-xs text-muted-foreground uppercase tracking-wider mb-0.5">Booking Code</p>
+                    <p className="font-mono font-extrabold text-xl text-primary tracking-widest">
+                      {show && r.ticket_code ? r.ticket_code : maskCode(r.ticket_code || "")}
                     </p>
+                  </div>
+                  {r.ticket_code && (
+                    <button onClick={() => copy(r.ticket_code!, "Booking code")}
+                      className="p-2 rounded-lg hover:bg-muted text-muted-foreground hover:text-foreground">
+                      <Copy size={16} />
+                    </button>
                   )}
                 </div>
+
+                <div className="grid grid-cols-3 gap-3 text-sm">
+                  <div className="glass rounded-lg p-3 text-center">
+                    <p className="text-muted-foreground text-xs mb-1">Total</p>
+                    <p className="font-bold">KES {Number(r.total_cost).toLocaleString()}</p>
+                  </div>
+                  <div className="glass rounded-lg p-3 text-center">
+                    <p className="text-muted-foreground text-xs mb-1">Paid</p>
+                    <p className={`font-bold ${r.total_paid > 0 ? "text-emerald-400" : "text-muted-foreground"}`}>
+                      KES {Number(r.total_paid).toLocaleString()}
+                    </p>
+                  </div>
+                  <div className="glass rounded-lg p-3 text-center">
+                    <p className="text-muted-foreground text-xs mb-1">Balance</p>
+                    <p className={`font-bold ${remaining > 0 ? "text-orange-400" : "text-emerald-400"}`}>
+                      KES {remaining.toLocaleString()}
+                    </p>
+                  </div>
+                </div>
+
+                <div className="text-sm">
+                  <span className="text-muted-foreground">Package: </span>
+                  <span className="font-semibold capitalize">{r.package_type}</span>
+                </div>
+
+                {hasSubmittedPayment && (
+                  <div className="border-t border-border pt-3 space-y-2">
+                    <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Payment Submitted</p>
+                    {regPayments.map(p => (
+                      <div key={p.id} className="flex items-center justify-between text-sm bg-muted/30 rounded-lg px-3 py-2">
+                        <div>
+                          <p className="font-mono font-bold text-foreground">{p.mpesa_code || "—"}</p>
+                          <p className="text-xs text-muted-foreground">
+                            KES {Number(p.amount).toLocaleString()} · {new Date(p.created_at).toLocaleDateString("en-KE")}
+                          </p>
+                        </div>
+                        <span className={`text-xs font-semibold px-2 py-0.5 rounded-full ${p.verified ? "text-emerald-400 bg-emerald-400/10" : "text-yellow-400 bg-yellow-400/10"}`}>
+                          {p.verified ? "Verified" : "Pending"}
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                )}
+
+                <div className={`rounded-xl p-4 text-sm ${isPaid ? "bg-emerald-500/10 border-emerald-500/20" : "bg-yellow-500/10 border-yellow-500/20"}`}>
+                  {isPaid && (
+                    <div className="space-y-2">
+                      <p className="font-bold text-emerald-300 flex items-center gap-2">
+                        <CheckCircle2 size={16} /> Payment Approved — Your ticket is ready!
+                      </p>
+                      {r.ticket_code && (
+                        <a
+                          href={`/ticket/${r.ticket_code}`}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="inline-flex items-center gap-2 mt-2 px-4 py-2 rounded-lg bg-emerald-500 text-white font-semibold hover:bg-emerald-400 transition-colors"
+                        >
+                          View & Download Ticket <ExternalLink size={14} />
+                        </a>
+                      )}
+                    </div>
+                  )}
+                  {isPending && hasSubmittedPayment && (
+                    <div>
+                      <p className="font-bold text-yellow-300 flex items-center gap-2">
+                        <Clock size={16} /> Payment submitted — awaiting admin approval
+                      </p>
+                      <p className="text-muted-foreground mt-1 text-xs">
+                        The Treasurer will verify your M-Pesa payment within 3–6 hours.
+                      </p>
+                    </div>
+                  )}
+                  {isPending && !hasSubmittedPayment && (
+                    <div>
+                      <p className="font-bold text-orange-300 flex items-center gap-2">
+                        <AlertCircle size={16} /> No payment received yet
+                      </p>
+                      <p className="text-muted-foreground mt-1 text-xs">
+                        Pay via M-PESA Buy Goods, Till Number <strong className="text-foreground">6776606</strong>, Amount <strong className="text-foreground">KES {Number(r.total_cost).toLocaleString()}</strong>.
+                      </p>
+                    </div>
+                  )}
+                  {isPartial && (
+                    <div>
+                      <p className="font-bold text-yellow-300 flex items-center gap-2">
+                        <Clock size={16} /> Partial payment recorded
+                      </p>
+                      <p className="text-muted-foreground mt-1 text-xs">
+                        Pay the remaining KES {remaining.toLocaleString()} to receive your ticket.
+                      </p>
+                    </div>
+                  )}
+                </div>
+
               </div>
             );
           })}
 
-          {sponsorResults.map((s) => (
+          {sponsorResults.map(s => (
             <div key={s.id} className="glass rounded-2xl p-5 space-y-3">
-              <div className="flex items-start justify-between gap-3">
+              <div className="flex items-start justify-between gap-3 flex-wrap">
                 <div>
-                  <h3 className="font-display font-bold text-foreground">{maskName(s.sponsor_name)}</h3>
-                  <p className="text-xs text-muted-foreground">Sponsor • {s.level}</p>
+                  <h3 className="font-bold text-foreground">
+                    {showDetails[s.id] ? s.sponsor_name : maskName(s.sponsor_name)}
+                  </h3>
+                  <p className="text-xs text-muted-foreground">Sponsor · {s.level}</p>
                 </div>
-                <span className={`text-sm font-semibold ${s.verified ? "text-green-400" : "text-yellow-400"}`}>
-                  {s.verified ? "Verified" : "Pending Verification"}
-                </span>
+                <div className="flex items-center gap-2">
+                  <button 
+                    onClick={() => setShowDetails(s => ({ ...s, [s.id]: !s }))} 
+                    className="p-2 rounded-lg hover:bg-muted text-muted-foreground hover:text-foreground"
+                  >
+                    {showDetails[s.id] ? <EyeOff size={16} /> : <Eye size={16} />}
+                  </button>
+                  <span className={`text-sm font-semibold px-3 py-1 rounded-full ${s.verified ? "text-emerald-400 bg-emerald-400/10" : "text-yellow-400 bg-yellow-400/10"}`}>
+                    {s.verified ? "✓ Verified" : "⏳ Pending Verification"}
+                  </span>
+                </div>
               </div>
               <div className="grid grid-cols-3 gap-3 text-sm">
-                <div>
-                  <p className="text-xs text-muted-foreground">Students</p>
-                  <p className="font-semibold">{s.num_students}</p>
+                <div className="glass rounded-lg p-3 text-center">
+                  <p className="text-xs text-muted-foreground mb-1">Students</p>
+                  <p className="font-bold">{s.num_students}</p>
                 </div>
-                <div>
-                  <p className="text-xs text-muted-foreground">Amount</p>
-                  <p className="font-semibold">KSh {Number(s.amount).toLocaleString()}</p>
+                <div className="glass rounded-lg p-3 text-center">
+                  <p className="text-xs text-muted-foreground mb-1">Amount</p>
+                  <p className="font-bold">KES {Number(s.amount).toLocaleString()}</p>
                 </div>
-                <div>
-                  <p className="text-xs text-muted-foreground">Phone</p>
-                  <p className="font-semibold">{s.sponsor_phone}</p>
+                <div className="glass rounded-lg p-3 text-center">
+                  <p className="text-xs text-muted-foreground mb-1">Phone</p>
+                  <p className="font-bold text-xs">{s.sponsor_phone}</p>
                 </div>
               </div>
               {s.sponsor_code && (
-                <div className="pt-2 border-t border-border">
-                  <p className="text-xs text-muted-foreground">Sponsor Code</p>
-                  <p className="font-mono font-bold text-primary">{maskBookingCode(s.sponsor_code)}</p>
+                <div className="bg-primary/5 border-primary/20 rounded-xl px-4 py-3 flex items-center justify-between">
+                  <div>
+                    <p className="text-xs text-muted-foreground uppercase tracking-wider mb-0.5">Sponsor Code</p>
+                    <p className="font-mono font-bold text-primary">
+                      {showDetails[s.id] ? s.sponsor_code : maskCode(s.sponsor_code)}
+                    </p>
+                  </div>
+                  <button onClick={() => copy(s.sponsor_code!, "Sponsor code")}
+                    className="p-2 rounded-lg hover:bg-muted text-muted-foreground hover:text-foreground">
+                    <Copy size={16} />
+                  </button>
                 </div>
+              )}
+              {!s.verified && (
+                <p className="text-xs text-muted-foreground bg-yellow-500/10 border-yellow-500/20 rounded-lg p-3">
+                  ⏳ Your sponsorship payment is being verified by the Treasurer.
+                </p>
               )}
             </div>
           ))}
@@ -258,90 +385,3 @@ const PaymentStatusLookup = () => {
 };
 
 export default PaymentStatusLookup;
-
-// ── Secure Download Component ────────────────────────────────────────────────
-function SecureDownload({ reg }: { reg: RegistrationResult }) {
-  const [open, setOpen] = useState(false);
-  const [code, setCode] = useState("");
-  const [busy, setBusy] = useState(false);
-
-  const handle = async () => {
-    const entered = code.trim().toUpperCase();
-    if (!entered) {
-      toast.error("Enter your booking code");
-      return;
-    }
-    // FIX: safely handle null ticket_code before calling .toUpperCase()
-    const storedCode = (reg.ticket_code ?? "").toUpperCase();
-    if (!storedCode || entered !== storedCode) {
-      toast.error("Incorrect booking code. Please try again.");
-      return;
-    }
-    setBusy(true);
-    try {
-      await downloadTicketPdf({
-        purchaser_name: reg.name ?? "—",
-        booking_code: reg.ticket_code ?? "",
-        ticket_type: reg.package_type ?? "Regular",
-        type_name: reg.package_type ?? "Regular",
-        total_amount: reg.total_paid ?? reg.total_cost ?? 0,
-        payment_status: "PAID",
-        ticket_number: reg.ticket_code ?? "",
-        ticket_code: reg.ticket_code ?? "",
-        qr_code: reg.secure_ticket_token ?? reg.ticket_code ?? reg.id ?? "",
-        eventName: "CSA Gala Dinner 2026",
-        eventDate: "Friday, 5th June 2026",
-        venue: "Utalii Hotel, Nairobi",
-        time: "7:00 PM – 11:00 PM",
-      });
-      toast.success("Ticket downloaded successfully!");
-      setOpen(false);
-      setCode("");
-    } catch (e: any) {
-      toast.error("Failed to generate ticket: " + (e?.message || "unknown error"));
-    } finally {
-      setBusy(false);
-    }
-  };
-
-  if (!open) {
-    return (
-      <button
-        onClick={() => setOpen(true)}
-        className="inline-flex items-center gap-1.5 mt-2 px-3 py-1.5 rounded bg-primary text-primary-foreground text-xs font-semibold hover:opacity-90"
-      >
-        <Download size={12} /> Download Ticket (PDF)
-      </button>
-    );
-  }
-
-  return (
-    <div className="mt-2 p-3 rounded-lg border border-primary/40 bg-primary/5 space-y-2">
-      <p className="text-xs text-muted-foreground">
-        Enter your full booking code to verify &amp; download:
-      </p>
-      <div className="flex gap-2">
-        <input
-          autoFocus
-          value={code}
-          onChange={(e) => setCode(e.target.value.toUpperCase())}
-          placeholder="CSA-XXXXXX"
-          className="flex-1 px-3 py-2 rounded-md bg-muted border border-border text-sm font-mono"
-        />
-        <button
-          onClick={handle}
-          disabled={busy}
-          className="px-3 rounded-md bg-primary text-primary-foreground text-xs font-semibold disabled:opacity-50"
-        >
-          {busy ? "Generating…" : "Verify & Download"}
-        </button>
-        <button
-          onClick={() => { setOpen(false); setCode(""); }}
-          className="px-2 rounded-md border border-border text-xs text-muted-foreground hover:text-foreground"
-        >
-          Cancel
-        </button>
-      </div>
-    </div>
-  );
-}
