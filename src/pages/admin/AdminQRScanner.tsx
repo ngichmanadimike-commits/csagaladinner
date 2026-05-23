@@ -51,25 +51,25 @@ const AdminQRScanner = () => {
   const [cameraActive, setCameraActive] = useState(false);
   const [cameraError, setCameraError] = useState<string | null>(null);
   const lastScannedCode = useRef<string | null>(null);
-  const [jsQRLoaded, setJsQRLoaded] = useState(!!(window as any).jsQR);
+  const [jsQRLoaded, setJsQRLoaded] = useState(false);
 
   useEffect(() => {
     if ((window as any).jsQR) { setJsQRLoaded(true); return; }
     const s = document.createElement("script");
-    s.src = "https://cdnjs.cloudflare.com/ajax/libs/jsQR/1.4.0/jsQR.min.js";
+    s.src = "https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.js";
     s.onload = () => setJsQRLoaded(true);
-    s.onerror = () => setCameraError("Failed to load QR library. Check your internet connection.");
+    s.onerror = () => setCameraError("Failed to load QR library. Please check your connection and refresh.");
     document.head.appendChild(s);
   }, []);
 
   const fetchScans = useCallback(async () => {
     setLoadingScans(true);
     const { data } = await supabase
-    .from("ticket_scans")
-    .select(`id, ticket_code, scanned_at, scanned_by,
+      .from("ticket_scans")
+      .select(`id, ticket_code, scanned_at, scanned_by,
         registrations ( name, email, phone, package_type, quantity, payment_status )`)
-    .order("scanned_at", { ascending: false })
-    .limit(200);
+      .order("scanned_at", { ascending: false })
+      .limit(200);
     setScans((data as ScanRecord[]) || []);
     setLoadingScans(false);
   }, []);
@@ -77,9 +77,9 @@ const AdminQRScanner = () => {
   useEffect(() => {
     fetchScans();
     const channel = supabase
-    .channel("ticket_scans_rt")
-    .on("postgres_changes", { event: "INSERT", schema: "public", table: "ticket_scans" }, fetchScans)
-    .subscribe();
+      .channel("ticket_scans_rt")
+      .on("postgres_changes", { event: "INSERT", schema: "public", table: "ticket_scans" }, fetchScans)
+      .subscribe();
     return () => { supabase.removeChannel(channel); };
   }, [fetchScans]);
 
@@ -103,24 +103,24 @@ const AdminQRScanner = () => {
 
     try {
       const { data: reg, error: regErr } = await supabase
-      .from("registrations")
-      .select("id, name, package_type, quantity, payment_status, ticket_code")
-      .eq("ticket_code", code)
-      .maybeSingle();
+        .from("registrations")
+        .select("id, name, package_type, quantity, payment_status, ticket_code")
+        .eq("ticket_code", code)
+        .maybeSingle();
 
       if (regErr) { setResult({ status: "error", message: regErr.message }); return; }
       if (!reg) { setResult({ status: "not_found" }); return; }
 
-      if (reg.payment_status!== "paid" && reg.payment_status!== "verified" && reg.payment_status!== "confirmed") {
+      if (reg.payment_status !== "paid" && reg.payment_status !== "verified" && reg.payment_status !== "confirmed") {
         setResult({ status: "unpaid", name: reg.name, payment_status: reg.payment_status });
         return;
       }
 
       const { data: existingScan } = await supabase
-      .from("ticket_scans")
-      .select("scanned_at, scanned_by")
-      .eq("ticket_code", code)
-      .maybeSingle();
+        .from("ticket_scans")
+        .select("scanned_at, scanned_by")
+        .eq("ticket_code", code)
+        .maybeSingle();
 
       if (existingScan) {
         setResult({
@@ -136,7 +136,7 @@ const AdminQRScanner = () => {
       const { error: insertErr } = await supabase.from("ticket_scans").insert({
         registration_id: reg.id,
         ticket_code: code,
-        scanned_by: user?.email?? null,
+        scanned_by: user?.email ?? null,
         device_info: navigator.userAgent,
       });
 
@@ -166,8 +166,8 @@ const AdminQRScanner = () => {
     }
     const video = videoRef.current;
     const canvas = canvasRef.current;
-    const jsQR = (window as any).jsQR;
-    if (!video ||!canvas ||!jsQR || video.readyState!== video.HAVE_ENOUGH_DATA) {
+    const jsQRFn = (window as any).jsQR;
+    if (!video || !canvas || !jsQRFn || video.readyState !== video.HAVE_ENOUGH_DATA) {
       rafRef.current = requestAnimationFrame(tick);
       return;
     }
@@ -176,10 +176,10 @@ const AdminQRScanner = () => {
     const ctx = canvas.getContext("2d")!;
     ctx.drawImage(video, 0, 0);
     const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
-    const code = jsQR(imageData.data, imageData.width, imageData.height, {
+    const code = jsQRFn(imageData.data, imageData.width, imageData.height, {
       inversionAttempts: "dontInvert",
     });
-    if (code && code.data && code.data!== lastScannedCode.current) {
+    if (code && code.data && code.data !== lastScannedCode.current) {
       lastScannedCode.current = code.data;
       processCode(code.data);
       setTimeout(() => { lastScannedCode.current = null; }, 3000);
@@ -189,7 +189,7 @@ const AdminQRScanner = () => {
 
   const startCamera = async () => {
     if (!jsQRLoaded) {
-      setCameraError("QR scanner library is still loading. Please wait a moment and try again.");
+      setCameraError("QR scanner is still loading. Please wait a moment then try again.");
       return;
     }
     if (scanningRef.current) return;
@@ -206,7 +206,7 @@ const AdminQRScanner = () => {
       setCameraActive(true);
       rafRef.current = requestAnimationFrame(tick);
     } catch (e: any) {
-      setCameraError(e?.message?? "Camera access denied");
+      setCameraError(e?.message ?? "Camera access denied");
     }
   };
 
@@ -233,70 +233,60 @@ const AdminQRScanner = () => {
   const ResultCard = () => {
     if (!result) return null;
 
-    if (result.status === "success") {
-      return (
-        <div className="rounded-xl bg-emerald-500/10 border-emerald-500/40 p-5 flex items-start gap-4">
-          <CheckCircle2 size={32} className="text-emerald-400 shrink-0 mt-0.5" />
-          <div>
-            <p className="font-bold text-emerald-300 text-lg">ADMITTED ✓</p>
-            <p className="text-foreground font-semibold">{result.name}</p>
-            <p className="text-muted-foreground text-sm">{result.package_type} × {result.quantity}</p>
-          </div>
+    if (result.status === "success") return (
+      <div className="rounded-xl bg-emerald-500/10 border-emerald-500/40 p-5 flex items-start gap-4">
+        <CheckCircle2 size={32} className="text-emerald-400 shrink-0 mt-0.5" />
+        <div>
+          <p className="font-bold text-emerald-300 text-lg">ADMITTED ✓</p>
+          <p className="text-foreground font-semibold">{result.name}</p>
+          <p className="text-muted-foreground text-sm">{result.package_type} × {result.quantity}</p>
         </div>
-      );
-    }
+      </div>
+    );
 
-    if (result.status === "already_used") {
-      return (
-        <div className="rounded-xl bg-yellow-500/10 border-yellow-500/40 p-5 flex items-start gap-4">
-          <Ban size={32} className="text-yellow-400 shrink-0 mt-0.5" />
-          <div>
-            <p className="font-bold text-yellow-300 text-lg">TICKET ALREADY USED</p>
-            <p className="text-foreground font-semibold">{result.name}</p>
-            <p className="text-muted-foreground text-sm">
-              First scanned {fmt(result.scanned_at)}{result.scanned_by? ` by ${result.scanned_by}` : ""}
-            </p>
-          </div>
+    if (result.status === "already_used") return (
+      <div className="rounded-xl bg-yellow-500/10 border-yellow-500/40 p-5 flex items-start gap-4">
+        <Ban size={32} className="text-yellow-400 shrink-0 mt-0.5" />
+        <div>
+          <p className="font-bold text-yellow-300 text-lg">TICKET ALREADY USED</p>
+          <p className="text-foreground font-semibold">{result.name}</p>
+          <p className="text-muted-foreground text-sm">
+            First scanned {fmt(result.scanned_at)}{result.scanned_by ? ` by ${result.scanned_by}` : ""}
+          </p>
         </div>
-      );
-    }
+      </div>
+    );
 
-    if (result.status === "not_found") {
-      return (
-        <div className="rounded-xl bg-red-500/10 border-red-500/40 p-5 flex items-start gap-4">
-          <XCircle size={32} className="text-red-400 shrink-0 mt-0.5" />
-          <div>
-            <p className="font-bold text-red-300 text-lg">TICKET NOT FOUND</p>
-            <p className="text-muted-foreground text-sm">This ticket code does not exist in the system.</p>
-          </div>
+    if (result.status === "not_found") return (
+      <div className="rounded-xl bg-red-500/10 border-red-500/40 p-5 flex items-start gap-4">
+        <XCircle size={32} className="text-red-400 shrink-0 mt-0.5" />
+        <div>
+          <p className="font-bold text-red-300 text-lg">TICKET NOT FOUND</p>
+          <p className="text-muted-foreground text-sm">This ticket code does not exist in the system.</p>
         </div>
-      );
-    }
+      </div>
+    );
 
-    if (result.status === "unpaid") {
-      return (
-        <div className="rounded-xl bg-orange-500/10 border-orange-500/40 p-5 flex items-start gap-4">
-          <AlertTriangle size={32} className="text-orange-400 shrink-0 mt-0.5" />
-          <div>
-            <p className="font-bold text-orange-300 text-lg">PAYMENT NOT COMPLETE</p>
-            <p className="text-foreground font-semibold">{result.name}</p>
-            <p className="text-muted-foreground text-sm">Status: {result.payment_status}</p>
-          </div>
+    if (result.status === "unpaid") return (
+      <div className="rounded-xl bg-orange-500/10 border-orange-500/40 p-5 flex items-start gap-4">
+        <AlertTriangle size={32} className="text-orange-400 shrink-0 mt-0.5" />
+        <div>
+          <p className="font-bold text-orange-300 text-lg">PAYMENT NOT COMPLETE</p>
+          <p className="text-foreground font-semibold">{result.name}</p>
+          <p className="text-muted-foreground text-sm">Status: {result.payment_status}</p>
         </div>
-      );
-    }
+      </div>
+    );
 
-    if (result.status === "error") {
-      return (
-        <div className="rounded-xl bg-red-500/10 border-red-500/40 p-5 flex items-start gap-4">
-          <XCircle size={32} className="text-red-400 shrink-0 mt-0.5" />
-          <div>
-            <p className="font-bold text-red-300 text-lg">ERROR</p>
-            <p className="text-muted-foreground text-sm">{result.message}</p>
-          </div>
+    if (result.status === "error") return (
+      <div className="rounded-xl bg-red-500/10 border-red-500/40 p-5 flex items-start gap-4">
+        <XCircle size={32} className="text-red-400 shrink-0 mt-0.5" />
+        <div>
+          <p className="font-bold text-red-300 text-lg">ERROR</p>
+          <p className="text-muted-foreground text-sm">{result.message}</p>
         </div>
-      );
-    }
+      </div>
+    );
 
     return null;
   };
@@ -312,43 +302,32 @@ const AdminQRScanner = () => {
       <div className="space-y-6">
         <div className="flex items-center justify-between">
           <h1 className="font-display text-2xl font-bold text-foreground">QR Scanner</h1>
-          <button
-            onClick={fetchScans}
-            className="flex items-center gap-2 px-3 py-2 rounded-lg border-border hover:bg-muted"
-          >
+          <button onClick={fetchScans} className="flex items-center gap-2 px-3 py-2 rounded-lg border-border hover:bg-muted">
             <RefreshCw size={16} /> Refresh
           </button>
         </div>
 
         <div className="grid lg:grid-cols-2 gap-6">
-          {/* Scanner */}
           <div className="space-y-4">
             <div className="glass rounded-xl p-4">
               <h2 className="font-semibold mb-3 flex items-center gap-2">
                 <QrCode size={20} /> Scan Ticket
               </h2>
 
-              {!cameraActive? (
-                <button
-                  onClick={startCamera}
-                  disabled={!jsQRLoaded}
-                  className="w-full py-3 rounded-lg bg-primary text-primary-foreground font-semibold disabled:opacity-50"
-                >
-                  {jsQRLoaded? "Start Camera" : "Loading Scanner..."}
+              {!cameraActive ? (
+                <button onClick={startCamera} disabled={!jsQRLoaded}
+                  className="w-full py-3 rounded-lg bg-primary text-primary-foreground font-semibold disabled:opacity-50">
+                  {jsQRLoaded ? "Start Camera" : "Loading Scanner..."}
                 </button>
               ) : (
-                <button
-                  onClick={stopCamera}
-                  className="w-full py-3 rounded-lg bg-destructive text-destructive-foreground font-semibold"
-                >
+                <button onClick={stopCamera}
+                  className="w-full py-3 rounded-lg bg-destructive text-destructive-foreground font-semibold">
                   Stop Camera
                 </button>
               )}
 
               {cameraError && (
-                <div className="mt-3 p-3 rounded-lg bg-red-500/10 text-red-400 text-sm">
-                  {cameraError}
-                </div>
+                <div className="mt-3 p-3 rounded-lg bg-red-500/10 text-red-400 text-sm">{cameraError}</div>
               )}
 
               <div className="mt-4 relative rounded-lg overflow-hidden bg-black">
@@ -362,20 +341,13 @@ const AdminQRScanner = () => {
               </div>
 
               <form onSubmit={handleManual} className="mt-4 flex gap-2">
-                <input
-                  ref={inputRef}
-                  type="text"
-                  value={manualCode}
+                <input ref={inputRef} type="text" value={manualCode}
                   onChange={(e) => setManualCode(e.target.value)}
                   placeholder="Enter ticket code manually"
-                  className="flex-1 px-3 py-2 rounded-lg border-border bg-background"
-                />
-                <button
-                  type="submit"
-                  disabled={scanning}
-                  className="px-4 py-2 rounded-lg bg-primary text-primary-foreground font-semibold disabled:opacity-50"
-                >
-                  {scanning? "Checking..." : "Submit"}
+                  className="flex-1 px-3 py-2 rounded-lg border-border bg-background" />
+                <button type="submit" disabled={scanning}
+                  className="px-4 py-2 rounded-lg bg-primary text-primary-foreground font-semibold disabled:opacity-50">
+                  {scanning ? "Checking..." : "Submit"}
                 </button>
               </form>
             </div>
@@ -383,31 +355,23 @@ const AdminQRScanner = () => {
             {result && <ResultCard />}
           </div>
 
-          {/* Scan History */}
           <div className="glass rounded-xl p-4">
             <div className="flex items-center justify-between mb-4">
-              <h2 className="font-semibold flex items-center gap-2">
-                <List size={20} /> Recent Scans
-              </h2>
+              <h2 className="font-semibold flex items-center gap-2"><List size={20} /> Recent Scans</h2>
               <div className="relative">
                 <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
-                <input
-                  type="text"
-                  value={searchScans}
-                  onChange={(e) => setSearchScans(e.target.value)}
-                  placeholder="Search..."
-                  className="pl-9 pr-3 py-2 rounded-lg border-border bg-background text-sm"
-                />
+                <input type="text" value={searchScans} onChange={(e) => setSearchScans(e.target.value)}
+                  placeholder="Search..." className="pl-9 pr-3 py-2 rounded-lg border-border bg-background text-sm" />
               </div>
             </div>
 
-            {loadingScans? (
+            {loadingScans ? (
               <div className="space-y-2">
                 {Array.from({ length: 5 }).map((_, i) => (
                   <div key={i} className="h-16 bg-muted animate-pulse rounded-lg" />
                 ))}
               </div>
-            ) : filteredScans.length === 0? (
+            ) : filteredScans.length === 0 ? (
               <div className="text-center py-8 text-muted-foreground">
                 <Ticket size={32} className="mx-auto mb-2 opacity-50" />
                 <p>No scans found</p>
