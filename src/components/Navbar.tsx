@@ -1,12 +1,11 @@
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import { useLocation } from "react-router-dom";
-import { supabase } from "@/integrations/supabase/client";
 
-const baseLinks = [
+const links = [
   { label: "Tickets", href: "/#tickets" },
   { label: "Sponsor", href: "/#sponsor" },
   { label: "Partners", href: "/#partners" },
-  { label: "Event Insights", href: "/insights" },   // ← FIXED: was /event-insights
+  { label: "Event Insights", href: "/insights" },
   { label: "Gallery", href: "/gallery" },
   { label: "Lookup", href: "/lookup" },
   { label: "Contact", href: "/#connect" },
@@ -14,27 +13,7 @@ const baseLinks = [
 
 const Navbar = () => {
   const location = useLocation();
-  const [isAdmin, setIsAdmin] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
-
-  useEffect(() => {
-    supabase.auth.getUser().then(({ data: { user } }) => {
-      if (!user) return;
-      supabase
-        .from("user_roles")
-        .select("role")
-        .eq("user_id", user.id)
-        .then(({ data }) => {
-          if (data?.some((r) => r.role === "admin" || r.role === "super_admin")) {
-            setIsAdmin(true);
-          }
-        });
-    });
-  }, []);
-
-  const links = isAdmin
-    ? [...baseLinks, { label: "Admin", href: "/admin" }]
-    : baseLinks;
 
   const handleNavClick = (href: string) => {
     setMenuOpen(false);
