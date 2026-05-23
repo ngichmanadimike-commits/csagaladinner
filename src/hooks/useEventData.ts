@@ -4,17 +4,14 @@ import { supabase } from "@/integrations/supabase/client";
 interface EventData {
   id: string;
   title: string;
-  date: string;
-  location: string;
-  description: string;
-  is_active: boolean;
+  event_date: string | null;
+  venue: string | null;
+  description: string | null;
+  status: string;
   voting_url?: string | null;
-  flyer_url?: string | null;
+  nomination_url?: string | null;
 }
 
-// ── Singleton state shared across all hook instances ──────────────────────────
-// This ensures only ONE Supabase channel is ever created, even if multiple
-// components call useEventData() at the same time.
 let cachedEvent: EventData | null = null;
 let cachedLoading = true;
 let subscribers: Array<() => void> = [];
@@ -31,9 +28,8 @@ function initChannel() {
   const fetchEvent = async () => {
     const { data, error } = await supabase
       .from("events")
-      .select("*")
-      .eq("is_active", true)
-      .order("date", { ascending: true })
+      .select("id, title, event_date, venue, description, status, voting_url, nomination_url")
+      .order("created_at", { ascending: false })
       .limit(1)
       .maybeSingle();
 
@@ -50,7 +46,6 @@ function initChannel() {
     .subscribe();
 }
 
-// ── Hook ──────────────────────────────────────────────────────────────────────
 export const useEventData = () => {
   const [, rerender] = useState(0);
 
