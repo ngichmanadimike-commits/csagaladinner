@@ -1,25 +1,6 @@
 import { createClient } from "@supabase/supabase-js";
 
-// Support both key names (VITE_SUPABASE_PUBLISHABLE_KEY or VITE_SUPABASE_ANON_KEY)
-const supabaseUrl =
-  import.meta.env.VITE_SUPABASE_URL ||
-  `https://${import.meta.env.VITE_SUPABASE_PROJECT_ID}.supabase.co`;
+const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL || "https://ivdwqewbxgjmclolyjbr.supabase.co";
+const SUPABASE_ANON_KEY = import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY || "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Iml2ZHdxZXdieGdqbWNsb2x5amJyIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzU4ODE4MzIsImV4cCI6MjA5MTQ1NzgzMn0.cVEurM60jv_EV-3DO20o4Rd9y40TXB7rLo6fgNxP5HQ";
 
-const supabaseAnonKey =
-  import.meta.env.VITE_SUPABASE_ANON_KEY ||
-  import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY;
-
-// Fallback so the app renders even without Supabase credentials
-export const supabase = createClient(
-  supabaseUrl || "https://placeholder.supabase.co",
-  supabaseAnonKey || "placeholder-key",
-  {
-    auth: {
-      persistSession: true,
-      autoRefreshToken: true,
-    },
-  }
-);
-
-export const hasSupabaseConfig = !!(supabaseUrl && supabaseAnonKey &&
-  supabaseAnonKey !== "placeholder-key");
+export const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
