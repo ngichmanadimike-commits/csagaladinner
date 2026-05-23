@@ -2,14 +2,16 @@ import { useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 
 interface EventData {
-  id: string;
-  title: string;
+  id: number;
+  title: string | null;
+  name: string;
   event_date: string | null;
   venue: string | null;
   description: string | null;
-  status: string;
+  status: string | null;
   voting_url?: string | null;
   nomination_url?: string | null;
+  flyer_url?: string | null;
 }
 
 let cachedEvent: EventData | null = null;
@@ -28,7 +30,7 @@ function initChannel() {
   const fetchEvent = async () => {
     const { data, error } = await supabase
       .from("events")
-      .select("id, title, event_date, venue, description, status, voting_url, nomination_url")
+      .select("id, name, title, event_date, venue, description, status, voting_url, nomination_url, flyer_url")
       .order("created_at", { ascending: false })
       .limit(1)
       .maybeSingle();
