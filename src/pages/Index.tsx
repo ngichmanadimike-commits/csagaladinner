@@ -1,8 +1,15 @@
+import Navbar from "@/components/Navbar";
+import Footer from "@/components/Footer";
+import HeroSection from "@/components/HeroSection";
+
 const Index = () => {
   return (
-    <div style={{color:"white",padding:"20px",background:"#111",minHeight:"100vh"}}>
-      <h1>CSA Gala Dinner 2026</h1>
-      <p>Site is loading...</p>
+    <div className="min-h-screen bg-background">
+      <Navbar />
+      <main>
+        <HeroSection />
+      </main>
+      <Footer />
     </div>
   );
 };
