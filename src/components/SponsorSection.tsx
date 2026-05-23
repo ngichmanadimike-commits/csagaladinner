@@ -23,15 +23,16 @@ const SponsorSection = () => {
   const total = Math.round(students * COST_PER_STUDENT * levels[levelIdx].multiplier);
 
   const handlePaymentSubmitted = async (info: { mpesaCode: string; phone: string; source: "stk" | "manual" }) => {
-    const { data, error } = await supabase.from("sponsorships").insert({
+   const { data, error } = await supabase.from("sponsorships").insert({
       sponsor_name: sponsor.name,
-      sponsor_email: sponsor.email || null,
       sponsor_phone: sponsor.phone || info.phone,
-      num_students: students,
+      sponsor_email: sponsor.email || null,
       level: levels[levelIdx].label,
+      num_students: students,
       amount: total,
-      mpesa_code: info.mpesaCode,
-      payment_status: info.source === "stk" ? "verified" : "pending",
+      mpesa_code: info.mpesaCode || null,
+      payment_method: info.source === "stk" ? "mpesa_stk" : "mpesa_manual",
+      payment_status: info.source === "stk" ? "paid" : "pending",
       verified: info.source === "stk",
       verified_at: info.source === "stk" ? new Date().toISOString() : null,
     }).select("sponsor_code").single();
@@ -43,7 +44,7 @@ const SponsorSection = () => {
       setSponsorCode(data.sponsor_code);
       toast.success(`Sponsor code: ${data.sponsor_code}`);
     }
-    toast.success("Sponsorship recorded — thank you!");
+    toast.success("Sponsorship recorded — thank you!"); 
   };
 
   const canProceed = sponsor.name.trim() && sponsor.phone.trim();
