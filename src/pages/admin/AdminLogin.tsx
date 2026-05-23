@@ -1,76 +1,9 @@
-import { useState } from "react";
-import { useNavigate } from "react-router-dom";
-import { supabase } from "@/integrations/supabase/client";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { toast } from "sonner";
-
-export default function AdminLogin() {
-  const navigate = useNavigate();
-  const [email, setEmail] = useState("");
-  const [password, setPassword] = useState("");
-  const [loading, setLoading] = useState(false);
-
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setLoading(true);
-    try {
-      const { error } = await supabase.auth.signInWithPassword({
-        email: email.trim(),
-        password,
-      });
-      if (error) {
-        toast.error(error.message);
-        return;
-      }
-      navigate("/admin/dashboard", { replace: true });
-    } catch (err: any) {
-      toast.error("Something went wrong");
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  return (
-    <div className="min-h-screen flex items-center justify-center bg-background p-4">
-      <div className="w-full max-w-md bg-card border rounded-2xl p-8">
-        <h1 className="text-3xl font-serif text-center mb-2">CSA Admin Login</h1>
-        <p className="text-muted-foreground text-center mb-8">
-          Sign in to access the admin dashboard
-        </p>
-        <form onSubmit={handleSubmit} className="space-y-5">
-          <div className="space-y-2">
-            <Label>Email</Label>
-            <Input
-              type="email"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              required
-              autoComplete="email"
-            />
-          </div>
-          <div className="space-y-2">
-            <Label>Password</Label>
-            <Input
-              type="password"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              required
-            />
-          </div>
-          <Button type="submit" className="w-full" disabled={loading}>
-            {loading ? "Signing in…" : "Sign In"}
-          </Button>
-          <button
-            type="button"
-            onClick={() => navigate("/")}
-            className="w-full text-sm text-muted-foreground"
-          >
-            ← Back to site
-          </button>
-        </form>
-      </div>
-    </div>
-  );
-            }
+import{useState}from"react";import{useNavigate}from"react-router-dom";import{supabase}from"@/integrations/supabase/client";
+export default function AdminLogin(){
+const navigate=useNavigate();
+const[e,sE]=useState("");
+const[p,sP]=useState("");
+const[l,sL]=useState(false);
+const[err,sErr]=useState("");
+const go=async()=>{sL(true);sErr("");const{error}=await supabase.auth.signInWithPassword({email:e,password:p});if(error){sErr(error.message);sL(false);return;}navigate("/admin/dashboard",{replace:true});};
+return(<div style={{minHeight:"100vh",display:"flex",alignItems:"center",justifyContent:"center",background:"#0a0a0a"}}><div style={{background:"#1a1a1a",padding:"2rem",borderRadius:"1rem",width:"90%",maxWidth:"400px"}}><h1 style={{color:"white",textAlign:"center",marginBottom:"1.5rem"}}>CSA Admin</h1>{err&&<p style={{color:"red"}}>{err}</p>}<input placeholder="Email" value={e} onChange={x=>sE(x.target.value)} style={{width:"100%",padding:"0.75rem",marginBottom:"1rem",borderRadius:"0.5rem",border:"1px solid #333",background:"#2a2a2a",color:"white",boxSizing:"border-box"}}/><input type="password" placeholder="Password" value={p} onChange={x=>sP(x.target.value)} style={{width:"100%",padding:"0.75rem",marginBottom:"1rem",borderRadius:"0.5rem",border:"1px solid #333",background:"#2a2a2a",color:"white",boxSizing:"border-box"}}/><button onClick={go} disabled={l} style={{width:"100%",padding:"0.75rem",background:"#c8860a",color:"white",border:"none",borderRadius:"0.5rem",fontSize:"1rem"}}>{l?"Signing in...":"Sign In"}</button></div></div>);}
