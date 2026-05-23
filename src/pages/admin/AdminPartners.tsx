@@ -1,4 +1,5 @@
-import AdminLayout from "./AdminLayout";
+import AdminLayout from "../../components/admin/AdminLayout";
+
 const AdminPartners = () => (
   <AdminLayout>
     <div>
@@ -7,4 +8,5 @@ const AdminPartners = () => (
     </div>
   </AdminLayout>
 );
+
 export default AdminPartners;
