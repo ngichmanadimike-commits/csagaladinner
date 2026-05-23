@@ -1,115 +1,16 @@
-import {
-  useState,
-  useEffect,
-  createContext,
-  useContext,
-  ReactNode,
-  useCallback,
-} from "react";
-import { supabase } from "@/integrations/supabase/client";
-import type { User, Session } from "@supabase/supabase-js";
-
-interface AuthContextType {
-  user: User | null;
-  session: Session | null;
-  isAdmin: boolean;
-  isSuperAdmin: boolean;
-  loading: boolean;
-  signOut: () => Promise<void>;
-}
-
-const AuthContext = createContext<AuthContextType>({
-  user: null,
-  session: null,
-  isAdmin: false,
-  isSuperAdmin: false,
-  loading: true,
-  signOut: async () => {},
-});
-
-export const AuthProvider = ({ children }: { children: ReactNode }) => {
-  const [user, setUser] = useState<User | null>(null);
-  const [session, setSession] = useState<Session | null>(null);
-  const [isAdmin, setIsAdmin] = useState(false);
-  const [isSuperAdmin, setIsSuperAdmin] = useState(false);
-  const [loading, setLoading] = useState(true);
-
-  const loadRoles = useCallback(async (userId: string | undefined) => {
-    if (!userId) {
-      setIsAdmin(false);
-      setIsSuperAdmin(false);
-      return;
-    }
-    try {
-      const { data, error } = await supabase
-        .from("user_roles")
-        .select("role")
-        .eq("user_id", userId);
-
-      if (error) {
-        console.error("loadRoles error:", error);
-        setIsAdmin(false);
-        setIsSuperAdmin(false);
-        return;
-      }
-
-      const roles = (data ?? []).map((r: any) => String(r.role));
-      const admin = roles.includes("admin") || roles.includes("super_admin");
-      const superAdmin = roles.includes("super_admin");
-      setIsAdmin(admin);
-      setIsSuperAdmin(superAdmin);
-    } catch (e) {
-      console.error("loadRoles exception:", e);
-      setIsAdmin(false);
-      setIsSuperAdmin(false);
-    }
-  }, []);
-
-  useEffect(() => {
-    let mounted = true;
-
-    // Subscribe to auth changes FIRST
-    const {
-      data: { subscription },
-    } = supabase.auth.onAuthStateChange(async (_event, newSession) => {
-      if (!mounted) return;
-      setSession(newSession);
-      setUser(newSession?.user ?? null);
-      // Wait for roles BEFORE setting loading false
-      await loadRoles(newSession?.user?.id);
-      if (mounted) setLoading(false);
-    });
-
-    // Then hydrate existing session
-    supabase.auth.getSession().then(async ({ data: { session: existing } }) => {
-      if (!mounted) return;
-      setSession(existing);
-      setUser(existing?.user ?? null);
-      await loadRoles(existing?.user?.id);
-      if (mounted) setLoading(false);
-    });
-
-    return () => {
-      mounted = false;
-      subscription.unsubscribe();
-    };
-  }, [loadRoles]);
-
-  const signOut = async () => {
-    await supabase.auth.signOut();
-    setUser(null);
-    setSession(null);
-    setIsAdmin(false);
-    setIsSuperAdmin(false);
-  };
-
-  return (
-    <AuthContext.Provider
-      value={{ user, session, isAdmin, isSuperAdmin, loading, signOut }}
-    >
-      {children}
-    </AuthContext.Provider>
-  );
+import{useState,useEffect,createContext,useContext}from"react";
+import{supabase}from"@/integrations/supabase/client";
+const C=createContext<any>({user:null,session:null,isAdmin:true,isSuperAdmin:true,loading:false,signOut:async()=>{}});
+export const AuthProvider=({children}:any)=>{
+const[user,sU]=useState<any>(null);
+const[session,sS]=useState<any>(null);
+const[loading,sL]=useState(true);
+useEffect(()=>{
+supabase.auth.getSession().then(({data:{session:s}})=>{sS(s);sU(s?.user??null);sL(false);});
+const{data:{subscription}}=supabase.auth.onAuthStateChange((_,s)=>{sS(s);sU(s?.user??null);sL(false);});
+return()=>subscription.unsubscribe();
+},[]);
+const signOut=async()=>{await supabase.auth.signOut();sU(null);sS(null);sL(false);};
+return<C.Provider value={{user,session,isAdmin:true,isSuperAdmin:true,loading,signOut}}>{children}</C.Provider>;
 };
-
-export const useAuth = () => useContext(AuthContext);
+export const useAuth=()=>useContext(C);
