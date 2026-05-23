@@ -18,7 +18,6 @@ interface Package {
 interface RegistrationModalProps {
   open?: boolean;
   onOpenChange?: (open: boolean) => void;
-  // Also support the pkg/onClose pattern used in TicketsSection
   pkg?: Package | null;
   onClose?: () => void;
   selectedPackage?: Package | null;
@@ -31,7 +30,6 @@ const RegistrationModal = ({
   onClose,
   selectedPackage: _selectedPackage,
 }: RegistrationModalProps) => {
-  // Normalise: support both calling conventions
   const selectedPackage = pkg ?? _selectedPackage ?? null;
   const isOpen = open !== undefined ? open : !!selectedPackage;
   const handleOpenChange = (v: boolean) => {
@@ -51,39 +49,46 @@ const RegistrationModal = ({
   const [ticketCode, setTicketCode] = useState("");
 
   const totalCost = selectedPackage ? selectedPackage.price * quantity : 0;
-  const discountAmount = promoCode ? Math.round(totalCost * (promoCode.discount_percent / 100)) : 0;
-  const finalCost = totalCost - discountAmount;
+  const discountAmount = promoCode
+    ? promoCode.discount_type === "percentage"
+      ? Math.round(totalCost * (promoCode.discount_value / 100))
+      : Math.min(promoCode.discount_value, totalCost)
+    : 0;
+  const finalCost = Math.max(0, totalCost - discountAmount);
 
   useEffect(() => {
     if (!isOpen) {
-      setName("");
-      setEmail("");
-      setPhone("");
-      setQuantity(1);
-      setPromoInput("");
-      setPromoCode(null);
-      setSuccess(false);
-      setTicketCode("");
+      setName(""); setEmail(""); setPhone("");
+      setQuantity(1); setPromoInput("");
+      setPromoCode(null); setSuccess(false); setTicketCode("");
     }
   }, [isOpen]);
 
+  // Queries the CORRECT table: promotions
   const validatePromo = async () => {
     if (!promoInput.trim()) return;
     setPromoChecking(true);
     setPromoCode(null);
     try {
       const { data, error } = await supabase
-        .from("promo_codes")
-        .select("*")
+        .from("promotions")
+        .select("id, code, discount_type, discount_value, max_uses, used_count, expires_at, start_at, is_active, deleted_at")
         .eq("code", promoInput.toUpperCase())
-        .eq("active", true)
+        .eq("is_active", true)
+        .is("deleted_at", null)
         .single();
 
       if (error || !data) { toast.error("Invalid promo code"); return; }
-      if (data.expires_at && new Date(data.expires_at) < new Date()) { toast.error("Promo code has expired"); return; }
-      if (data.used_count >= data.max_uses) { toast.error("Promo code usage limit reached"); return; }
+      if (new Date(data.expires_at) < new Date()) { toast.error("Promo code has expired"); return; }
+      if (new Date(data.start_at) > new Date()) { toast.error("Promo code is not active yet"); return; }
+      if (data.max_uses !== null && data.used_count >= data.max_uses) {
+        toast.error("Promo code usage limit reached"); return;
+      }
       setPromoCode(data);
-      toast.success(`${data.discount_percent}% discount applied!`);
+      const label = data.discount_type === "percentage"
+        ? `${data.discount_value}% discount applied!`
+        : `KES ${data.discount_value} discount applied!`;
+      toast.success(label);
     } catch {
       toast.error("Could not validate promo code");
     } finally {
@@ -96,41 +101,72 @@ const RegistrationModal = ({
     if (!selectedPackage) return;
     setSubmitting(true);
 
-    const code = `CSA-${Math.random().toString(36).substr(2, 9).toUpperCase()}`;
-
-    // Try to insert into registrations table; if it fails (table missing / RLS),
-    // still show success so users aren't blocked.
     try {
+      // Step 1: get the active event id
+      const { data: eventData, error: eventError } = await supabase
+        .from("events")
+        .select("id")
+        .order("created_at", { ascending: false })
+        .limit(1)
+        .single();
+
+      if (eventError || !eventData) {
+        toast.error("Could not find event. Please try again.");
+        setSubmitting(false);
+        return;
+      }
+
+      const code = `CSA-${Math.random().toString(36).substr(2, 9).toUpperCase()}`;
+
+      // Step 2: insert with CORRECT columns
       const { error: regError } = await supabase
         .from("registrations")
         .insert({
-          name, email, phone,
-          package_id: selectedPackage.id,
+          name,
+          email,
+          phone,
+          event_id: eventData.id,
+          package_type: selectedPackage.id, // slug e.g. "individual"
           quantity,
           total_cost: finalCost,
           total_paid: 0,
+          original_price: totalCost,
+          discount_amount: discountAmount,
+          promo_code: promoCode?.code || null,
           payment_status: "pending",
+          payment_type: "full",
           ticket_code: code,
-          promo_code_id: promoCode?.id || null,
+          ticket_issued: false,
         });
 
       if (regError) {
-        console.warn("Registration DB insert failed (non-fatal):", regError.message);
-      } else if (promoCode) {
-        await supabase
-          .from("promo_codes")
-          .update({ used_count: promoCode.used_count + 1 })
-          .eq("id", promoCode.id);
+        console.error("Registration failed:", regError.message);
+        toast.error("Registration failed: " + regError.message);
+        setSubmitting(false);
+        return;
       }
-    } catch (err) {
-      console.warn("Registration error (non-fatal):", err);
-    }
 
-    // Always show success — ticket code is generated client-side
-    setTicketCode(code);
-    setSuccess(true);
-    toast.success("Registration submitted! Your ticket code: " + code);
-    setSubmitting(false);
+      // Step 3: record promo redemption if used
+      if (promoCode) {
+        await supabase.from("promo_redemptions").insert({
+          code: promoCode.code,
+          promotion_id: promoCode.id,
+          email,
+          phone,
+          discount_amount: discountAmount,
+          status: "redeemed",
+        });
+      }
+
+      setTicketCode(code);
+      setSuccess(true);
+      toast.success("Registration submitted! Ticket code: " + code);
+    } catch (err: any) {
+      toast.error("Unexpected error. Please try again.");
+      console.error(err);
+    } finally {
+      setSubmitting(false);
+    }
   };
 
   if (!selectedPackage) return null;
@@ -154,7 +190,7 @@ const RegistrationModal = ({
               </div>
             )}
             <p className="text-muted-foreground text-sm">
-              Save your ticket code above. You'll need it for entry and payment.
+              Save your ticket code. You'll need it for entry and payment.
             </p>
             <Button onClick={() => handleOpenChange(false)} className="w-full">Close</Button>
           </div>
@@ -188,7 +224,10 @@ const RegistrationModal = ({
               </div>
               {promoCode && (
                 <p className="text-sm text-emerald-400 mt-1 flex items-center gap-1">
-                  <CheckCircle2 size={14} /> {promoCode.discount_percent}% discount applied
+                  <CheckCircle2 size={14} />
+                  {promoCode.discount_type === "percentage"
+                    ? `${promoCode.discount_value}% discount applied`
+                    : `KES ${promoCode.discount_value} discount applied`}
                 </p>
               )}
             </div>
@@ -211,4 +250,4 @@ const RegistrationModal = ({
   );
 };
 
-export default RegistrationModal;
+export default RegistrationModal;a
