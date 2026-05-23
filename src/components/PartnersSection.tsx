@@ -60,7 +60,7 @@ const PartnersSection = () => {
               whileInView={{ opacity: 1, y: 0 }}
               viewport={{ once: true }}
               transition={{ delay: i * 0.1 }}
-              className="glass rounded-2xl p-6 flex flex-col hover:border-primary/50 transition-all duration-300"
+              className="glass rounded-2xl p-6 flex-col hover:border-primary/50 transition-all duration-300"
             >
               <h3 className="font-display text-xl font-bold mb-2">{pkg.name}</h3>
               <div className="flex items-baseline gap-1 mb-3">
@@ -80,6 +80,7 @@ const PartnersSection = () => {
                 ))}
               </ul>
               
+              <a
                 href="#partner-form"
                 className="mt-6 w-full py-3 rounded-lg bg-primary/10 text-primary font-semibold text-center hover:bg-primary hover:text-primary-foreground transition-all duration-300 block"
               >
