@@ -35,7 +35,7 @@ const AdminPartnerPackages = () => {
 
     if (error) toast.error("Failed to load packages: " + error.message);
 
-    setPackages((data as PkgRow[]) || []);
+    setPackages(((data as PkgRow[]) || []).map((p) => ({ ...p, perks: p.perks ?? [] })));
     setLoading(false);
   };
 
@@ -45,7 +45,7 @@ const AdminPartnerPackages = () => {
 
   const updateLocal = (i: number, patch: Partial<PkgRow>) => {
     setPackages((prev) =>
-      prev.map((p, idx) => (idx === i? {...p,...patch } : p))
+      prev.map((p, idx) => (idx === i ? { ...p, ...patch } : p))
     );
   };
 
@@ -90,7 +90,7 @@ const AdminPartnerPackages = () => {
 
       setPackages((prev) =>
         prev.map((pkg, idx) =>
-          idx === i? {...pkg, id: data.id } : pkg
+          idx === i ? { ...pkg, id: data.id } : pkg
         )
       );
     }
@@ -102,7 +102,7 @@ const AdminPartnerPackages = () => {
     const p = packages[i];
 
     if (!p.id) {
-      setPackages((prev) => prev.filter((_, idx) => idx!== i));
+      setPackages((prev) => prev.filter((_, idx) => idx !== i));
       return;
     }
 
@@ -120,13 +120,13 @@ const AdminPartnerPackages = () => {
 
     toast.success("Deleted");
 
-    setPackages((prev) => prev.filter((_, idx) => idx!== i));
+    setPackages((prev) => prev.filter((_, idx) => idx !== i));
   };
 
   const addNew = () =>
     setPackages((prev) => [
     ...prev,
-     {...blank(), display_order: prev.length + 1 },
+     { ...blank(), display_order: prev.length + 1 },
     ]);
 
   if (loading)
