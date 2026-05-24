@@ -211,13 +211,15 @@ const PaymentStatusLookup = () => {
                 </div>
 
                 <div className="bg-primary/5 border-primary/20 rounded-xl px-4 py-3 flex items-center justify-between">
-                  <div>
-                    <p className="text-xs text-muted-foreground uppercase tracking-wider mb-0.5">Booking Code</p>
-                    <p className="font-mono font-extrabold text-xl text-primary tracking-widest">
-                      {show && r.ticket_code ? r.ticket_code : maskCode(r.ticket_code || "")}
-                    </p>
-                  </div>
-                  {r.ticket_code && (
+                  <div className="bg-primary/5 border-primary/20 rounded-xl px-4 py-3">
+                  <p className="text-xs text-muted-foreground uppercase tracking-wider mb-0.5">Booking Code</p>
+                  <p className="font-mono font-extrabold text-xl text-primary tracking-widest select-none">
+                    {maskCode(r.ticket_code || "")}
+                  </p>
+                  <p className="text-xs text-muted-foreground mt-1">Code is masked for security. Check your email or contact support.</p>
+                </div>
+            
+              {r.ticket_code && (
                     <button onClick={() => copy(r.ticket_code!, "Booking code")}
                       className="p-2 rounded-lg hover:bg-muted text-muted-foreground hover:text-foreground">
                       <Copy size={16} />
