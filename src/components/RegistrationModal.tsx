@@ -1,3 +1,4 @@
+// src/components/RegistrationModal.tsx
 import { useState, useEffect } from "react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
@@ -5,7 +6,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
-import { CheckCircle2, Loader2, ArrowLeft, Smartphone, Copy } from "lucide-react";
+import { CheckCircle2, Loader2, ArrowLeft, Smartphone, Copy, Lock } from "lucide-react";
 
 interface Package {
   id: string;
@@ -13,6 +14,9 @@ interface Package {
   price: number;
   max_tickets?: number;
   perks: string[];
+  partial_allowed?: boolean;
+  installments?: number[];
+  installment_mode?: "amount" | "percent";
 }
 
 interface RegistrationModalProps {
@@ -41,8 +45,8 @@ const RegistrationModal = ({
     if (!v) onClose?.();
   };
 
-  // step: register → success → payment → done
-  const [step, setStep] = useState<"register" | "success" | "payment" | "done">("register");
+  // step: register → payment → done
+  const [step, setStep] = useState<"register" | "payment" | "done">("register");
 
   // registration fields
   const [name, setName] = useState("");
@@ -54,6 +58,10 @@ const RegistrationModal = ({
   const [promoChecking, setPromoChecking] = useState(false);
   const [submitting, setSubmitting] = useState(false);
 
+  // package instalments (loaded from DB)
+  const [pkgData, setPkgData] = useState<any>(null);
+  const [selectedInstalment, setSelectedInstalment] = useState<number | null>(null);
+
   // post-registration
   const [ticketCode, setTicketCode] = useState("");
   const [registrationId, setRegistrationId] = useState("");
@@ -62,6 +70,7 @@ const RegistrationModal = ({
   // payment fields
   const [mpesaCode, setMpesaCode] = useState("");
   const [payerPhone, setPayerPhone] = useState("");
+  const [payAmount, setPayAmount] = useState(""); // user-editable amount
   const [paySubmitting, setPaySubmitting] = useState(false);
 
   const totalCost = selectedPackage ? selectedPackage.price * quantity : 0;
@@ -72,15 +81,41 @@ const RegistrationModal = ({
     : 0;
   const displayFinalCost = Math.max(0, totalCost - discountAmount);
 
+  // Load full package data (for instalments)
+  useEffect(() => {
+    if (!selectedPackage?.id) return;
+    supabase
+      .from("ticket_packages")
+      .select("partial_allowed, installments, installment_mode, price")
+      .eq("id", selectedPackage.id)
+      .maybeSingle()
+      .then(({ data }) => { if (data) setPkgData(data); });
+  }, [selectedPackage?.id]);
+
   useEffect(() => {
     if (!isOpen) {
       setStep("register");
       setName(""); setEmail(""); setPhone(""); setQuantity(1);
       setPromoInput(""); setPromoCode(null);
       setTicketCode(""); setRegistrationId(""); setFinalAmount(0);
-      setMpesaCode(""); setPayerPhone("");
+      setMpesaCode(""); setPayerPhone(""); setPayAmount("");
+      setSelectedInstalment(null); setPkgData(null);
     }
   }, [isOpen]);
+
+  // Compute instalment options
+  const getInstalments = (): number[] => {
+    const src = pkgData ?? selectedPackage;
+    if (!src?.partial_allowed) return [];
+    const raw: number[] = Array.isArray(src.installments) ? src.installments : [];
+    if (!raw.length) return [];
+    if ((src.installment_mode ?? "amount") === "percent") {
+      return raw.map((pct: number) => Math.round((pct / 100) * (src.price ?? selectedPackage?.price ?? 0)));
+    }
+    return raw.map((n: number) => Number(n));
+  };
+
+  const instalments = getInstalments();
 
   const validatePromo = async () => {
     if (!promoInput.trim()) return;
@@ -115,6 +150,7 @@ const RegistrationModal = ({
         .from("events").select("id").order("created_at", { ascending: false }).limit(1).single();
       if (eventErr || !eventData) { toast.error("Event not found. Please try again."); return; }
 
+      // NOTE: ticket_code is generated but NOT shown until payment is submitted
       const code = `CSA-${Math.random().toString(36).substr(2, 9).toUpperCase()}`;
       const amount = Math.max(0, totalCost - discountAmount);
 
@@ -146,22 +182,31 @@ const RegistrationModal = ({
         });
       }
 
+      // Store internally but do NOT display yet
       setTicketCode(code);
       setRegistrationId(regData.id);
       setFinalAmount(amount);
       setPayerPhone(phone);
-      setStep("success");
+      setPayAmount(String(amount)); // default to full amount
+      setStep("payment"); // skip directly to payment step — code hidden
     } catch { toast.error("Unexpected error. Please try again."); }
     finally { setSubmitting(false); }
   };
 
+  const handleSelectInstalment = (amt: number) => {
+    setSelectedInstalment(amt);
+    setPayAmount(String(amt));
+  };
+
   const handlePayment = async () => {
+    const amountToPay = Number(payAmount);
     if (!mpesaCode.trim()) { toast.error("Enter your M-Pesa transaction code"); return; }
+    if (!amountToPay || amountToPay <= 0) { toast.error("Enter a valid amount"); return; }
     setPaySubmitting(true);
     try {
       const { error } = await supabase.from("payments").insert({
         registration_id: registrationId,
-        amount: finalAmount,
+        amount: amountToPay,
         mpesa_code: mpesaCode.trim().toUpperCase(),
         payment_method: "mpesa_manual",
         phone: payerPhone,
@@ -169,9 +214,9 @@ const RegistrationModal = ({
       });
       if (error) { toast.error("Could not save payment: " + error.message); return; }
 
-      // update total_paid on registration so lookup shows it
+      // Update total_paid on registration
       await supabase.from("registrations")
-        .update({ total_paid: finalAmount })
+        .update({ total_paid: amountToPay })
         .eq("id", registrationId);
 
       setStep("done");
@@ -192,9 +237,8 @@ const RegistrationModal = ({
         <DialogHeader>
           <DialogTitle>
             {step === "register" && `Register — ${selectedPackage.name}`}
-            {step === "success" && "Now Make Payment"}
-            {step === "payment" && "Enter M-Pesa Code"}
-            {step === "done" && "All Done!"}
+            {step === "payment" && "Make Payment"}
+            {step === "done" && "Payment Submitted!"}
           </DialogTitle>
           <DialogDescription>CSA Gala Dinner 2026</DialogDescription>
         </DialogHeader>
@@ -259,6 +303,14 @@ const RegistrationModal = ({
               </div>
             </div>
 
+            {/* Instalment preview */}
+            {instalments.length > 0 && (
+              <div className="bg-primary/5 border border-primary/20 rounded-xl p-3 text-sm">
+                <p className="font-semibold text-foreground mb-1">Instalment options available</p>
+                <p className="text-xs text-muted-foreground">You can pay in instalments on the next step.</p>
+              </div>
+            )}
+
             <Button type="submit" disabled={submitting} className="w-full">
               {submitting
                 ? <><Loader2 size={15} className="animate-spin mr-2" />Registering...</>
@@ -267,24 +319,15 @@ const RegistrationModal = ({
           </form>
         )}
 
-        {/* ── STEP 2: PAYMENT INSTRUCTIONS ── */}
-        {step === "success" && (
+        {/* ── STEP 2: PAYMENT ── */}
+        {step === "payment" && (
           <div className="space-y-5">
-            <div className="bg-emerald-500/10 border border-emerald-500/30 rounded-xl p-4 text-center">
-              <CheckCircle2 className="mx-auto text-emerald-400 mb-2" size={32} />
-              <p className="font-bold text-emerald-300">Registration successful!</p>
-              <p className="text-sm text-muted-foreground mt-1">Save this booking code — you'll need it to check in at the event.</p>
-              <div className="mt-3 bg-background/50 rounded-lg px-4 py-3 flex items-center justify-between gap-3">
-                <div>
-                  <p className="text-xs text-muted-foreground uppercase tracking-wider mb-0.5">Booking Code</p>
-                  <p className="font-mono font-extrabold text-xl text-primary tracking-widest">{ticketCode}</p>
-                </div>
-                <button
-                  onClick={() => copyToClipboard(ticketCode, "Booking code")}
-                  className="p-2 rounded-lg hover:bg-muted text-muted-foreground hover:text-foreground"
-                >
-                  <Copy size={16} />
-                </button>
+            {/* Booking code is LOCKED — only shown after payment */}
+            <div className="bg-muted/50 border border-border rounded-xl p-4 flex items-center gap-3">
+              <Lock size={20} className="text-muted-foreground flex-shrink-0" />
+              <div>
+                <p className="text-sm font-semibold text-foreground">Your booking code is ready</p>
+                <p className="text-xs text-muted-foreground mt-0.5">Complete payment below — your code will appear after you submit your M-Pesa transaction code.</p>
               </div>
             </div>
 
@@ -312,55 +355,64 @@ const RegistrationModal = ({
                   <p className="text-white font-semibold">{TILL.accountName}</p>
                 </div>
                 <div>
-                  <p className="text-white/50 text-xs uppercase tracking-wider mb-0.5">Amount</p>
-                  <div className="flex items-center gap-2">
-                    <p className="font-bold text-lg" style={{ color: "#D4AF37" }}>KES {finalAmount.toLocaleString()}</p>
-                    <button onClick={() => copyToClipboard(String(finalAmount), "Amount")}
-                      className="text-white/40 hover:text-white"><Copy size={13} /></button>
-                  </div>
+                  <p className="text-white/50 text-xs uppercase tracking-wider mb-0.5">Full Amount</p>
+                  <p className="font-bold text-lg" style={{ color: "#D4AF37" }}>KES {finalAmount.toLocaleString()}</p>
                 </div>
               </div>
             </div>
 
-            {/* Step-by-step instructions */}
-            <div className="glass rounded-xl p-4">
-              <p className="font-semibold text-sm mb-2">How to pay:</p>
-              <ol className="text-sm text-muted-foreground space-y-1.5 list-decimal list-inside">
-                <li>Open <strong className="text-foreground">M-PESA</strong> on your phone</li>
-                <li>Select <strong className="text-foreground">Lipa na M-PESA</strong></li>
-                <li>Select <strong className="text-foreground">Buy Goods and Services</strong></li>
-                <li>Enter Till Number: <strong className="text-primary">{TILL.number}</strong></li>
-                <li>Enter Amount: <strong className="text-primary">KES {finalAmount.toLocaleString()}</strong></li>
-                <li>Enter your PIN and confirm</li>
-                <li>You'll receive an SMS with a transaction code (e.g. <span className="font-mono text-foreground">SJK3H7T9XQ</span>)</li>
-              </ol>
-            </div>
-
-            <Button onClick={() => setStep("payment")} className="w-full text-base py-3">
-              I've Paid — Enter Transaction Code
-            </Button>
-            <button onClick={() => handleOpenChange(false)}
-              className="w-full text-sm text-muted-foreground underline">
-              I'll pay later (use booking code to look up status)
-            </button>
-          </div>
-        )}
-
-        {/* ── STEP 3: ENTER M-PESA CODE ── */}
-        {step === "payment" && (
-          <div className="space-y-5">
-            <button onClick={() => setStep("success")}
-              className="flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground">
-              <ArrowLeft size={15} /> Back
-            </button>
-
-            <div className="bg-primary/5 border border-primary/20 rounded-xl p-4 text-center">
-              <p className="text-xs text-muted-foreground uppercase tracking-wider mb-1">Booking Code</p>
-              <p className="font-mono font-extrabold text-xl text-primary">{ticketCode}</p>
-              <p className="text-xs text-muted-foreground mt-1">Amount: KES {finalAmount.toLocaleString()}</p>
-            </div>
+            {/* Instalment selector */}
+            {instalments.length > 0 && (
+              <div className="space-y-2">
+                <p className="text-sm font-semibold text-foreground">Pay an instalment instead:</p>
+                <div className="flex flex-wrap gap-2">
+                  {instalments.map((amt, idx) => (
+                    <button
+                      key={idx}
+                      onClick={() => handleSelectInstalment(amt)}
+                      className={`px-3 py-1.5 rounded-lg text-sm font-semibold border transition-colors ${
+                        selectedInstalment === amt
+                          ? "bg-primary text-primary-foreground border-primary"
+                          : "bg-muted text-foreground border-border hover:border-primary"
+                      }`}
+                    >
+                      KES {amt.toLocaleString()}
+                    </button>
+                  ))}
+                  <button
+                    onClick={() => { setSelectedInstalment(null); setPayAmount(String(finalAmount)); }}
+                    className={`px-3 py-1.5 rounded-lg text-sm font-semibold border transition-colors ${
+                      selectedInstalment === null
+                        ? "bg-primary text-primary-foreground border-primary"
+                        : "bg-muted text-foreground border-border hover:border-primary"
+                    }`}
+                  >
+                    Full: KES {finalAmount.toLocaleString()}
+                  </button>
+                </div>
+              </div>
+            )}
 
             <div className="space-y-3">
+              {/* Editable amount field */}
+              <div>
+                <Label htmlFor="p-amount">Amount You Are Paying (KES)</Label>
+                <Input
+                  id="p-amount"
+                  type="number"
+                  min="1"
+                  max={finalAmount}
+                  value={payAmount}
+                  onChange={e => { setPayAmount(e.target.value); setSelectedInstalment(null); }}
+                  placeholder={`e.g. ${finalAmount}`}
+                  className="mt-1 font-mono"
+                />
+                {Number(payAmount) < finalAmount && Number(payAmount) > 0 && (
+                  <p className="text-xs text-yellow-400 mt-1">
+                    Paying partial: KES {Number(payAmount).toLocaleString()} of KES {finalAmount.toLocaleString()} — remaining KES {(finalAmount - Number(payAmount)).toLocaleString()} will be due.
+                  </p>
+                )}
+              </div>
               <div>
                 <Label htmlFor="p-phone">Your Phone Number</Label>
                 <Input id="p-phone" type="tel" value={payerPhone}
@@ -380,7 +432,7 @@ const RegistrationModal = ({
               </div>
             </div>
 
-            <Button onClick={handlePayment} disabled={!mpesaCode.trim() || paySubmitting} className="w-full text-base py-3">
+            <Button onClick={handlePayment} disabled={!mpesaCode.trim() || !payAmount || paySubmitting} className="w-full text-base py-3">
               {paySubmitting
                 ? <><Loader2 size={15} className="animate-spin mr-2" />Submitting...</>
                 : "Submit Payment for Approval"}
@@ -392,7 +444,7 @@ const RegistrationModal = ({
           </div>
         )}
 
-        {/* ── STEP 4: DONE ── */}
+        {/* ── STEP 3: DONE — booking code now revealed ── */}
         {step === "done" && (
           <div className="text-center py-4 space-y-5">
             <CheckCircle2 className="mx-auto text-emerald-400" size={56} />
@@ -402,14 +454,23 @@ const RegistrationModal = ({
                 Your payment is being verified by the Treasurer. This usually takes 3–6 hours.
               </p>
             </div>
+
+            {/* Booking code revealed ONLY now */}
             <div className="bg-primary/10 rounded-xl py-4 px-5">
               <p className="text-xs text-muted-foreground uppercase tracking-wider mb-1">Your Booking Code</p>
               <p className="font-mono font-extrabold text-2xl tracking-widest text-primary">{ticketCode}</p>
+              <button
+                onClick={() => copyToClipboard(ticketCode, "Booking code")}
+                className="mt-2 flex items-center gap-1.5 mx-auto text-xs text-muted-foreground hover:text-foreground"
+              >
+                <Copy size={13} /> Copy booking code
+              </button>
             </div>
+
             <div className="glass rounded-xl p-4 text-left space-y-2 text-sm">
               <p className="font-semibold">What happens next?</p>
               <ul className="text-muted-foreground space-y-1.5">
-                <li>✅ Your registration is saved</li>
+                <li>✅ Your registration & payment are saved</li>
                 <li>⏳ Treasurer verifies your M-Pesa payment (3–6 hrs)</li>
                 <li>🎫 Once approved, your ticket is issued</li>
                 <li>🔍 Use your booking code on the Lookup page to check status</li>
