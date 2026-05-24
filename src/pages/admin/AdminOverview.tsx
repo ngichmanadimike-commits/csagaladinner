@@ -284,7 +284,8 @@ const AdminOverview = () => {
         </h2>
         <div className="flex items-end gap-2 h-40">
           {chartData.map((d) => {
-            const max = Math.max(1, ...chartData.map((x) => x.confirmed + x.pending));
+            const vals = chartData.map((x) => x.confirmed + x.pending);
+            const max = vals.length > 0 ? Math.max(1, ...vals) : 1;
             const cH = (d.confirmed / max) * 100;
             const pH = (d.pending / max) * 100;
             return (
