@@ -1,9 +1,20 @@
+// src/pages/admin/AdminRegistrations.tsx  ← FULL REPLACEMENT FILE
+// Changes vs original:
+//   1. Added "Approve / Reject payment" inline action — finds the latest unverified
+//      payment for a registration and verifies it (or un-verifies it). The DB trigger
+//      recalc_registration_totals then automatically updates total_paid & payment_status.
+//   2. Added a payment_status filter dropdown so admin can quickly see pending-only, etc.
+//   3. Fixed confirmedRevenue calculation — was filtering on "confirmed" which is not a
+//      valid status in the DB enum; only "paid" is used for fully-paid registrations.
+//   4. Added logAdminAction calls to the approve/reject flow.
+
 import { useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import AdminLayout from "@/components/admin/AdminLayout";
-import { Search, Trash2, Download } from "lucide-react";
+import { Search, Trash2, Download, CheckCircle2, XCircle } from "lucide-react";
 import { toast } from "sonner";
 import { exportToXlsx } from "@/lib/exportXlsx";
+import { logAdminAction } from "@/lib/adminLog";
 
 interface Registration {
   id: string;
@@ -23,10 +34,12 @@ interface Registration {
 const AdminRegistrations = () => {
   const [registrations, setRegistrations] = useState<Registration[]>([]);
   const [search, setSearch] = useState("");
+  const [statusFilter, setStatusFilter] = useState<"all" | "pending" | "partial" | "paid" | "failed">("all");
   const [loading, setLoading] = useState(true);
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [deletingSelected, setDeletingSelected] = useState(false);
+  const [approvingId, setApprovingId] = useState<string | null>(null);
 
   const fetchRegistrations = async () => {
     const { data, error } = await supabase
@@ -47,6 +60,78 @@ const AdminRegistrations = () => {
     return () => { supabase.removeChannel(channel); };
   }, []);
 
+  // ── Approve / reject payment for a registration ──────────────────────────
+  // Finds the most recent unverified payment for this registration and
+  // verifies it. The DB trigger then recalculates total_paid & payment_status.
+  const handleApprovePayment = async (reg: Registration) => {
+    setApprovingId(reg.id);
+    const { data: payments, error: fetchErr } = await supabase
+      .from("payments")
+      .select("id, amount, verified")
+      .eq("registration_id", reg.id)
+      .order("created_at", { ascending: false });
+
+    if (fetchErr || !payments || payments.length === 0) {
+      toast.error("No payment records found for this registration.");
+      setApprovingId(null);
+      return;
+    }
+
+    const latestUnverified = payments.find((p: any) => !p.verified);
+    if (!latestUnverified) {
+      // All payments already verified — offer to un-verify the latest
+      const latest = payments[0] as any;
+      const { error } = await supabase
+        .from("payments")
+        .update({ verified: false, verified_at: null })
+        .eq("id", latest.id);
+      if (error) {
+        toast.error("Failed to reject payment: " + error.message);
+      } else {
+        toast.success("Payment rejected — registration status updated.");
+        logAdminAction({
+          actionType: "REJECT_PAYMENT",
+          description: `Rejected payment of KES ${latest.amount} for ${reg.name}`,
+          targetType: "payment",
+          targetId: latest.id,
+          metadata: { registration_id: reg.id, amount: latest.amount },
+        });
+        fetchRegistrations();
+      }
+      setApprovingId(null);
+      return;
+    }
+
+    const { error } = await supabase
+      .from("payments")
+      .update({ verified: true, verified_at: new Date().toISOString() })
+      .eq("id", latestUnverified.id);
+
+    if (error) {
+      toast.error("Failed to approve payment: " + error.message);
+    } else {
+      toast.success(`Payment of KES ${latestUnverified.amount} approved.`);
+      logAdminAction({
+        actionType: "VERIFY_PAYMENT",
+        description: `Approved payment of KES ${latestUnverified.amount} for ${reg.name} (${reg.ticket_code})`,
+        targetType: "payment",
+        targetId: latestUnverified.id,
+        metadata: { registration_id: reg.id, amount: latestUnverified.amount },
+      });
+      fetchRegistrations();
+    }
+    setApprovingId(null);
+  };
+
+  // ── Delete helpers ────────────────────────────────────────────────────────
+  const deleteRegistrationWithPayments = async (id: string): Promise<string | null> => {
+    const { error: payErr } = await supabase.from("payments").delete().eq("registration_id", id);
+    if (payErr) return payErr.message;
+    const { error: regErr } = await supabase.from("registrations").delete().eq("id", id);
+    if (regErr) return regErr.message;
+    return null;
+  };
+
   const toggleSelect = (id: string) => {
     setSelectedIds((prev) => prev.includes(id) ? prev.filter((i) => i !== id) : [...prev, id]);
   };
@@ -57,14 +142,6 @@ const AdminRegistrations = () => {
     } else {
       setSelectedIds(filtered.map((r) => r.id));
     }
-  };
-
-  const deleteRegistrationWithPayments = async (id: string): Promise<string | null> => {
-    const { error: payErr } = await supabase.from("payments").delete().eq("registration_id", id);
-    if (payErr) return payErr.message;
-    const { error: regErr } = await supabase.from("registrations").delete().eq("id", id);
-    if (regErr) return regErr.message;
-    return null;
   };
 
   const handleDeleteSelected = async () => {
@@ -116,14 +193,22 @@ const AdminRegistrations = () => {
     );
   };
 
+  // ── Filter ────────────────────────────────────────────────────────────────
   const filtered = registrations.filter((r) => {
     const q = search.toLowerCase();
-    return !search || r.name?.toLowerCase().includes(q) || r.email?.toLowerCase().includes(q) ||
-      r.phone?.includes(q) || r.ticket_code?.toLowerCase().includes(q) || r.package_type?.toLowerCase().includes(q);
+    const matchSearch = !search ||
+      r.name?.toLowerCase().includes(q) ||
+      r.email?.toLowerCase().includes(q) ||
+      r.phone?.includes(q) ||
+      r.ticket_code?.toLowerCase().includes(q) ||
+      r.package_type?.toLowerCase().includes(q);
+    const matchStatus = statusFilter === "all" || r.payment_status === statusFilter;
+    return matchSearch && matchStatus;
   });
 
+  // ── Stats — FIX: was wrongly including "confirmed" (not a DB enum value) ──
   const confirmedRevenue = registrations
-    .filter((r) => r.payment_status === "paid" || r.payment_status === "confirmed")
+    .filter((r) => r.payment_status === "paid")
     .reduce((s, r) => s + Number(r.total_paid), 0);
   const totalExpected = registrations.reduce((s, r) => s + Number(r.total_cost), 0);
   const balance = totalExpected - confirmedRevenue;
@@ -133,6 +218,19 @@ const AdminRegistrations = () => {
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">
         <h1 className="font-display text-2xl font-bold text-foreground">Registrations</h1>
         <div className="flex flex-col sm:flex-row gap-2 sm:items-center">
+          {/* Status filter */}
+          <select
+            value={statusFilter}
+            onChange={(e) => setStatusFilter(e.target.value as any)}
+            className="px-3 py-2 rounded-lg bg-muted border border-border text-sm"
+          >
+            <option value="all">All statuses</option>
+            <option value="pending">Pending</option>
+            <option value="partial">Partial</option>
+            <option value="paid">Paid</option>
+            <option value="failed">Failed</option>
+          </select>
+
           <div className="relative">
             <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
             <input type="text" placeholder="Search name, email, phone, booking code..." value={search}
@@ -225,7 +323,7 @@ const AdminRegistrations = () => {
                     </td>
                     <td className="p-3">
                       <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${
-                        r.payment_status === "paid" || r.payment_status === "confirmed" ? "bg-emerald-400/10 text-emerald-400"
+                        r.payment_status === "paid" ? "bg-emerald-400/10 text-emerald-400"
                         : r.payment_status === "partial" ? "bg-blue-400/10 text-blue-400"
                         : r.payment_status === "pending" ? "bg-yellow-400/10 text-yellow-400"
                         : "bg-red-400/10 text-red-400"
@@ -240,11 +338,38 @@ const AdminRegistrations = () => {
                     </td>
                     <td className="p-3 text-muted-foreground text-xs">{new Date(r.created_at).toLocaleDateString("en-KE")}</td>
                     <td className="p-3 text-right">
-                      <button onClick={() => handleDeleteRow(r)} disabled={deletingId === r.id}
-                        title="Delete registration and all linked payments"
-                        className="p-1.5 rounded-lg hover:bg-red-400/10 text-red-400 disabled:opacity-40 transition-colors">
-                        {deletingId === r.id ? <span className="text-xs">...</span> : <Trash2 size={15} />}
-                      </button>
+                      <div className="flex gap-1.5 justify-end">
+                        {/* Approve payment — green when pending/partial, red (reject) when already paid */}
+                        {(r.payment_status === "pending" || r.payment_status === "partial") && (
+                          <button
+                            onClick={() => handleApprovePayment(r)}
+                            disabled={approvingId === r.id}
+                            title="Approve latest payment"
+                            className="p-1.5 rounded-lg hover:bg-emerald-400/10 text-emerald-400 disabled:opacity-40 transition-colors"
+                          >
+                            {approvingId === r.id
+                              ? <span className="text-xs">…</span>
+                              : <CheckCircle2 size={15} />}
+                          </button>
+                        )}
+                        {r.payment_status === "paid" && (
+                          <button
+                            onClick={() => handleApprovePayment(r)}
+                            disabled={approvingId === r.id}
+                            title="Reject / un-verify latest payment"
+                            className="p-1.5 rounded-lg hover:bg-red-400/10 text-red-400 disabled:opacity-40 transition-colors"
+                          >
+                            {approvingId === r.id
+                              ? <span className="text-xs">…</span>
+                              : <XCircle size={15} />}
+                          </button>
+                        )}
+                        <button onClick={() => handleDeleteRow(r)} disabled={deletingId === r.id}
+                          title="Delete registration and all linked payments"
+                          className="p-1.5 rounded-lg hover:bg-red-400/10 text-red-400 disabled:opacity-40 transition-colors">
+                          {deletingId === r.id ? <span className="text-xs">...</span> : <Trash2 size={15} />}
+                        </button>
+                      </div>
                     </td>
                   </tr>
                 ))}
