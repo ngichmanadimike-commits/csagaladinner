@@ -1,8 +1,9 @@
+// src/pages/admin/AdminEventConfig.tsx
 import { useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import AdminLayout from "@/components/admin/AdminLayout";
 import { toast } from "sonner";
-import { Loader2, Save, Info, Image } from "lucide-react";
+import { Loader2, Save, Info, Image, Bell, BellOff } from "lucide-react";
 
 const AdminEventConfig = () => {
   const [events, setEvents] = useState<any[]>([]);
@@ -38,6 +39,7 @@ const AdminEventConfig = () => {
         voting_url: selected.voting_url,
         description: selected.description,
         flyer_url: selected.flyer_url,
+        popup_enabled: selected.popup_enabled ?? true,
       })
       .eq("id", selected.id);
     setSaving(false);
@@ -52,7 +54,7 @@ const AdminEventConfig = () => {
   const handleCreate = async () => {
     const { data, error } = await supabase
       .from("events")
-      .insert({ title: "New Event", status: "draft" })
+      .insert({ title: "New Event", status: "draft", popup_enabled: true })
       .select()
       .single();
     if (error) {
@@ -64,7 +66,7 @@ const AdminEventConfig = () => {
     }
   };
 
-  const updateField = (field: string, value: string) => {
+  const updateField = (field: string, value: any) => {
     setSelected({ ...selected, [field]: value });
   };
 
@@ -77,6 +79,9 @@ const AdminEventConfig = () => {
       </AdminLayout>
     );
   }
+
+  const popupEnabled = selected?.popup_enabled !== false; // default true
+  const popupWillShow = popupEnabled && selected?.status === "published";
 
   return (
     <AdminLayout>
@@ -134,12 +139,13 @@ const AdminEventConfig = () => {
               <select value={selected.status || "draft"} onChange={(e) => updateField("status", e.target.value)}
                 className="w-full px-4 py-2.5 rounded-lg bg-muted border border-border text-foreground text-sm focus:outline-none focus:ring-2 focus:ring-primary/50">
                 <option value="draft">Draft (hidden from public)</option>
-                <option value="published">Published (visible + shown on popup)</option>
+                <option value="published">Published (visible on site)</option>
                 <option value="archived">Archived</option>
               </select>
             </div>
           </div>
 
+          {/* Flyer section */}
           <div className="glass rounded-xl p-6 space-y-4">
             <h2 className="font-semibold text-foreground text-base border-b border-border pb-2 flex items-center gap-2">
               <Image size={18} className="text-primary" /> Event Popup Flyer
@@ -148,7 +154,7 @@ const AdminEventConfig = () => {
               <Info size={16} className="text-primary flex-shrink-0 mt-0.5" />
               <p className="text-xs text-muted-foreground">
                 Paste a public image URL here to override the default flyer shown in the popup.
-                Leave blank to use the built-in flyer. To upload a new one, go to{" "}
+                Leave blank to use the built-in flyer. To upload: go to{" "}
                 <strong className="text-foreground">Supabase → Storage → event-assets</strong>,
                 upload the image, copy the public URL, and paste it below.
               </p>
@@ -173,13 +179,60 @@ const AdminEventConfig = () => {
             )}
           </div>
 
-          <div className="glass rounded-xl p-4 flex gap-3 items-start border border-primary/20">
-            <Info size={18} className="text-primary flex-shrink-0 mt-0.5" />
-            <div className="text-sm text-muted-foreground">
-              <p className="text-foreground font-semibold mb-1">Event Notification Popup</p>
-              <p>The popup shown to visitors displays the flyer image automatically — as long as
-                status is set to <span className="text-primary font-semibold">Published</span>.
-                You can swap the flyer any time using the Flyer Image URL field above.</p>
+          {/* Popup notification control */}
+          <div className="glass rounded-xl p-6 space-y-4">
+            <h2 className="font-semibold text-foreground text-base border-b border-border pb-2 flex items-center gap-2">
+              {popupEnabled ? <Bell size={18} className="text-primary" /> : <BellOff size={18} className="text-muted-foreground" />}
+              Event Notification Popup
+            </h2>
+
+            {/* On/off toggle */}
+            <div className="flex items-center justify-between p-4 rounded-xl bg-muted/50 border border-border">
+              <div>
+                <p className="text-sm font-semibold text-foreground">Popup Notification</p>
+                <p className="text-xs text-muted-foreground mt-0.5">
+                  When ON and status is Published, the flyer popup shows to visitors once per session.
+                </p>
+              </div>
+              <button
+                onClick={() => updateField("popup_enabled", !popupEnabled)}
+                className={`relative inline-flex h-7 w-14 items-center rounded-full transition-colors focus:outline-none ${
+                  popupEnabled ? "bg-primary" : "bg-muted-foreground/30"
+                }`}
+              >
+                <span
+                  className={`inline-block h-5 w-5 transform rounded-full bg-white shadow-md transition-transform ${
+                    popupEnabled ? "translate-x-8" : "translate-x-1"
+                  }`}
+                />
+              </button>
+            </div>
+
+            {/* Status indicator */}
+            <div className={`flex items-center gap-3 px-4 py-3 rounded-xl ${
+              popupWillShow
+                ? "bg-emerald-500/10 border border-emerald-500/30"
+                : "bg-yellow-500/10 border border-yellow-500/30"
+            }`}>
+              {popupWillShow ? (
+                <>
+                  <Bell size={18} className="text-emerald-400 flex-shrink-0" />
+                  <div className="text-sm">
+                    <p className="font-semibold text-emerald-300">Popup is ACTIVE</p>
+                    <p className="text-muted-foreground text-xs">Visitors will see the flyer popup once per session.</p>
+                  </div>
+                </>
+              ) : (
+                <>
+                  <BellOff size={18} className="text-yellow-400 flex-shrink-0" />
+                  <div className="text-sm">
+                    <p className="font-semibold text-yellow-300">Popup is INACTIVE</p>
+                    <p className="text-muted-foreground text-xs">
+                      {!popupEnabled ? "Toggle is OFF — enable it above." : "Status is not Published — set status to Published above."}
+                    </p>
+                  </div>
+                </>
+              )}
             </div>
           </div>
 
