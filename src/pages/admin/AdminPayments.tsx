@@ -414,4 +414,63 @@ const AdminPayments = () => {
                       </td>
                       <td className="p-3">
                         <span
-                          title={p.verified && p.verif
+                          title={p.verified && p.verified_at
+                            ? `Approved ${new Date(p.verified_at).toLocaleString("en-KE")}`
+                            : "Awaiting approval"}
+                          className={`px-2 py-0.5 rounded-full text-xs font-medium ${
+                            p.verified ? "bg-emerald-400/10 text-emerald-400" : "bg-yellow-400/10 text-yellow-400"
+                          }`}
+                        >
+                          {p.verified ? "Verified" : "Pending"}
+                        </span>
+                      </td>
+                      <td className="p-3 text-right">
+                        <div className="flex gap-2 justify-end">
+                          {!p.verified ? (
+                            <button
+                              onClick={() => handleVerify(p.id, true)}
+                              disabled={verifyingId === p.id}
+                              title="Approve payment"
+                              className="p-1.5 rounded-lg hover:bg-emerald-400/10 text-emerald-400 disabled:opacity-40 transition-colors"
+                            >
+                              {verifyingId === p.id
+                                ? <span className="text-xs animate-pulse">…</span>
+                                : <CheckCircle2 size={16} />}
+                            </button>
+                          ) : (
+                            <button
+                              onClick={() => handleVerify(p.id, false)}
+                              disabled={verifyingId === p.id}
+                              title="Reject / un-verify"
+                              className="p-1.5 rounded-lg hover:bg-red-400/10 text-red-400 disabled:opacity-40 transition-colors"
+                            >
+                              {verifyingId === p.id
+                                ? <span className="text-xs animate-pulse">…</span>
+                                : <XCircle size={16} />}
+                            </button>
+                          )}
+                          <button
+                            onClick={() => handleDeleteRow(p)}
+                            disabled={deletingId === p.id}
+                            title="Delete payment"
+                            className="p-1.5 rounded-lg hover:bg-red-400/10 text-red-400 disabled:opacity-40 transition-colors"
+                          >
+                            {deletingId === p.id
+                              ? <span className="text-xs">...</span>
+                              : <Trash2 size={15} />}
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </div>
+    </AdminLayout>
+  );
+};
+
+export default AdminPayments;
