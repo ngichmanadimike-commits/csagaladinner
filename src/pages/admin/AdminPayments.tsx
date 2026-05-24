@@ -1,148 +1,237 @@
-import AdminLayout from "../../components/admin/AdminLayout";
 import { useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
-import { CheckCircle, Search } from "lucide-react";
+import AdminLayout from "@/components/admin/AdminLayout";
+import { Search, CheckCircle2, XCircle, Download, Trash2 } from "lucide-react";
 import { toast } from "sonner";
+import { exportToXlsx } from "@/lib/exportXlsx";
+import { logAdminAction } from "@/lib/adminLog";
 
 const AdminPayments = () => {
   const [payments, setPayments] = useState<any[]>([]);
-  const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
-  const [verifying, setVerifying] = useState<string | null>(null);
+  const [statusFilter, setStatusFilter] = useState<"all" | "pending" | "verified">("all");
+  const [sourceFilter, setSourceFilter] = useState<"all" | "stk" | "manual">("all");
+  const [loading, setLoading] = useState(true);
+  const [selectedIds, setSelectedIds] = useState<string[]>([]);
+  const [deletingId, setDeletingId] = useState<string | null>(null);
+  const [deletingSelected, setDeletingSelected] = useState(false);
 
-  const load = async () => {
-    setLoading(true);
-    const { data, error } = await supabase
+  const fetchPayments = async () => {
+    const { data } = await supabase
       .from("payments")
-      .select("*, registrations(full_name, name, email, package_type, ticket_code)")
+      .select("*, registrations(name, email, phone)")
       .order("created_at", { ascending: false });
-    
-    if (error) {
-      toast.error("Failed to load payments");
-      console.error(error);
-    } else {
-      setPayments(data || []);
-    }
+    setPayments(data || []);
     setLoading(false);
   };
 
-  useEffect(() => { 
-    load(); 
+  useEffect(() => {
+    fetchPayments();
+    const channel = supabase
+      .channel("payments-realtime")
+      .on("postgres_changes", { event: "*", schema: "public", table: "payments" }, fetchPayments)
+      .subscribe();
+    return () => { supabase.removeChannel(channel); };
   }, []);
 
-  const verify = async (id: string, regId: string) => {
-    setVerifying(id);
-    
-    const { error: paymentErr } = await supabase
-      .from("payments")
-      .update({ verified: true, verified_at: new Date().toISOString() })
-      .eq("id", id);
-    
-    const { error: regErr } = await supabase
-      .from("registrations")
-      .update({ payment_status: "paid" })
-      .eq("id", regId);
-
-    if (paymentErr || regErr) {
-      toast.error("Verification failed");
-      console.error(paymentErr || regErr);
-    } else {
-      toast.success("Payment verified");
-      await load();
-    }
-    setVerifying(null);
+  const toggleSelect = (id: string) => {
+    setSelectedIds(prev => prev.includes(id) ? prev.filter(i => i !== id) : [...prev, id]);
   };
 
-  const filtered = payments.filter(p => {
+  const toggleSelectAll = () => {
+    if (selectedIds.length === filtered.length) {
+      setSelectedIds([]);
+    } else {
+      setSelectedIds(filtered.map(p => p.id));
+    }
+  };
+
+  const handleDeleteSelected = async () => {
+    if (selectedIds.length === 0) return;
+    if (!confirm(`Delete ${selectedIds.length} payment(s)? Cannot be undone.`)) return;
+    setDeletingSelected(true);
+    const { error } = await supabase.from("payments").delete().in("id", selectedIds);
+    setDeletingSelected(false);
+    if (error) {
+      toast.error("Delete failed: " + error.message);
+      logAdminAction({ actionType: "DELETE_PAYMENT", description: `Failed to delete ${selectedIds.length} payments`, targetType: "payment", status: "failed", metadata: { error: error.message, ids: selectedIds } });
+    } else {
+      toast.success(`${selectedIds.length} payment(s) deleted`);
+      logAdminAction({ actionType: "DELETE_PAYMENT", description: `Deleted ${selectedIds.length} payment(s)`, targetType: "payment", metadata: { count: selectedIds.length, ids: selectedIds } });
+      setPayments(prev => prev.filter(p => !selectedIds.includes(p.id)));
+      setSelectedIds([]);
+    }
+  };
+
+  const handleDeleteRow = async (payment: any) => {
+    const reg = payment.registrations;
+    if (!confirm(`Delete payment of KES ${payment.amount} for ${reg?.name || 'Unknown'}? Cannot be undone.`)) return;
+    setDeletingId(payment.id);
+    const { error } = await supabase.from("payments").delete().eq("id", payment.id);
+    setDeletingId(null);
+    if (error) {
+      toast.error("Delete failed: " + error.message);
+      logAdminAction({ actionType: "DELETE_PAYMENT", description: `Failed to delete payment`, targetType: "payment", targetId: payment.id, status: "failed", metadata: { error: error.message } });
+    } else {
+      toast.success("Payment deleted");
+      logAdminAction({ actionType: "DELETE_PAYMENT", description: `Deleted payment of KES ${payment.amount} for ${reg?.name}`, targetType: "payment", targetId: payment.id, metadata: { amount: payment.amount, mpesa_code: payment.mpesa_code } });
+      setPayments(prev => prev.filter(p => p.id !== payment.id));
+      setSelectedIds(prev => prev.filter(id => id !== payment.id));
+    }
+  };
+
+  const handleVerify = async (paymentId: string, verified: boolean) => {
+    const target = payments.find((p) => p.id === paymentId);
+    const { error } = await supabase
+      .from("payments")
+      .update({ verified, verified_at: verified ? new Date().toISOString() : null })
+      .eq("id", paymentId);
+    if (error) {
+      toast.error("Failed to update payment");
+      logAdminAction({ actionType: verified ? "VERIFY_PAYMENT" : "REJECT_PAYMENT", description: `Failed to ${verified ? "verify" : "reject"} payment`, targetType: "payment", targetId: paymentId, status: "failed", metadata: { error: error.message } });
+    } else {
+      toast.success(verified ? "Payment verified" : "Payment rejected");
+      logAdminAction({ actionType: verified ? "VERIFY_PAYMENT" : "REJECT_PAYMENT", description: `${verified ? "Verified" : "Rejected"} payment of KES ${target?.amount} for ${target?.registrations?.name}`, targetType: "payment", targetId: paymentId, metadata: { amount: target?.amount, mpesa_code: target?.mpesa_code, registration_id: target?.registration_id } });
+      fetchPayments();
+    }
+  };
+
+  const filtered = payments.filter((p) => {
+    const reg = p.registrations as any;
     const q = search.toLowerCase();
-    const name = ((p.registrations?.name || p.registrations?.full_name) || "").toLowerCase();
-    return !search || name.includes(q) || (p.mpesa_code || "").toLowerCase().includes(q);
+    const matchSearch = !search || reg?.name?.toLowerCase().includes(q) || reg?.email?.toLowerCase().includes(q) || p.mpesa_code?.toLowerCase().includes(q);
+    const matchStatus = statusFilter === "all" || (statusFilter === "verified" && p.verified) || (statusFilter === "pending" && !p.verified);
+    const matchSource = sourceFilter === "all" || p.source === sourceFilter;
+    return matchSearch && matchStatus && matchSource;
   });
+
+  const totals = {
+    count: filtered.length,
+    verified: filtered.filter((p) => p.verified).reduce((s, p) => s + Number(p.amount), 0),
+    pending: filtered.filter((p) => !p.verified).reduce((s, p) => s + Number(p.amount), 0),
+  };
 
   return (
     <AdminLayout>
-      <div className="space-y-5">
-        <h1 className="text-2xl font-bold text-white">Payments</h1>
-        
-        <div className="relative max-w-xs">
-          <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-white/30" />
-          <input 
-            value={search} 
-            onChange={e => setSearch(e.target.value)} 
-            placeholder="Search by name or M-Pesa code..."
-            className="w-full pl-9 pr-4 py-2.5 rounded-xl border text-white text-sm focus:outline-none"
-            style={{ backgroundColor: "rgba(255,255,255,0.05)", borderColor: "rgba(255,255,255,0.1)" }} 
-          />
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">
+        <h1 className="font-display text-2xl font-bold text-foreground">Payments</h1>
+        <div className="flex flex-col sm:flex-row gap-2 sm:items-center">
+          <select value={statusFilter} onChange={(e) => setStatusFilter(e.target.value as any)} className="px-3 py-2 rounded-lg bg-muted border border-border text-sm">
+            <option value="all">All status</option>
+            <option value="pending">Pending approval</option>
+            <option value="verified">Verified</option>
+          </select>
+          <select value={sourceFilter} onChange={(e) => setSourceFilter(e.target.value as any)} className="px-3 py-2 rounded-lg bg-muted border border-border text-sm">
+            <option value="all">All sources</option>
+            <option value="stk">M-Pesa STK</option>
+            <option value="manual">Manual</option>
+          </select>
+          <div className="relative">
+            <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
+            <input type="text" placeholder="Search by name, email, or code..." value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              className="pl-9 pr-4 py-2 rounded-lg bg-muted border border-border text-foreground text-sm focus:outline-none focus:ring-2 focus:ring-primary/50 w-full sm:w-72" />
+          </div>
+          {selectedIds.length > 0 && (
+            <button onClick={handleDeleteSelected} disabled={deletingSelected}
+              className="flex items-center gap-2 px-3 py-2 rounded-lg bg-red-600 text-white text-sm font-semibold disabled:opacity-50 hover:bg-red-700 transition-colors">
+              <Trash2 size={16} />
+              {deletingSelected ? "Deleting..." : `Delete (${selectedIds.length})`}
+            </button>
+          )}
+          <button
+            onClick={() => exportToXlsx(
+              filtered.map((p: any) => ({
+                Name: p.registrations?.name, Email: p.registrations?.email,
+                Phone: p.registrations?.phone, Amount: Number(p.amount),
+                "M-Pesa Code": p.mpesa_code, Source: p.source,
+                Verified: p.verified ? "Yes" : "No", "Verified At": p.verified_at, Created: p.created_at,
+              })), "payments", "Payments"
+            )}
+            className="flex items-center gap-2 px-3 py-2 rounded-lg bg-primary text-primary-foreground text-sm font-semibold">
+            <Download size={16} /> Export
+          </button>
         </div>
+      </div>
 
-        <div className="rounded-xl overflow-hidden" style={{ border: "1px solid rgba(255,255,255,0.08)" }}>
+      {selectedIds.length > 0 && (
+        <div className="mb-3 text-sm text-muted-foreground">
+          {selectedIds.length} of {filtered.length} selected
+        </div>
+      )}
+
+      <div className="grid grid-cols-3 gap-3 mb-4">
+        <div className="glass rounded-xl p-3"><p className="text-xs text-muted-foreground">Showing</p><p className="text-xl font-bold">{totals.count}</p></div>
+        <div className="glass rounded-xl p-3"><p className="text-xs text-muted-foreground">Verified KES</p><p className="text-xl font-bold text-emerald-400">{totals.verified.toLocaleString()}</p></div>
+        <div className="glass rounded-xl p-3"><p className="text-xs text-muted-foreground">Pending KES</p><p className="text-xl font-bold text-yellow-400">{totals.pending.toLocaleString()}</p></div>
+      </div>
+
+      <div className="glass rounded-xl overflow-hidden">
+        {loading ? (
+          <div className="p-8 text-center text-muted-foreground">Loading...</div>
+        ) : filtered.length === 0 ? (
+          <div className="p-8 text-center text-muted-foreground">No payments found.</div>
+        ) : (
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
               <thead>
-                <tr style={{ backgroundColor: "rgba(255,255,255,0.04)" }}>
-                  {["Registrant", "Package", "Amount", "M-Pesa Code", "Method", "Verified", "Date", "Action"].map(h =>
-                    <th key={h} className="px-4 py-3 text-left text-xs font-semibold text-white/40 uppercase tracking-wider">{h}</th>
-                  )}
+                <tr className="text-left text-muted-foreground border-b border-border bg-muted/30">
+                  <th className="p-3 w-12">
+                    <input type="checkbox"
+                      checked={selectedIds.length === filtered.length && filtered.length > 0}
+                      onChange={toggleSelectAll} className="w-4 h-4 cursor-pointer accent-primary" />
+                  </th>
+                  <th className="p-3">Name</th>
+                  <th className="p-3">Email</th>
+                  <th className="p-3">Amount</th>
+                  <th className="p-3">M-Pesa Code</th>
+                  <th className="p-3">Status</th>
+                  <th className="p-3 text-right">Actions</th>
                 </tr>
               </thead>
               <tbody>
-                {loading ? (
-                  <tr>
-                    <td colSpan={8} className="px-4 py-8 text-center text-white/30">
-                      Loading...
-                    </td>
-                  </tr>
-                ) : filtered.length === 0 ? (
-                  <tr>
-                    <td colSpan={8} className="px-4 py-8 text-center text-white/30">
-                      No payments found
-                    </td>
-                  </tr>
-                ) : (
-                  filtered.map(p => (
-                    <tr key={p.id} className="border-t hover:bg-white/2" style={{ borderColor: "rgba(255,255,255,0.04)" }}>
-                      <td className="px-4 py-3 text-white">
-                        {p.registrations?.name || p.registrations?.full_name || "—"}
+                {filtered.map((p) => {
+                  const reg = p.registrations as any;
+                  return (
+                    <tr key={p.id} className="border-b border-border/50 hover:bg-muted/20">
+                      <td className="p-3">
+                        <input type="checkbox" checked={selectedIds.includes(p.id)}
+                          onChange={() => toggleSelect(p.id)} className="w-4 h-4 cursor-pointer accent-primary" />
                       </td>
-                      <td className="px-4 py-3 text-white/60 text-xs">
-                        {p.registrations?.package_type || "—"}
-                      </td>
-                      <td className="px-4 py-3 text-white">
-                        KES {Number(p.amount || 0).toLocaleString()}
-                      </td>
-                      <td className="px-4 py-3 text-white/60 font-mono text-xs">
-                        {p.mpesa_code || "—"}
-                      </td>
-                      <td className="px-4 py-3 text-white/60 text-xs">
-                        {p.payment_method}
-                      </td>
-                      <td className="px-4 py-3">
-                        <span style={{ color: p.verified ? "#22c55e" : "#D4AF37" }}>
-                          {p.verified ? "✓ Verified" : "Pending"}
+                      <td className="p-3 text-foreground">{reg?.name || "—"}</td>
+                      <td className="p-3 text-muted-foreground">{reg?.email || "—"}</td>
+                      <td className="p-3 text-foreground font-semibold">KES {Number(p.amount).toLocaleString()}</td>
+                      <td className="p-3 text-muted-foreground font-mono text-xs">{p.mpesa_code || "—"}</td>
+                      <td className="p-3">
+                        <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${p.verified ? "bg-emerald-400/10 text-emerald-400" : "bg-yellow-400/10 text-yellow-400"}`}>
+                          {p.verified ? "Verified" : "Pending"}
                         </span>
                       </td>
-                      <td className="px-4 py-3 text-white/40 text-xs">
-                        {new Date(p.created_at).toLocaleDateString()}
-                      </td>
-                      <td className="px-4 py-3">
-                        {!p.verified && (
-                          <button 
-                            onClick={() => verify(p.id, p.registration_id)}
-                            disabled={verifying === p.id}
-                            className="flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-semibold disabled:opacity-50"
-                            style={{ backgroundColor: "rgba(34,197,94,0.15)", color: "#22c55e", border: "1px solid rgba(34,197,94,0.3)" }}>
-                            <CheckCircle size={12} /> 
-                            {verifying === p.id ? "Verifying..." : "Verify"}
+                      <td className="p-3 text-right">
+                        <div className="flex gap-2 justify-end">
+                          {!p.verified && (
+                            <button onClick={() => handleVerify(p.id, true)} className="p-1.5 rounded-lg hover:bg-emerald-400/10 text-emerald-400" title="Verify">
+                              <CheckCircle2 size={16} />
+                            </button>
+                          )}
+                          {p.verified && (
+                            <button onClick={() => handleVerify(p.id, false)} className="p-1.5 rounded-lg hover:bg-red-400/10 text-red-400" title="Reject">
+                              <XCircle size={16} />
+                            </button>
+                          )}
+                          <button onClick={() => handleDeleteRow(p)} disabled={deletingId === p.id}
+                            className="p-1.5 rounded-lg hover:bg-red-400/10 text-red-400 disabled:opacity-40 transition-colors" title="Delete">
+                            {deletingId === p.id ? <span className="text-xs">...</span> : <Trash2 size={15} />}
                           </button>
-                        )}
+                        </div>
                       </td>
                     </tr>
-                  ))
-                )}
+                  );
+                })}
               </tbody>
             </table>
           </div>
-        </div>
+        )}
       </div>
     </AdminLayout>
   );
