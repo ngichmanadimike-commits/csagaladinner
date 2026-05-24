@@ -6,7 +6,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
-import { CheckCircle2, Loader2, ArrowLeft, Smartphone, Copy, Lock } from "lucide-react";
+import { CheckCircle2, Loader2, ArrowLeft, Smartphone, Copy, Lock, Search } from "lucide-react";
 
 interface Package {
   id: string;
@@ -45,6 +45,9 @@ const RegistrationModal = ({
     if (!v) onClose?.();
   };
 
+  // mode: "new" = fresh registration; "returning" = look up existing booking
+  const [mode, setMode] = useState<"new" | "returning">("new");
+
   // step: register → payment → done
   const [step, setStep] = useState<"register" | "payment" | "done">("register");
 
@@ -58,7 +61,12 @@ const RegistrationModal = ({
   const [promoChecking, setPromoChecking] = useState(false);
   const [submitting, setSubmitting] = useState(false);
 
-  // package instalments (loaded from DB)
+  // returning-user lookup
+  const [bookingCodeQuery, setBookingCodeQuery] = useState("");
+  const [lookupLoading, setLookupLoading] = useState(false);
+  const [existingReg, setExistingReg] = useState<any>(null);
+
+  // package data (loaded from DB for allow_custom_amount, etc.)
   const [pkgData, setPkgData] = useState<any>(null);
   const [selectedInstalment, setSelectedInstalment] = useState<number | null>(null);
 
@@ -70,7 +78,7 @@ const RegistrationModal = ({
   // payment fields
   const [mpesaCode, setMpesaCode] = useState("");
   const [payerPhone, setPayerPhone] = useState("");
-  const [payAmount, setPayAmount] = useState(""); // user-editable amount
+  const [payAmount, setPayAmount] = useState("");
   const [paySubmitting, setPaySubmitting] = useState(false);
 
   const totalCost = selectedPackage ? selectedPackage.price * quantity : 0;
@@ -81,12 +89,11 @@ const RegistrationModal = ({
     : 0;
   const displayFinalCost = Math.max(0, totalCost - discountAmount);
 
-  // Load full package data (for instalments)
   useEffect(() => {
     if (!selectedPackage?.id) return;
     supabase
       .from("ticket_packages")
-      .select("partial_allowed, installments, installment_mode, price")
+      .select("partial_allowed, installments, installment_mode, price, allow_custom_amount")
       .eq("id", selectedPackage.id)
       .maybeSingle()
       .then(({ data }) => { if (data) setPkgData(data); });
@@ -94,28 +101,45 @@ const RegistrationModal = ({
 
   useEffect(() => {
     if (!isOpen) {
+      setMode("new");
       setStep("register");
       setName(""); setEmail(""); setPhone(""); setQuantity(1);
       setPromoInput(""); setPromoCode(null);
       setTicketCode(""); setRegistrationId(""); setFinalAmount(0);
       setMpesaCode(""); setPayerPhone(""); setPayAmount("");
       setSelectedInstalment(null); setPkgData(null);
+      setBookingCodeQuery(""); setExistingReg(null);
     }
   }, [isOpen]);
 
-  // Compute instalment options
-  const getInstalments = (): number[] => {
+  // Compute instalment options (promo discount applied proportionally)
+  const getInstalments = (baseAmount?: number): number[] => {
     const src = pkgData ?? selectedPackage;
     if (!src?.partial_allowed) return [];
     const raw: number[] = Array.isArray(src.installments) ? src.installments : [];
     if (!raw.length) return [];
+
+    const fullPrice = Number(src.price ?? selectedPackage?.price ?? 0);
+    const discountedAmount = baseAmount ?? displayFinalCost;
+    const ratio = fullPrice > 0 ? discountedAmount / fullPrice : 1;
+
     if ((src.installment_mode ?? "amount") === "percent") {
-      return raw.map((pct: number) => Math.round((pct / 100) * (src.price ?? selectedPackage?.price ?? 0)));
+      return raw.map((pct: number) => Math.round((pct / 100) * discountedAmount));
     }
-    return raw.map((n: number) => Number(n));
+    // Fixed amounts: scale proportionally if promo applied
+    return raw.map((n: number) => Math.round(Number(n) * ratio));
   };
 
   const instalments = getInstalments();
+  const allowCustomAmount = pkgData?.allow_custom_amount ?? true;
+
+  // For returning user: get remaining balance instalments
+  const getReturningInstalments = (): number[] => {
+    if (!existingReg || !pkgData) return [];
+    const remaining = Number(existingReg.total_cost) - Number(existingReg.total_paid);
+    if (remaining <= 0) return [];
+    return getInstalments(Number(existingReg.total_cost));
+  };
 
   const validatePromo = async () => {
     if (!promoInput.trim()) return;
@@ -141,6 +165,48 @@ const RegistrationModal = ({
     finally { setPromoChecking(false); }
   };
 
+  const handleLookupBookingCode = async () => {
+    if (!bookingCodeQuery.trim()) return;
+    setLookupLoading(true);
+    setExistingReg(null);
+    try {
+      const { data, error } = await supabase
+        .from("registrations")
+        .select("id, name, email, phone, package_type, total_cost, total_paid, payment_status, ticket_issued, ticket_code, promo_code, discount_amount")
+        .eq("ticket_code", bookingCodeQuery.trim().toUpperCase())
+        .maybeSingle();
+
+      if (error || !data) {
+        toast.error("Booking code not found. Check the code and try again.");
+        return;
+      }
+
+      const remaining = Number(data.total_cost) - Number(data.total_paid);
+
+      if (data.payment_status === "paid") {
+        toast.success("This booking is fully paid! You can download your ticket.");
+      } else if (remaining <= 0) {
+        toast.success("Fully paid!");
+      } else {
+        toast.success(`Found! Remaining balance: KES ${remaining.toLocaleString()}`);
+      }
+
+      setExistingReg(data);
+      setRegistrationId(data.id);
+      setFinalAmount(remaining > 0 ? remaining : 0);
+      setPayAmount(String(remaining > 0 ? remaining : 0));
+      setPayerPhone(data.phone);
+
+      if (remaining > 0) {
+        setStep("payment");
+      }
+    } catch {
+      toast.error("Lookup failed. Please try again.");
+    } finally {
+      setLookupLoading(false);
+    }
+  };
+
   const handleRegister = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!selectedPackage) return;
@@ -150,7 +216,6 @@ const RegistrationModal = ({
         .from("events").select("id").order("created_at", { ascending: false }).limit(1).single();
       if (eventErr || !eventData) { toast.error("Event not found. Please try again."); return; }
 
-      // NOTE: ticket_code is generated but NOT shown until payment is submitted
       const code = `CSA-${Math.random().toString(36).substr(2, 9).toUpperCase()}`;
       const amount = Math.max(0, totalCost - discountAmount);
 
@@ -179,16 +244,16 @@ const RegistrationModal = ({
         await supabase.from("promo_redemptions").insert({
           code: promoCode.code, promotion_id: promoCode.id,
           email, phone, discount_amount: discountAmount, status: "redeemed",
+          registration_id: regData.id,
         });
       }
 
-      // Store internally but do NOT display yet
       setTicketCode(code);
       setRegistrationId(regData.id);
       setFinalAmount(amount);
       setPayerPhone(phone);
-      setPayAmount(String(amount)); // default to full amount
-      setStep("payment"); // skip directly to payment step — code hidden
+      setPayAmount(String(amount));
+      setStep("payment");
     } catch { toast.error("Unexpected error. Please try again."); }
     finally { setSubmitting(false); }
   };
@@ -202,23 +267,42 @@ const RegistrationModal = ({
     const amountToPay = Number(payAmount);
     if (!mpesaCode.trim()) { toast.error("Enter your M-Pesa transaction code"); return; }
     if (!amountToPay || amountToPay <= 0) { toast.error("Enter a valid amount"); return; }
+
+    const regId = registrationId || existingReg?.id;
+    if (!regId) { toast.error("Registration not found"); return; }
+
     setPaySubmitting(true);
     try {
+      // Check for duplicate M-Pesa code
+      const { data: dupCheck } = await supabase
+        .from("payments")
+        .select("id")
+        .eq("mpesa_code", mpesaCode.trim().toUpperCase())
+        .maybeSingle();
+      if (dupCheck) {
+        toast.error("This M-Pesa code has already been submitted. Contact support if this is an error.");
+        return;
+      }
+
       const { error } = await supabase.from("payments").insert({
-        registration_id: registrationId,
+        registration_id: regId,
         amount: amountToPay,
         mpesa_code: mpesaCode.trim().toUpperCase(),
         payment_method: "mpesa_manual",
         phone: payerPhone,
         verified: false,
+        source: "manual",
       });
       if (error) { toast.error("Could not save payment: " + error.message); return; }
 
-      // Update total_paid on registration
+      // Update total_paid optimistically (admin will confirm)
+      const currentPaid = Number(existingReg?.total_paid ?? 0);
       await supabase.from("registrations")
-        .update({ total_paid: amountToPay })
-        .eq("id", registrationId);
+        .update({ total_paid: currentPaid + amountToPay })
+        .eq("id", regId);
 
+      const revealCode = ticketCode || existingReg?.ticket_code || "";
+      setTicketCode(revealCode);
       setStep("done");
       toast.success("Payment submitted! Waiting for admin approval.");
     } catch { toast.error("Unexpected error. Please try again."); }
@@ -231,20 +315,99 @@ const RegistrationModal = ({
 
   if (!selectedPackage) return null;
 
+  const returningInstalments = getReturningInstalments();
+  const remainingBalance = existingReg
+    ? Math.max(0, Number(existingReg.total_cost) - Number(existingReg.total_paid))
+    : 0;
+
   return (
     <Dialog open={isOpen} onOpenChange={handleOpenChange}>
       <DialogContent className="max-w-md max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle>
             {step === "register" && `Register — ${selectedPackage.name}`}
-            {step === "payment" && "Make Payment"}
+            {step === "payment" && (mode === "returning" ? "Pay Remaining Balance" : "Make Payment")}
             {step === "done" && "Payment Submitted!"}
           </DialogTitle>
           <DialogDescription>CSA Gala Dinner 2026</DialogDescription>
         </DialogHeader>
 
-        {/* ── STEP 1: REGISTER ── */}
+        {/* Mode selector (only on step=register) */}
         {step === "register" && (
+          <div className="flex rounded-lg overflow-hidden border border-border mb-2">
+            <button onClick={() => setMode("new")}
+              className={`flex-1 py-2 text-sm font-semibold transition-colors ${mode === "new" ? "bg-primary text-primary-foreground" : "bg-muted text-muted-foreground hover:bg-muted/80"}`}>
+              New Registration
+            </button>
+            <button onClick={() => setMode("returning")}
+              className={`flex-1 py-2 text-sm font-semibold transition-colors ${mode === "returning" ? "bg-primary text-primary-foreground" : "bg-muted text-muted-foreground hover:bg-muted/80"}`}>
+              I Have a Booking Code
+            </button>
+          </div>
+        )}
+
+        {/* ── RETURNING USER: LOOKUP ── */}
+        {step === "register" && mode === "returning" && (
+          <div className="space-y-4">
+            <p className="text-sm text-muted-foreground">Enter your booking code to continue paying your balance.</p>
+            <div>
+              <Label htmlFor="bc-query">Your Booking Code</Label>
+              <div className="flex gap-2 mt-1">
+                <Input id="bc-query" value={bookingCodeQuery}
+                  onChange={e => setBookingCodeQuery(e.target.value.toUpperCase())}
+                  onKeyDown={e => e.key === "Enter" && handleLookupBookingCode()}
+                  placeholder="e.g. CSA-XXXXXXXXX"
+                  className="font-mono tracking-widest" />
+                <Button type="button" onClick={handleLookupBookingCode} disabled={lookupLoading || !bookingCodeQuery.trim()}>
+                  {lookupLoading ? <Loader2 size={15} className="animate-spin" /> : <Search size={15} />}
+                </Button>
+              </div>
+            </div>
+
+            {existingReg && (
+              <div className="bg-primary/5 border border-primary/20 rounded-xl p-4 space-y-3 text-sm">
+                <div className="flex items-center gap-2">
+                  <CheckCircle2 size={16} className="text-emerald-400" />
+                  <span className="font-semibold text-foreground">{existingReg.name}</span>
+                </div>
+                <div className="grid grid-cols-3 gap-2 text-center">
+                  <div className="glass rounded-lg p-2">
+                    <p className="text-xs text-muted-foreground">Total</p>
+                    <p className="font-bold">KES {Number(existingReg.total_cost).toLocaleString()}</p>
+                  </div>
+                  <div className="glass rounded-lg p-2">
+                    <p className="text-xs text-muted-foreground">Paid</p>
+                    <p className="font-bold text-emerald-400">KES {Number(existingReg.total_paid).toLocaleString()}</p>
+                  </div>
+                  <div className="glass rounded-lg p-2">
+                    <p className="text-xs text-muted-foreground">Balance</p>
+                    <p className={`font-bold ${remainingBalance > 0 ? "text-orange-400" : "text-emerald-400"}`}>
+                      KES {remainingBalance.toLocaleString()}
+                    </p>
+                  </div>
+                </div>
+                {existingReg.payment_status === "paid" ? (
+                  <div className="text-center space-y-2">
+                    <p className="text-emerald-400 font-semibold">✅ Fully paid — your ticket is ready!</p>
+                    {existingReg.ticket_code && (
+                      <a href={`/ticket/${existingReg.ticket_code}`} target="_blank" rel="noopener noreferrer"
+                        className="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-emerald-500 text-white font-semibold hover:bg-emerald-400 text-sm">
+                        View & Download Ticket
+                      </a>
+                    )}
+                  </div>
+                ) : remainingBalance > 0 ? (
+                  <Button className="w-full" onClick={() => setStep("payment")}>
+                    Pay Balance — KES {remainingBalance.toLocaleString()}
+                  </Button>
+                ) : null}
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* ── STEP 1: NEW REGISTER ── */}
+        {step === "register" && mode === "new" && (
           <form onSubmit={handleRegister} className="space-y-4">
             <div>
               <Label htmlFor="r-name">Full Name</Label>
@@ -285,7 +448,6 @@ const RegistrationModal = ({
               )}
             </div>
 
-            {/* Cost summary */}
             <div className="border-t border-border pt-4 space-y-1.5 text-sm">
               <div className="flex justify-between">
                 <span className="text-muted-foreground">Subtotal</span>
@@ -303,11 +465,13 @@ const RegistrationModal = ({
               </div>
             </div>
 
-            {/* Instalment preview */}
             {instalments.length > 0 && (
               <div className="bg-primary/5 border border-primary/20 rounded-xl p-3 text-sm">
                 <p className="font-semibold text-foreground mb-1">Instalment options available</p>
-                <p className="text-xs text-muted-foreground">You can pay in instalments on the next step.</p>
+                <p className="text-xs text-muted-foreground">
+                  You can pay in instalments on the next step.
+                  {discountAmount > 0 && " Promo discount is applied proportionally to each instalment."}
+                </p>
               </div>
             )}
 
@@ -322,16 +486,23 @@ const RegistrationModal = ({
         {/* ── STEP 2: PAYMENT ── */}
         {step === "payment" && (
           <div className="space-y-5">
-            {/* Booking code is LOCKED — only shown after payment */}
-            <div className="bg-muted/50 border border-border rounded-xl p-4 flex items-center gap-3">
-              <Lock size={20} className="text-muted-foreground flex-shrink-0" />
-              <div>
-                <p className="text-sm font-semibold text-foreground">Your booking code is ready</p>
-                <p className="text-xs text-muted-foreground mt-0.5">Complete payment below — your code will appear after you submit your M-Pesa transaction code.</p>
+            {mode !== "returning" && (
+              <div className="bg-muted/50 border border-border rounded-xl p-4 flex items-center gap-3">
+                <Lock size={20} className="text-muted-foreground flex-shrink-0" />
+                <div>
+                  <p className="text-sm font-semibold text-foreground">Your booking code is ready</p>
+                  <p className="text-xs text-muted-foreground mt-0.5">Complete payment below — your code will appear after you submit.</p>
+                </div>
               </div>
-            </div>
+            )}
 
-            {/* M-Pesa payment card */}
+            {mode === "returning" && existingReg && (
+              <div className="bg-primary/5 border border-primary/20 rounded-xl p-4 text-sm space-y-1">
+                <p className="font-semibold text-foreground">{existingReg.name} — Paying balance</p>
+                <p className="text-muted-foreground">Remaining: <strong className="text-orange-400">KES {remainingBalance.toLocaleString()}</strong></p>
+              </div>
+            )}
+
             <div className="rounded-xl p-4" style={{ backgroundColor: "#0A2342", border: "2px solid #D4AF37" }}>
               <div className="flex items-center gap-2 mb-3">
                 <Smartphone size={18} style={{ color: "#D4AF37" }} />
@@ -355,61 +526,74 @@ const RegistrationModal = ({
                   <p className="text-white font-semibold">{TILL.accountName}</p>
                 </div>
                 <div>
-                  <p className="text-white/50 text-xs uppercase tracking-wider mb-0.5">Full Amount</p>
-                  <p className="font-bold text-lg" style={{ color: "#D4AF37" }}>KES {finalAmount.toLocaleString()}</p>
+                  <p className="text-white/50 text-xs uppercase tracking-wider mb-0.5">
+                    {mode === "returning" ? "Balance Due" : "Full Amount"}
+                  </p>
+                  <p className="font-bold text-lg" style={{ color: "#D4AF37" }}>
+                    KES {(mode === "returning" ? remainingBalance : finalAmount).toLocaleString()}
+                  </p>
                 </div>
               </div>
             </div>
 
             {/* Instalment selector */}
-            {instalments.length > 0 && (
+            {(mode === "returning" ? returningInstalments : instalments).length > 0 && (
               <div className="space-y-2">
-                <p className="text-sm font-semibold text-foreground">Pay an instalment instead:</p>
+                <p className="text-sm font-semibold text-foreground">
+                  {mode === "returning" ? "Pay an instalment:" : "Pay an instalment instead:"}
+                </p>
                 <div className="flex flex-wrap gap-2">
-                  {instalments.map((amt, idx) => (
-                    <button
-                      key={idx}
-                      onClick={() => handleSelectInstalment(amt)}
+                  {(mode === "returning" ? returningInstalments : instalments).map((amt, idx) => (
+                    <button key={idx} onClick={() => handleSelectInstalment(amt)}
                       className={`px-3 py-1.5 rounded-lg text-sm font-semibold border transition-colors ${
                         selectedInstalment === amt
                           ? "bg-primary text-primary-foreground border-primary"
                           : "bg-muted text-foreground border-border hover:border-primary"
-                      }`}
-                    >
+                      }`}>
                       KES {amt.toLocaleString()}
                     </button>
                   ))}
                   <button
-                    onClick={() => { setSelectedInstalment(null); setPayAmount(String(finalAmount)); }}
+                    onClick={() => {
+                      setSelectedInstalment(null);
+                      setPayAmount(String(mode === "returning" ? remainingBalance : finalAmount));
+                    }}
                     className={`px-3 py-1.5 rounded-lg text-sm font-semibold border transition-colors ${
                       selectedInstalment === null
                         ? "bg-primary text-primary-foreground border-primary"
                         : "bg-muted text-foreground border-border hover:border-primary"
-                    }`}
-                  >
-                    Full: KES {finalAmount.toLocaleString()}
+                    }`}>
+                    Full: KES {(mode === "returning" ? remainingBalance : finalAmount).toLocaleString()}
                   </button>
                 </div>
               </div>
             )}
 
             <div className="space-y-3">
-              {/* Editable amount field */}
               <div>
                 <Label htmlFor="p-amount">Amount You Are Paying (KES)</Label>
                 <Input
                   id="p-amount"
                   type="number"
                   min="1"
-                  max={finalAmount}
+                  max={mode === "returning" ? remainingBalance : finalAmount}
                   value={payAmount}
-                  onChange={e => { setPayAmount(e.target.value); setSelectedInstalment(null); }}
+                  onChange={e => {
+                    if (allowCustomAmount) {
+                      setPayAmount(e.target.value);
+                      setSelectedInstalment(null);
+                    }
+                  }}
+                  readOnly={!allowCustomAmount && instalments.length > 0}
                   placeholder={`e.g. ${finalAmount}`}
-                  className="mt-1 font-mono"
+                  className={`mt-1 font-mono ${!allowCustomAmount ? "opacity-75 cursor-not-allowed" : ""}`}
                 />
-                {Number(payAmount) < finalAmount && Number(payAmount) > 0 && (
+                {!allowCustomAmount && instalments.length > 0 && (
+                  <p className="text-xs text-muted-foreground mt-1">Select one of the instalment options above.</p>
+                )}
+                {allowCustomAmount && Number(payAmount) < (mode === "returning" ? remainingBalance : finalAmount) && Number(payAmount) > 0 && (
                   <p className="text-xs text-yellow-400 mt-1">
-                    Paying partial: KES {Number(payAmount).toLocaleString()} of KES {finalAmount.toLocaleString()} — remaining KES {(finalAmount - Number(payAmount)).toLocaleString()} will be due.
+                    Partial: KES {Number(payAmount).toLocaleString()} — remaining KES {((mode === "returning" ? remainingBalance : finalAmount) - Number(payAmount)).toLocaleString()} will be due.
                   </p>
                 )}
               </div>
@@ -417,9 +601,7 @@ const RegistrationModal = ({
                 <Label htmlFor="p-phone">Your Phone Number</Label>
                 <Input id="p-phone" type="tel" value={payerPhone}
                   onChange={e => setPayerPhone(e.target.value)}
-                  placeholder="0712 345 678"
-                  className="mt-1" />
-                <p className="text-xs text-muted-foreground mt-1">The number you paid from</p>
+                  placeholder="0712 345 678" className="mt-1" />
               </div>
               <div>
                 <Label htmlFor="p-code">M-PESA Transaction Code</Label>
@@ -428,7 +610,6 @@ const RegistrationModal = ({
                   placeholder="e.g. SJK3H7T9XQ"
                   className="mt-1 font-mono tracking-widest"
                   autoCapitalize="characters" />
-                <p className="text-xs text-muted-foreground mt-1">From the M-PESA confirmation SMS</p>
               </div>
             </div>
 
@@ -437,14 +618,13 @@ const RegistrationModal = ({
                 ? <><Loader2 size={15} className="animate-spin mr-2" />Submitting...</>
                 : "Submit Payment for Approval"}
             </Button>
-
             <p className="text-xs text-center text-muted-foreground">
               Your payment will be verified by the Treasurer within 3–6 hours.
             </p>
           </div>
         )}
 
-        {/* ── STEP 3: DONE — booking code now revealed ── */}
+        {/* ── STEP 3: DONE ── */}
         {step === "done" && (
           <div className="text-center py-4 space-y-5">
             <CheckCircle2 className="mx-auto text-emerald-400" size={56} />
@@ -455,14 +635,11 @@ const RegistrationModal = ({
               </p>
             </div>
 
-            {/* Booking code revealed ONLY now */}
             <div className="bg-primary/10 rounded-xl py-4 px-5">
               <p className="text-xs text-muted-foreground uppercase tracking-wider mb-1">Your Booking Code</p>
               <p className="font-mono font-extrabold text-2xl tracking-widest text-primary">{ticketCode}</p>
-              <button
-                onClick={() => copyToClipboard(ticketCode, "Booking code")}
-                className="mt-2 flex items-center gap-1.5 mx-auto text-xs text-muted-foreground hover:text-foreground"
-              >
+              <button onClick={() => copyToClipboard(ticketCode, "Booking code")}
+                className="mt-2 flex items-center gap-1.5 mx-auto text-xs text-muted-foreground hover:text-foreground">
                 <Copy size={13} /> Copy booking code
               </button>
             </div>
@@ -473,7 +650,7 @@ const RegistrationModal = ({
                 <li>✅ Your registration & payment are saved</li>
                 <li>⏳ Treasurer verifies your M-Pesa payment (3–6 hrs)</li>
                 <li>🎫 Once approved, your ticket is issued</li>
-                <li>🔍 Use your booking code on the Lookup page to check status</li>
+                <li>🔍 Use your booking code on the Lookup page to check status or pay more</li>
               </ul>
             </div>
             <p className="text-sm text-muted-foreground">
