@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { supabase } from "@/integrations/supabase/client";
-import { Search, Loader2, CheckCircle2, Clock, AlertCircle, ExternalLink, Copy, Eye, EyeOff } from "lucide-react";
+import { Search, Loader2, CheckCircle2, Clock, AlertCircle, ExternalLink, Eye, EyeOff } from "lucide-react";
 import { toast } from "sonner";
 
 interface RegistrationResult {
@@ -71,28 +71,28 @@ const PaymentStatusLookup = () => {
     try {
       const [{ data: regs, error }, { data: sponsors }] = await Promise.all([
         supabase
-          .from("registrations")
-          .select("id, name, email, package_type, total_cost, total_paid, payment_status, ticket_issued, ticket_code")
-          .or(`email.ilike.%${trimmed}%,ticket_code.ilike.%${trimmed}%`),
+         .from("registrations")
+         .select("id, name, email, package_type, total_cost, total_paid, payment_status, ticket_issued, ticket_code")
+         .or(`email.ilike.%${trimmed}%,ticket_code.ilike.%${trimmed}%`),
         supabase
-          .from("sponsorships")
-          .select("id, sponsor_name, sponsor_email, sponsor_phone, num_students, level, amount, verified, payment_status, sponsor_code")
-          .or(`sponsor_email.ilike.%${trimmed}%,sponsor_code.ilike.%${trimmed}%`),
+         .from("sponsorships")
+         .select("id, sponsor_name, sponsor_email, sponsor_phone, num_students, level, amount, verified, payment_status, sponsor_code")
+         .or(`sponsor_email.ilike.%${trimmed}%,sponsor_code.ilike.%${trimmed}%`),
       ]);
 
       if (error) { toast.error(error.message); return; }
 
-      const regList = (regs ?? []) as RegistrationResult[];
+      const regList = (regs?? []) as RegistrationResult[];
       setResults(regList);
-      setSponsorResults((sponsors ?? []) as SponsorResult[]);
+      setSponsorResults((sponsors?? []) as SponsorResult[]);
 
       if (regList.length > 0) {
         const ids = regList.map(r => r.id);
         const { data: pays } = await supabase
-          .from("payments")
-          .select("id, registration_id, amount, mpesa_code, payment_method, verified, created_at")
-          .in("registration_id", ids)
-          .order("created_at", { ascending: false });
+         .from("payments")
+         .select("id, registration_id, amount, mpesa_code, payment_method, verified, created_at")
+         .in("registration_id", ids)
+         .order("created_at", { ascending: false });
 
         const grouped: Record<string, PaymentRecord[]> = {};
         (pays || []).forEach((p: any) => {
@@ -108,20 +108,16 @@ const PaymentStatusLookup = () => {
     }
   };
 
-  const copy = (text: string, label: string) => {
-    navigator.clipboard.writeText(text).then(() => toast.success(`${label} copied!`));
-  };
-
   const maskEmail = (email: string) => {
     const [local, domain] = email.split("@");
     if (!domain) return "****";
-    const maskedLocal = local.length > 2 ? local[0] + "*".repeat(local.length - 2) + local[local.length - 1] : "***";
+    const maskedLocal = local.length > 2? local[0] + "*".repeat(local.length - 2) + local[local.length - 1] : "***";
     return `${maskedLocal}@${domain}`;
   };
 
   const maskName = (name: string) => {
-    return name.split(" ").map(part => 
-      part.length > 1 ? part[0] + "*".repeat(part.length - 1) : part
+    return name.split(" ").map(part =>
+      part.length > 1? part[0] + "*".repeat(part.length - 1) : part
     ).join(" ");
   };
 
@@ -146,11 +142,11 @@ const PaymentStatusLookup = () => {
           </div>
           <button type="submit" disabled={loading}
             className="px-6 py-3 rounded-xl bg-primary text-primary-foreground font-semibold hover:scale-[1.02] transition-transform disabled:opacity-50 flex items-center gap-2">
-            {loading ? <Loader2 size={18} className="animate-spin" /> : "Search"}
+            {loading? <Loader2 size={18} className="animate-spin" /> : "Search"}
           </button>
         </form>
 
-        {searched && !loading && results.length === 0 && sponsorResults.length === 0 && (
+        {searched &&!loading && results.length === 0 && sponsorResults.length === 0 && (
           <div className="text-center py-10 text-muted-foreground glass rounded-xl">
             <AlertCircle className="mx-auto mb-3 opacity-40" size={36} />
             <p className="font-semibold">No registration found</p>
@@ -174,18 +170,18 @@ const PaymentStatusLookup = () => {
                 <div className="flex items-start justify-between gap-3 flex-wrap">
                   <div>
                     <h3 className="font-bold text-foreground text-lg">
-                      {show ? r.name : maskName(r.name)}
+                      {show? r.name : maskName(r.name)}
                     </h3>
                     <p className="text-xs text-muted-foreground">
-                      {show ? r.email : maskEmail(r.email)}
+                      {show? r.email : maskEmail(r.email)}
                     </p>
                   </div>
                   <div className="flex items-center gap-2">
-                    <button 
-                      onClick={() => setShowDetails(s => ({ ...s, [r.id]: !show }))}
+                    <button
+                      onClick={() => setShowDetails(s => ({...s, [r.id]:!show }))}
                       className="p-2 rounded-lg hover:bg-muted text-muted-foreground hover:text-foreground"
                     >
-                      {show ? <EyeOff size={16} /> : <Eye size={16} />}
+                      {show? <EyeOff size={16} /> : <Eye size={16} />}
                     </button>
                     {isPaid && (
                       <span className="flex items-center gap-1.5 text-sm font-bold text-emerald-400 bg-emerald-400/10 px-3 py-1 rounded-full">
@@ -197,7 +193,7 @@ const PaymentStatusLookup = () => {
                         <Clock size={15} /> Awaiting Approval
                       </span>
                     )}
-                    {isPending && !hasSubmittedPayment && (
+                    {isPending &&!hasSubmittedPayment && (
                       <span className="flex items-center gap-1.5 text-sm font-bold text-orange-400 bg-orange-400/10 px-3 py-1 rounded-full">
                         <AlertCircle size={15} /> Payment Pending
                       </span>
@@ -208,21 +204,15 @@ const PaymentStatusLookup = () => {
                       </span>
                     )}
                   </div>
-                    <div className="bg-primary/5 border-primary/20 rounded-xl px-4 py-3 flex items-center justify-between">
-                  <div className="bg-primary/5 border-primary/20 rounded-xl px-4 py-3">
+                </div>
+
+                {/* Fixed Booking Code Block */}
+                <div className="bg-primary/5 border-primary/20 rounded-xl px-4 py-3">
                   <p className="text-xs text-muted-foreground uppercase tracking-wider mb-0.5">Booking Code</p>
                   <p className="font-mono font-extrabold text-xl text-primary tracking-widest select-none">
                     {maskCode(r.ticket_code || "")}
                   </p>
                   <p className="text-xs text-muted-foreground mt-1">Code is masked for security. Check your email or contact support.</p>
-                </div>
-            
-              {r.ticket_code && (
-                    <button onClick={() => copy(r.ticket_code!, "Booking code")}
-                      className="p-2 rounded-lg hover:bg-muted text-muted-foreground hover:text-foreground">
-                      <Copy size={16} />
-                    </button>
-                  )}
                 </div>
 
                 <div className="grid grid-cols-3 gap-3 text-sm">
@@ -232,13 +222,13 @@ const PaymentStatusLookup = () => {
                   </div>
                   <div className="glass rounded-lg p-3 text-center">
                     <p className="text-muted-foreground text-xs mb-1">Paid</p>
-                    <p className={`font-bold ${r.total_paid > 0 ? "text-emerald-400" : "text-muted-foreground"}`}>
+                    <p className={`font-bold ${r.total_paid > 0? "text-emerald-400" : "text-muted-foreground"}`}>
                       KES {Number(r.total_paid).toLocaleString()}
                     </p>
                   </div>
                   <div className="glass rounded-lg p-3 text-center">
                     <p className="text-muted-foreground text-xs mb-1">Balance</p>
-                    <p className={`font-bold ${remaining > 0 ? "text-orange-400" : "text-emerald-400"}`}>
+                    <p className={`font-bold ${remaining > 0? "text-orange-400" : "text-emerald-400"}`}>
                       KES {remaining.toLocaleString()}
                     </p>
                   </div>
@@ -260,15 +250,15 @@ const PaymentStatusLookup = () => {
                             KES {Number(p.amount).toLocaleString()} · {new Date(p.created_at).toLocaleDateString("en-KE")}
                           </p>
                         </div>
-                        <span className={`text-xs font-semibold px-2 py-0.5 rounded-full ${p.verified ? "text-emerald-400 bg-emerald-400/10" : "text-yellow-400 bg-yellow-400/10"}`}>
-                          {p.verified ? "Verified" : "Pending"}
+                        <span className={`text-xs font-semibold px-2 py-0.5 rounded-full ${p.verified? "text-emerald-400 bg-emerald-400/10" : "text-yellow-400 bg-yellow-400/10"}`}>
+                          {p.verified? "Verified" : "Pending"}
                         </span>
                       </div>
                     ))}
                   </div>
                 )}
 
-                <div className={`rounded-xl p-4 text-sm ${isPaid ? "bg-emerald-500/10 border-emerald-500/20" : "bg-yellow-500/10 border-yellow-500/20"}`}>
+                <div className={`rounded-xl p-4 text-sm ${isPaid? "bg-emerald-500/10 border-emerald-500/20" : "bg-yellow-500/10 border-yellow-500/20"}`}>
                   {isPaid && (
                     <div className="space-y-2">
                       <p className="font-bold text-emerald-300 flex items-center gap-2">
@@ -296,7 +286,7 @@ const PaymentStatusLookup = () => {
                       </p>
                     </div>
                   )}
-                  {isPending && !hasSubmittedPayment && (
+                  {isPending &&!hasSubmittedPayment && (
                     <div>
                       <p className="font-bold text-orange-300 flex items-center gap-2">
                         <AlertCircle size={16} /> No payment received yet
@@ -327,19 +317,19 @@ const PaymentStatusLookup = () => {
               <div className="flex items-start justify-between gap-3 flex-wrap">
                 <div>
                   <h3 className="font-bold text-foreground">
-                    {showDetails[s.id] ? s.sponsor_name : maskName(s.sponsor_name)}
+                    {showDetails[s.id]? s.sponsor_name : maskName(s.sponsor_name)}
                   </h3>
                   <p className="text-xs text-muted-foreground">Sponsor · {s.level}</p>
                 </div>
                 <div className="flex items-center gap-2">
-                  <button 
-                    onClick={() => setShowDetails(s => ({ ...s, [s.id]: !s }))} 
+                  <button
+                    onClick={() => setShowDetails(s => ({...s, [s.id]:!s.showDetails?.[s.id] }))}
                     className="p-2 rounded-lg hover:bg-muted text-muted-foreground hover:text-foreground"
                   >
-                    {showDetails[s.id] ? <EyeOff size={16} /> : <Eye size={16} />}
+                    {showDetails[s.id]? <EyeOff size={16} /> : <Eye size={16} />}
                   </button>
-                  <span className={`text-sm font-semibold px-3 py-1 rounded-full ${s.verified ? "text-emerald-400 bg-emerald-400/10" : "text-yellow-400 bg-yellow-400/10"}`}>
-                    {s.verified ? "✓ Verified" : "⏳ Pending Verification"}
+                  <span className={`text-sm font-semibold px-3 py-1 rounded-full ${s.verified? "text-emerald-400 bg-emerald-400/10" : "text-yellow-400 bg-yellow-400/10"}`}>
+                    {s.verified? "✓ Verified" : "⏳ Pending Verification"}
                   </span>
                 </div>
               </div>
@@ -358,17 +348,11 @@ const PaymentStatusLookup = () => {
                 </div>
               </div>
               {s.sponsor_code && (
-                <div className="bg-primary/5 border-primary/20 rounded-xl px-4 py-3 flex items-center justify-between">
-                  <div>
-                    <p className="text-xs text-muted-foreground uppercase tracking-wider mb-0.5">Sponsor Code</p>
-                    <p className="font-mono font-bold text-primary">
-                      {showDetails[s.id] ? s.sponsor_code : maskCode(s.sponsor_code)}
-                    </p>
-                  </div>
-                  <button onClick={() => copy(s.sponsor_code!, "Sponsor code")}
-                    className="p-2 rounded-lg hover:bg-muted text-muted-foreground hover:text-foreground">
-                    <Copy size={16} />
-                  </button>
+                <div className="bg-primary/5 border-primary/20 rounded-xl px-4 py-3">
+                  <p className="text-xs text-muted-foreground uppercase tracking-wider mb-0.5">Sponsor Code</p>
+                  <p className="font-mono font-bold text-primary">
+                    {showDetails[s.id]? s.sponsor_code : maskCode(s.sponsor_code)}
+                  </p>
                 </div>
               )}
               {!s.verified && (
