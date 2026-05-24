@@ -29,13 +29,18 @@ const AdminPartnerPackages = () => {
 
   const fetchPackages = async () => {
     const { data, error } = await supabase
-    .from("partner_packages")
-    .select("*")
-    .order("display_order");
+      .from("partner_packages")
+      .select("*")
+      .order("display_order");
 
     if (error) toast.error("Failed to load packages: " + error.message);
 
-    setPackages(((data as PkgRow[]) || []).map((p) => ({ ...p, perks: p.perks ?? [] })));
+    setPackages(
+      ((data as PkgRow[]) || []).map((p) => ({
+        ...p,
+        perks: Array.isArray(p.perks) ? p.perks.filter(Boolean) : [],
+      }))
+    );
     setLoading(false);
   };
 
@@ -61,16 +66,16 @@ const AdminPartnerPackages = () => {
       name: p.name.trim(),
       price: p.price,
       description: p.description.trim() || null,
-      perks: p.perks.filter(Boolean),
+      perks: p.perks.filter(Boolean), // strip empty lines before saving
       display_order: p.display_order,
       active: p.active,
     };
 
     if (p.id) {
       const { error } = await supabase
-      .from("partner_packages")
-      .update(payload)
-      .eq("id", p.id);
+        .from("partner_packages")
+        .update(payload)
+        .eq("id", p.id);
 
       if (error) {
         toast.error(error.message);
@@ -78,16 +83,17 @@ const AdminPartnerPackages = () => {
       }
     } else {
       const { data, error } = await supabase
-      .from("partner_packages")
-      .insert(payload)
-      .select("id")
-      .single();
+        .from("partner_packages")
+        .insert(payload)
+        .select("id")
+        .single();
 
       if (error) {
         toast.error(error.message);
         return;
       }
 
+      // Update local state with the new DB id so next save is an update
       setPackages((prev) =>
         prev.map((pkg, idx) =>
           idx === i ? { ...pkg, id: data.id } : pkg
@@ -96,6 +102,7 @@ const AdminPartnerPackages = () => {
     }
 
     toast.success("Saved");
+    fetchPackages(); // ← THIS WAS MISSING — refreshes list from DB after save
   };
 
   const remove = async (i: number) => {
@@ -109,9 +116,9 @@ const AdminPartnerPackages = () => {
     if (!confirm(`Delete "${p.name}"?`)) return;
 
     const { error } = await supabase
-    .from("partner_packages")
-    .delete()
-    .eq("id", p.id);
+      .from("partner_packages")
+      .delete()
+      .eq("id", p.id);
 
     if (error) {
       toast.error(error.message);
@@ -119,14 +126,13 @@ const AdminPartnerPackages = () => {
     }
 
     toast.success("Deleted");
-
-    setPackages((prev) => prev.filter((_, idx) => idx !== i));
+    fetchPackages();
   };
 
   const addNew = () =>
     setPackages((prev) => [
-    ...prev,
-     { ...blank(), display_order: prev.length + 1 },
+      ...prev,
+      { ...blank(), display_order: prev.length + 1 },
     ]);
 
   if (loading)
@@ -145,12 +151,11 @@ const AdminPartnerPackages = () => {
           <h1 className="font-display text-2xl font-bold text-foreground">
             Partner Packages
           </h1>
-
           <p className="text-sm text-muted-foreground mt-1">
             Define the partnership tiers shown on the public Partners section.
+            These appear as cards on the website for potential partners to see.
           </p>
         </div>
-
         <button
           onClick={addNew}
           className="flex items-center gap-2 px-3 py-2 rounded-lg bg-primary text-primary-foreground text-sm font-semibold"
@@ -165,37 +170,31 @@ const AdminPartnerPackages = () => {
             key={p.id || `new-${i}`}
             className="glass rounded-xl p-5 grid md:grid-cols-2 gap-4"
           >
+            {/* LEFT COLUMN */}
             <div className="space-y-3">
               <div className="grid grid-cols-2 gap-2">
                 <div>
                   <label className="text-xs text-muted-foreground">
                     Package Name
                   </label>
-
                   <input
                     value={p.name}
-                    onChange={(e) =>
-                      updateLocal(i, { name: e.target.value })
-                    }
+                    onChange={(e) => updateLocal(i, { name: e.target.value })}
                     placeholder="Gold Partner"
-                    className="w-full px-3 py-2 rounded-lg bg-muted border-border text-sm"
+                    className="w-full px-3 py-2 rounded-lg bg-muted border border-border text-sm"
                   />
                 </div>
-
                 <div>
                   <label className="text-xs text-muted-foreground">
                     Display Order
                   </label>
-
                   <input
                     type="number"
                     value={p.display_order}
                     onChange={(e) =>
-                      updateLocal(i, {
-                        display_order: Number(e.target.value),
-                      })
+                      updateLocal(i, { display_order: Number(e.target.value) })
                     }
-                    className="w-full px-3 py-2 rounded-lg bg-muted border-border text-sm"
+                    className="w-full px-3 py-2 rounded-lg bg-muted border border-border text-sm"
                   />
                 </div>
               </div>
@@ -204,7 +203,6 @@ const AdminPartnerPackages = () => {
                 <label className="text-xs text-muted-foreground">
                   Price (KES)
                 </label>
-
                 <input
                   type="number"
                   min={0}
@@ -212,7 +210,7 @@ const AdminPartnerPackages = () => {
                   onChange={(e) =>
                     updateLocal(i, { price: Number(e.target.value) })
                   }
-                  className="w-full px-3 py-2 rounded-lg bg-muted border-border text-sm"
+                  className="w-full px-3 py-2 rounded-lg bg-muted border border-border text-sm"
                 />
               </div>
 
@@ -220,34 +218,38 @@ const AdminPartnerPackages = () => {
                 <label className="text-xs text-muted-foreground">
                   Short Description
                 </label>
-
                 <input
                   value={p.description}
                   onChange={(e) =>
                     updateLocal(i, { description: e.target.value })
                   }
-                  placeholder="Premium visibility"
-                  className="w-full px-3 py-2 rounded-lg bg-muted border-border text-sm"
+                  placeholder="e.g. Premium brand visibility"
+                  className="w-full px-3 py-2 rounded-lg bg-muted border border-border text-sm"
                 />
               </div>
             </div>
 
+            {/* RIGHT COLUMN */}
             <div className="space-y-3">
               <div>
                 <label className="text-xs text-muted-foreground">
                   Perks (one per line)
                 </label>
-
                 <textarea
                   rows={5}
                   value={p.perks.join("\n")}
                   onChange={(e) =>
                     updateLocal(i, {
+                      // Keep raw lines while typing; filter on save
                       perks: e.target.value.split("\n"),
                     })
                   }
-                  className="w-full px-3 py-2 rounded-lg bg-muted border-border text-sm resize-none"
+                  placeholder={"Logo on banner\nSocial media mention\n2 VIP seats"}
+                  className="w-full px-3 py-2 rounded-lg bg-muted border border-border text-sm resize-none"
                 />
+                <p className="text-xs text-muted-foreground mt-0.5">
+                  Empty lines are stripped automatically when you save.
+                </p>
               </div>
 
               <label className="flex items-center gap-2 text-sm">
@@ -258,20 +260,19 @@ const AdminPartnerPackages = () => {
                     updateLocal(i, { active: e.target.checked })
                   }
                 />
-                Active (visible on site)
+                Active (visible on public site)
               </label>
 
               <div className="flex gap-2 pt-1">
                 <button
                   onClick={() => save(i)}
-                  className="flex-1 flex items-center justify-center gap-2 px-3 py-2 rounded-lg bg-primary text-primary-foreground text-sm font-semibold"
+                  className="flex-1 flex items-center justify-center gap-2 px-3 py-2 rounded-lg bg-primary text-primary-foreground text-sm font-semibold hover:bg-primary/80 transition-colors"
                 >
                   <Save size={14} /> Save
                 </button>
-
                 <button
                   onClick={() => remove(i)}
-                  className="px-3 py-2 rounded-lg border-border text-destructive hover:bg-destructive/10 text-sm"
+                  className="px-3 py-2 rounded-lg border border-border text-destructive hover:bg-destructive/10 text-sm transition-colors"
                 >
                   <Trash2 size={14} />
                 </button>
@@ -279,6 +280,13 @@ const AdminPartnerPackages = () => {
             </div>
           </div>
         ))}
+
+        {packages.length === 0 && (
+          <div className="glass rounded-xl p-8 text-center text-muted-foreground">
+            No partner packages yet. Click{" "}
+            <strong>New Package</strong> above to create one.
+          </div>
+        )}
       </div>
     </AdminLayout>
   );
