@@ -33,8 +33,8 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       .select("role")
       .eq("user_id", userId);
     const roles = (data || []).map((r: any) => r.role);
-    setIsAdmin(roles.length > 0);
-    setIsSuperAdmin(roles.includes("super_admin") || roles.includes("superadmin"));
+    setIsAdmin(roles.includes("admin") || roles.includes("super_admin"));
+    setIsSuperAdmin(roles.includes("super_admin"));
   };
 
   useEffect(() => {
@@ -42,19 +42,31 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       setSession(session);
       setUser(session?.user ?? null);
       if (session?.user) checkRoles(session.user.id);
-      setLoading(false);
+      else setLoading(false);
     });
 
     const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
       setSession(session);
       setUser(session?.user ?? null);
       if (session?.user) checkRoles(session.user.id);
-      else { setIsAdmin(false); setIsSuperAdmin(false); }
-      setLoading(false);
+      else {
+        setIsAdmin(false);
+        setIsSuperAdmin(false);
+        setLoading(false);
+      }
     });
 
     return () => subscription.unsubscribe();
   }, []);
+
+  const checkRolesAndSetLoading = async (userId: string) => {
+    await checkRoles(userId);
+    setLoading(false);
+  };
+
+  useEffect(() => {
+    if (user) checkRolesAndSetLoading(user.id);
+  }, [user]);
 
   const signOut = async () => {
     await supabase.auth.signOut();
