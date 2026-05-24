@@ -64,9 +64,7 @@ const AdminOverview = () => {
     totalDocuments: 0,
   });
   const [recentPayments, setRecentPayments] = useState<any[]>([]);
-  const [chartData, setChartData] = useState
-    { day: string; confirmed: number; pending: number }[]
-  >([]);
+  const [chartData, setChartData] = useState<{ day: string; confirmed: number; pending: number }[]>([]);
 
   useEffect(() => {
     const fetchStats = async () => {
