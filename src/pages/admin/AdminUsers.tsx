@@ -30,20 +30,33 @@ const AdminUsers = () => {
   const [allUsers, setAllUsers] = useState<Profile[]>([]);
 
   const fetchRoles = async () => {
-    const { data } = await supabase.from("user_roles").select("*");
-    if (!data) { setLoading(false); return; }
+    setLoading(true);
+    
+    const { data, error } = await supabase
+      .from("user_roles")
+      .select(`
+        id,
+        user_id,
+        role,
+        created_at,
+        profiles!inner(email)
+      `)
+      .order("created_at", { ascending: false });
 
-    // Get profile emails for each role
-    const enriched = await Promise.all(
-      data.map(async (r) => {
-        const { data: profile } = await supabase
-          .from("profiles")
-          .select("email")
-          .eq("user_id", r.user_id)
-          .maybeSingle();
-        return { ...r, email: profile?.email || "Unknown" };
-      })
-    );
+    if (error) {
+      toast.error("Failed to load roles: " + error.message);
+      setLoading(false);
+      return;
+    }
+
+    const enriched: UserRole[] = (data || []).map((r: any) => ({
+      id: r.id,
+      user_id: r.user_id,
+      role: r.role,
+      created_at: r.created_at,
+      email: r.profiles?.email || "Unknown",
+    }));
+
     setRoles(enriched);
     setLoading(false);
   };
@@ -53,13 +66,15 @@ const AdminUsers = () => {
     setAllUsers((data as Profile[]) || []);
   };
 
-  useEffect(() => { fetchRoles(); fetchAllUsers(); }, []);
+  useEffect(() => { 
+    fetchRoles(); 
+    fetchAllUsers(); 
+  }, []);
 
   const handleAddAdmin = async () => {
     if (!newEmail.trim()) return;
     setAdding(true);
 
-    // Find user by email in profiles
     const { data: profile } = await supabase
       .from("profiles")
       .select("user_id")
@@ -72,7 +87,6 @@ const AdminUsers = () => {
       return;
     }
 
-    // Check if already admin
     const existing = roles.find((r) => r.user_id === profile.user_id && r.role === "admin");
     if (existing) {
       toast.error("User is already an admin.");
@@ -158,16 +172,17 @@ const AdminUsers = () => {
         </div>
       </div>
 
-      {/* Add New Admin */}
+      {/* Add New Admin - REPLACED SECTION */}
       <div className="glass rounded-xl p-5 mb-6">
         <h2 className="font-display text-lg font-bold text-foreground mb-3">Add New Admin</h2>
-        <div className="flex gap-2">
+        
+        <div className="flex gap-2 flex-wrap">
           <input
             type="email"
             placeholder="User email address"
             value={newEmail}
             onChange={(e) => setNewEmail(e.target.value)}
-            className="flex-1 px-4 py-2.5 rounded-lg bg-muted border border-border text-foreground text-sm focus:outline-none focus:ring-2 focus:ring-primary/50"
+            className="flex-1 min-w-48 px-4 py-2.5 rounded-lg bg-muted border-border text-foreground text-sm focus:outline-none focus:ring-2 focus:ring-primary/50"
           />
           <button
             onClick={handleAddAdmin}
@@ -175,10 +190,13 @@ const AdminUsers = () => {
             className="flex items-center gap-2 px-4 py-2.5 rounded-lg bg-primary text-primary-foreground text-sm font-semibold hover:scale-[1.02] transition-transform disabled:opacity-50"
           >
             {adding ? <Loader2 size={16} className="animate-spin" /> : <UserPlus size={16} />}
-            Add
+            Add as Admin
           </button>
         </div>
-        <p className="text-xs text-muted-foreground mt-2">The user must have signed up first.</p>
+        <p className="text-xs text-muted-foreground mt-2">
+          The user must have signed up first. They will receive full admin access immediately.
+          You cannot remove your own admin role.
+        </p>
       </div>
 
       {/* Existing Admins */}
