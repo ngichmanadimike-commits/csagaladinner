@@ -1,3 +1,13 @@
+// src/pages/admin/AdminPayments.tsx  ← FULL REPLACEMENT FILE
+// Changes vs original:
+//   1. handleVerify now explicitly re-fetches the registration and updates
+//      payment_status / total_paid if the DB trigger hasn't run yet. This
+//      is belt-and-suspenders: the trigger should handle it, but if it was
+//      misconfigured or not applied, the UI stays consistent.
+//   2. Added "Source" column back to the table for visibility.
+//   3. Added verified_at display in the status badge tooltip.
+//   4. Minor: source label display improved (STK vs Manual).
+
 import { useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import AdminLayout from "@/components/admin/AdminLayout";
@@ -15,11 +25,12 @@ const AdminPayments = () => {
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [deletingSelected, setDeletingSelected] = useState(false);
+  const [verifyingId, setVerifyingId] = useState<string | null>(null);
 
   const fetchPayments = async () => {
     const { data } = await supabase
       .from("payments")
-      .select("*, registrations(name, email, phone)")
+      .select("*, registrations(name, email, phone, total_cost, payment_status)")
       .order("created_at", { ascending: false });
     setPayments(data || []);
     setLoading(false);
@@ -82,18 +93,56 @@ const AdminPayments = () => {
 
   const handleVerify = async (paymentId: string, verified: boolean) => {
     const target = payments.find((p) => p.id === paymentId);
+    setVerifyingId(paymentId);
+
     const { error } = await supabase
       .from("payments")
       .update({ verified, verified_at: verified ? new Date().toISOString() : null })
       .eq("id", paymentId);
+
     if (error) {
       toast.error("Failed to update payment");
       logAdminAction({ actionType: verified ? "VERIFY_PAYMENT" : "REJECT_PAYMENT", description: `Failed to ${verified ? "verify" : "reject"} payment`, targetType: "payment", targetId: paymentId, status: "failed", metadata: { error: error.message } });
-    } else {
-      toast.success(verified ? "Payment verified" : "Payment rejected");
-      logAdminAction({ actionType: verified ? "VERIFY_PAYMENT" : "REJECT_PAYMENT", description: `${verified ? "Verified" : "Rejected"} payment of KES ${target?.amount} for ${target?.registrations?.name}`, targetType: "payment", targetId: paymentId, metadata: { amount: target?.amount, mpesa_code: target?.mpesa_code, registration_id: target?.registration_id } });
-      fetchPayments();
+      setVerifyingId(null);
+      return;
     }
+
+    toast.success(verified ? "Payment approved ✓" : "Payment rejected");
+    logAdminAction({
+      actionType: verified ? "VERIFY_PAYMENT" : "REJECT_PAYMENT",
+      description: `${verified ? "Approved" : "Rejected"} payment of KES ${target?.amount} for ${target?.registrations?.name}`,
+      targetType: "payment",
+      targetId: paymentId,
+      metadata: { amount: target?.amount, mpesa_code: target?.mpesa_code, registration_id: target?.registration_id },
+    });
+
+    // Belt-and-suspenders: recalculate registration totals in case the DB
+    // trigger recalc_registration_totals was not applied or is unavailable.
+    if (target?.registration_id) {
+      const { data: allPays } = await supabase
+        .from("payments")
+        .select("amount, verified")
+        .eq("registration_id", target.registration_id);
+
+      if (allPays) {
+        const verifiedPays = allPays.filter((p: any) => p.verified || (p.id === paymentId && verified));
+        const totalPaid = verifiedPays.reduce((s: number, p: any) => s + Number(p.amount), 0);
+        const totalCost = Number(target.registrations?.total_cost ?? 0);
+        const newStatus = totalPaid <= 0 ? "pending" : totalPaid >= totalCost ? "paid" : "partial";
+
+        await supabase
+          .from("registrations")
+          .update({
+            total_paid: totalPaid,
+            payment_status: newStatus,
+            ticket_issued: newStatus === "paid",
+          })
+          .eq("id", target.registration_id);
+      }
+    }
+
+    setVerifyingId(null);
+    fetchPayments();
   };
 
   const filtered = payments.filter((p) => {
@@ -185,6 +234,7 @@ const AdminPayments = () => {
                   <th className="p-3">Email</th>
                   <th className="p-3">Amount</th>
                   <th className="p-3">M-Pesa Code</th>
+                  <th className="p-3">Source</th>
                   <th className="p-3">Status</th>
                   <th className="p-3 text-right">Actions</th>
                 </tr>
@@ -203,20 +253,38 @@ const AdminPayments = () => {
                       <td className="p-3 text-foreground font-semibold">KES {Number(p.amount).toLocaleString()}</td>
                       <td className="p-3 text-muted-foreground font-mono text-xs">{p.mpesa_code || "—"}</td>
                       <td className="p-3">
-                        <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${p.verified ? "bg-emerald-400/10 text-emerald-400" : "bg-yellow-400/10 text-yellow-400"}`}>
+                        <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${p.source === "stk" ? "bg-blue-400/10 text-blue-400" : "bg-muted text-muted-foreground"}`}>
+                          {p.source === "stk" ? "STK" : "Manual"}
+                        </span>
+                      </td>
+                      <td className="p-3">
+                        <span
+                          className={`px-2 py-0.5 rounded-full text-xs font-medium ${p.verified ? "bg-emerald-400/10 text-emerald-400" : "bg-yellow-400/10 text-yellow-400"}`}
+                          title={p.verified && p.verified_at ? `Verified at ${new Date(p.verified_at).toLocaleString("en-KE")}` : "Pending approval"}
+                        >
                           {p.verified ? "Verified" : "Pending"}
                         </span>
                       </td>
                       <td className="p-3 text-right">
                         <div className="flex gap-2 justify-end">
                           {!p.verified && (
-                            <button onClick={() => handleVerify(p.id, true)} className="p-1.5 rounded-lg hover:bg-emerald-400/10 text-emerald-400" title="Verify">
-                              <CheckCircle2 size={16} />
+                            <button
+                              onClick={() => handleVerify(p.id, true)}
+                              disabled={verifyingId === p.id}
+                              className="p-1.5 rounded-lg hover:bg-emerald-400/10 text-emerald-400 disabled:opacity-40"
+                              title="Approve payment"
+                            >
+                              {verifyingId === p.id ? <span className="text-xs">…</span> : <CheckCircle2 size={16} />}
                             </button>
                           )}
                           {p.verified && (
-                            <button onClick={() => handleVerify(p.id, false)} className="p-1.5 rounded-lg hover:bg-red-400/10 text-red-400" title="Reject">
-                              <XCircle size={16} />
+                            <button
+                              onClick={() => handleVerify(p.id, false)}
+                              disabled={verifyingId === p.id}
+                              className="p-1.5 rounded-lg hover:bg-red-400/10 text-red-400 disabled:opacity-40"
+                              title="Reject / un-verify payment"
+                            >
+                              {verifyingId === p.id ? <span className="text-xs">…</span> : <XCircle size={16} />}
                             </button>
                           )}
                           <button onClick={() => handleDeleteRow(p)} disabled={deletingId === p.id}
