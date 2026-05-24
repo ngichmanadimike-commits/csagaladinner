@@ -27,32 +27,40 @@ Deno.serve(async (req) => {
     }
 
     const resultCode = stkCallback.ResultCode;
-    const merchantRequestId = stkCallback.MerchantRequestID;
     const checkoutRequestId = stkCallback.CheckoutRequestID;
 
     // Only process successful payments
     if (resultCode !== 0) {
-      console.log(`Payment failed/cancelled. ResultCode: ${resultCode}, Desc: ${stkCallback.ResultDesc}`);
+      console.log(`Payment failed/cancelled. ResultCode: ${resultCode}`);
+      // Mark any pending STK payment as failed
+      const supabase = createClient(
+        Deno.env.get("SUPABASE_URL")!,
+        Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!
+      );
+      if (checkoutRequestId) {
+        await supabase
+          .from("payments")
+          .update({ source: "stk_failed" })
+          .eq("source", "stk_pending")
+          .contains("mpesa_code", checkoutRequestId);
+      }
       return new Response(JSON.stringify({ message: "Payment not successful, ignored" }), {
         status: 200,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
 
-    // Extract metadata from callback items
+    // Extract metadata
     const items: Record<string, string | number> = {};
     (stkCallback.CallbackMetadata?.Item || []).forEach((item: any) => {
-      if (item.Name && item.Value !== undefined) {
-        items[item.Name] = item.Value;
-      }
+      if (item.Name && item.Value !== undefined) items[item.Name] = item.Value;
     });
 
-    const mpesaCode    = String(items.MpesaReceiptNumber || "");
-    const amount       = Number(items.Amount || 0);
-    const phone        = String(items.PhoneNumber || "");
-    const transDate    = String(items.TransactionDate || "");
+    const mpesaCode = String(items.MpesaReceiptNumber || "");
+    const amount = Number(items.Amount || 0);
+    const phone = String(items.PhoneNumber || "");
 
-    console.log("Parsed payment:", { mpesaCode, amount, phone, transDate });
+    console.log("Parsed STK payment:", { mpesaCode, amount, phone });
 
     if (!mpesaCode) {
       console.error("No MpesaReceiptNumber in callback");
@@ -67,80 +75,55 @@ Deno.serve(async (req) => {
       Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!
     );
 
-    // Find the pending payment by mpesa_code or find the most recent pending payment for this phone
     const normalizedPhone = phone.startsWith("254") ? "0" + phone.slice(3) : phone;
 
-    // Try to match by mpesa code first (if STK push was already manually confirmed)
+    // Check if payment already exists
     const { data: existingPayment } = await supabase
       .from("payments")
-      .select("id, registration_id, verified")
+      .select("id, verified")
       .eq("mpesa_code", mpesaCode)
       .maybeSingle();
 
     if (existingPayment) {
-      // Update existing payment to verified
-      if (!existingPayment.verified) {
-        await supabase
-          .from("payments")
-          .update({ verified: true, verified_at: new Date().toISOString() })
-          .eq("id", existingPayment.id);
-        console.log("Updated existing payment to verified:", existingPayment.id);
-      }
-    } else {
-      // Find most recent unverified pending payment for this phone/amount
-      const { data: pendingPayment } = await supabase
-        .from("payments")
-        .select("id, registration_id")
-        .eq("verified", false)
-        .eq("amount", amount)
-        .or(`phone.eq.${normalizedPhone},phone.eq.${phone}`)
-        .order("created_at", { ascending: false })
-        .limit(1)
-        .maybeSingle();
-
-      if (pendingPayment) {
-        await supabase
-          .from("payments")
-          .update({
-            mpesa_code: mpesaCode,
-            verified: true,
-            verified_at: new Date().toISOString(),
-          })
-          .eq("id", pendingPayment.id);
-        console.log("Matched and verified pending payment:", pendingPayment.id);
-      } else {
-        // Insert new verified payment record (STK push that wasn't pre-registered)
-        const { data: reg } = await supabase
-          .from("registrations")
-          .select("id")
-          .or(`phone.eq.${normalizedPhone},phone.eq.${phone}`)
-          .eq("payment_status", "pending")
-          .order("created_at", { ascending: false })
-          .limit(1)
-          .maybeSingle();
-
-        if (reg) {
-          await supabase.from("payments").insert({
-            registration_id: reg.id,
-            amount,
-            mpesa_code: mpesaCode,
-            phone: normalizedPhone || phone,
-            source: "stk",
-            verified: true,
-            verified_at: new Date().toISOString(),
-          });
-          console.log("Inserted new verified payment for registration:", reg.id);
-        }
-      }
+      console.log("Payment already recorded:", existingPayment.id);
+      return new Response(JSON.stringify({ message: "already recorded" }), {
+        status: 200,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
     }
 
-    return new Response(JSON.stringify({ message: "Payment confirmation received and processed" }), {
+    // Find matching registration (by phone + pending status)
+    const { data: reg } = await supabase
+      .from("registrations")
+      .select("id")
+      .or(`phone.eq.${normalizedPhone},phone.eq.${phone}`)
+      .in("payment_status", ["pending", "partial"])
+      .order("created_at", { ascending: false })
+      .limit(1)
+      .maybeSingle();
+
+    if (reg) {
+      // Insert as UNVERIFIED — admin must approve
+      await supabase.from("payments").insert({
+        registration_id: reg.id,
+        amount,
+        mpesa_code: mpesaCode,
+        phone: normalizedPhone || phone,
+        source: "stk",
+        verified: false, // ← ALWAYS false; admin approves
+        payment_method: "mpesa_stk",
+      });
+      console.log("Inserted STK payment (pending admin approval) for registration:", reg.id);
+    } else {
+      console.warn("No matching registration found for phone:", normalizedPhone);
+    }
+
+    return new Response(JSON.stringify({ message: "Payment received — pending admin approval" }), {
       status: 200,
       headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
   } catch (error: any) {
     console.error("Error processing M-PESA callback:", error);
-    // Always return 200 to Safaricom or they will keep retrying
     return new Response(JSON.stringify({ message: "ok" }), {
       status: 200,
       headers: { ...corsHeaders, "Content-Type": "application/json" },
