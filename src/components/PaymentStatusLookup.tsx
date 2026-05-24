@@ -208,9 +208,7 @@ const PaymentStatusLookup = () => {
                       </span>
                     )}
                   </div>
-                </div>
-
-                <div className="bg-primary/5 border-primary/20 rounded-xl px-4 py-3 flex items-center justify-between">
+                    <div className="bg-primary/5 border-primary/20 rounded-xl px-4 py-3 flex items-center justify-between">
                   <div className="bg-primary/5 border-primary/20 rounded-xl px-4 py-3">
                   <p className="text-xs text-muted-foreground uppercase tracking-wider mb-0.5">Booking Code</p>
                   <p className="font-mono font-extrabold text-xl text-primary tracking-widest select-none">
