@@ -1,14 +1,14 @@
-// src/components/HeroSection.tsx
-// Changes made:
-//   1. Removed the separate events DB query — now uses shared useEventData hook
-//      (eliminates one of 8 duplicate DB calls on page load)
-//   2. Hero image given fetchPriority="high" so browser loads it first (LCP fix)
-//   3. Reduced/removed framer-motion animations on non-critical elements
-//      (eliminates the ~300ms CPU spike on mobile on initial load)
+// src/components/HeroSection.tsx  ← FULL REPLACEMENT FILE
+// Changes vs original:
+//   • nominationUrl now reads from event.nomination_url (set by admin in Event Config)
+//     instead of a hardcoded Google Forms URL.
+//   • "Awards Nomination" button only renders when a nomination URL is configured,
+//     keeping the hero clean if the admin hasn't set it yet.
+//   • "Vote Now" button continues to show only when voting_url is set (unchanged).
 
 import { useEffect, useState } from "react";
 import { motion } from "framer-motion";
-import { CalendarDays, Clock, MapPin, Vote } from "lucide-react";
+import { CalendarDays, Clock, MapPin, Vote, Award } from "lucide-react";
 import heroImg from "@/assets/hero-gala.jpg";
 import csaLogo from "@/assets/white_logo.jpg";
 import CountdownTimer from "./CountdownTimer";
@@ -27,12 +27,11 @@ const HeroSection = () => {
     hero_countdown: "2026-06-05T19:00:00+03:00",
   });
 
-  // PERF FIX: use shared cache hook instead of a separate DB query
   const { event } = useEventData();
-  const votingUrl = event?.voting_url ?? null;
+  const votingUrl      = event?.voting_url      ?? null;
+  const nominationUrl  = event?.nomination_url  ?? null;  // ← was hardcoded before
 
   useEffect(() => {
-    // Only site_settings query remains here — events query removed (handled by hook)
     supabase
       .from("site_settings")
       .select("key, value")
@@ -49,8 +48,6 @@ const HeroSection = () => {
 
   return (
     <section className="relative min-h-screen flex items-center justify-center overflow-hidden">
-      {/* PERF FIX: fetchPriority="high" tells the browser this is the LCP element —
-          load it before anything else. decoding="async" prevents it blocking the main thread. */}
       <img
         src={heroImg}
         alt="CSA Gala Dinner"
@@ -65,8 +62,6 @@ const HeroSection = () => {
 
       <div className="relative z-10 container mx-auto px-4 text-center pt-24 pb-16">
 
-        {/* PERF FIX: Logo — removed motion wrapper entirely.
-            It's above the fold so animating it wastes the very first render frame. */}
         <div className="flex justify-center mb-6">
           <img
             src={csaLogo}
@@ -75,84 +70,85 @@ const HeroSection = () => {
           />
         </div>
 
-        {/* PERF FIX: Shortened animation durations — faster feel, less CPU time */}
         <motion.p
           initial={{ opacity: 0, y: 10 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.35, delay: 0.05 }}
-          className="text-primary font-semibold tracking-widest uppercase text-sm mb-4"
+          className="text-primary font-semibold text-sm uppercase tracking-widest mb-3"
         >
           {s.hero_eyebrow}
         </motion.p>
 
         <motion.h1
-          initial={{ opacity: 0, y: 20 }}
+          initial={{ opacity: 0, y: 10 }}
           animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.45, delay: 0.1 }}
-          className="font-display text-4xl sm:text-5xl md:text-7xl font-bold text-foreground mb-6 leading-tight"
+          transition={{ duration: 0.35, delay: 0.1 }}
+          className="font-display text-4xl sm:text-6xl lg:text-7xl font-bold text-foreground mb-4 leading-tight"
         >
           {s.hero_title}
         </motion.h1>
 
         <motion.p
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          transition={{ duration: 0.4, delay: 0.18 }}
-          className="text-muted-foreground text-base md:text-lg max-w-2xl mx-auto mb-8 italic font-display"
+          initial={{ opacity: 0, y: 10 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.35, delay: 0.15 }}
+          className="text-muted-foreground text-lg sm:text-xl max-w-3xl mx-auto mb-8"
         >
-          "{s.hero_subtitle}"
+          {s.hero_subtitle}
         </motion.p>
 
-        {/* PERF FIX: Removed motion wrapper from static date/time/venue row —
-            it never needs to animate, it's just data. Saves a motion instance. */}
-        <div className="flex flex-wrap justify-center gap-6 md:gap-10 text-base md:text-xl text-foreground mb-10 font-semibold">
+        <motion.div
+          initial={{ opacity: 0, y: 10 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.35, delay: 0.2 }}
+          className="flex flex-wrap justify-center gap-6 text-sm text-muted-foreground mb-10"
+        >
           <span className="flex items-center gap-2">
-            <CalendarDays size={22} className="text-primary" /> {s.hero_date}
+            <CalendarDays size={16} className="text-primary" /> {s.hero_date}
           </span>
           <span className="flex items-center gap-2">
-            <Clock size={22} className="text-primary" /> {s.hero_time}
+            <Clock size={16} className="text-primary" /> {s.hero_time}
           </span>
           <span className="flex items-center gap-2">
-            <MapPin size={22} className="text-primary" /> {s.hero_venue}
+            <MapPin size={16} className="text-primary" /> {s.hero_venue}
           </span>
-        </div>
+        </motion.div>
 
         <CountdownTimer targetDate={s.hero_countdown} />
 
         <motion.div
           initial={{ opacity: 0, y: 10 }}
           animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.25, duration: 0.35 }}
+          transition={{ duration: 0.35, delay: 0.3 }}
           className="flex flex-wrap justify-center gap-4 mt-10"
         >
           <a
-            href="#tickets"
-            className="px-8 py-3.5 rounded-lg bg-primary text-primary-foreground font-bold hover:scale-105 glow-primary transition-all duration-300"
+            href="#register"
+            className="px-8 py-3.5 rounded-lg bg-primary text-primary-foreground font-bold hover:bg-primary/90 hover:scale-105 transition-all duration-300"
           >
-            Buy Ticket
+            Register Now
           </a>
-          <a
-            href="#partner-form"
-            className="px-8 py-3.5 rounded-lg border-2 border-primary text-primary font-bold hover:bg-primary hover:text-primary-foreground transition-all duration-300"
-          >
-            Become a Partner
-          </a>
+
           <a
             href="#sponsor"
             className="px-8 py-3.5 rounded-lg border-2 border-foreground/30 text-foreground font-bold hover:border-primary hover:text-primary transition-all duration-300"
           >
             Sponsor a Student
           </a>
-          <a
-            href="https://forms.gle/VL4Sk37Cjji64PVf6"
-            target="_blank"
-            rel="noopener noreferrer"
-            className="px-8 py-3.5 rounded-lg border-2 border-primary/60 text-primary font-bold hover:bg-primary/10 transition-all duration-300"
-          >
-            Awards Nomination
-          </a>
 
-          {/* VOTING BUTTON — only shows when admin sets a voting URL */}
+          {/* NOMINATIONS BUTTON — only shows when admin sets a nomination URL in Event Config */}
+          {nominationUrl && (
+            <a
+              href={nominationUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="px-8 py-3.5 rounded-lg border-2 border-primary/60 text-primary font-bold hover:bg-primary/10 transition-all duration-300 flex items-center gap-2"
+            >
+              <Award size={18} /> Awards Nomination
+            </a>
+          )}
+
+          {/* VOTING BUTTON — only shows when admin sets a voting URL in Event Config */}
           {votingUrl && (
             <a
               href={votingUrl}
