@@ -1,9 +1,4 @@
 // src/components/EventNotification.tsx
-// Changes made:
-//   1. Removed the separate supabase events DB query — now uses shared useEventData hook
-//      (this was a duplicate of HeroSection's query, fired on every page load)
-//   2. Supabase import removed (no longer needed in this file)
-
 import { useState, useEffect } from "react";
 import { X } from "lucide-react";
 import flyerImage from "@/assets/IMG-20260512-WA0019.jpg";
@@ -13,21 +8,25 @@ const SESSION_KEY = "csaEventNotificationSeen";
 
 const EventNotification = () => {
   const [isOpen, setIsOpen] = useState(false);
-
-  // PERF FIX: no DB query here — we reuse the cached result from useEventData.
-  // By the time this popup appears (800ms delay), HeroSection will have already
-  // fetched and cached the event, so this is a zero-cost lookup.
   const { event } = useEventData();
+
   const flyerUrl = event?.flyer_url || flyerImage;
   const eventTitle = event?.title || "CSA Gala Dinner 2026";
 
+  // popup_enabled defaults to true if not set (backward compatible)
+  const popupEnabled = event?.popup_enabled !== false;
+
   useEffect(() => {
+    // Don't show if: admin turned it off, or event not published, or already seen this session
+    if (!popupEnabled) return;
+    if (event && event.status !== "published") return;
+
     const alreadySeen = sessionStorage.getItem(SESSION_KEY);
     if (!alreadySeen) {
       const timer = setTimeout(() => setIsOpen(true), 800);
       return () => clearTimeout(timer);
     }
-  }, []);
+  }, [popupEnabled, event?.status]);
 
   const handleClose = () => {
     sessionStorage.setItem(SESSION_KEY, "true");
@@ -49,7 +48,6 @@ const EventNotification = () => {
         style={{ border: "2px solid #D4AF37" }}
         onClick={(e) => e.stopPropagation()}
       >
-        {/* Close button */}
         <button
           onClick={handleClose}
           className="absolute top-3 right-3 z-20 p-1.5 rounded-full"
@@ -59,7 +57,6 @@ const EventNotification = () => {
           <X size={18} />
         </button>
 
-        {/* Flyer image — full width */}
         <div className="w-full">
           <img
             src={flyerUrl}
@@ -69,7 +66,6 @@ const EventNotification = () => {
           />
         </div>
 
-        {/* Bottom action bar */}
         <div
           className="px-5 py-4 flex flex-col items-center gap-2"
           style={{ backgroundColor: "#0A2342" }}
