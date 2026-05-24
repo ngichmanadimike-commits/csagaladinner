@@ -39,7 +39,7 @@ const AdminPackages = () => {
 
   const fetchPackages = async () => {
     const { data } = await supabase.from("ticket_packages").select("*").order("display_order");
-    setPackages((data as any) || []);
+    setPackages(((data as any) || []).map((p: any) => ({ ...p, perks: p.perks ?? [], installments: p.installments ?? [] })));
     setLoading(false);
   };
 
