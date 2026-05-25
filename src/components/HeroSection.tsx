@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { motion } from "framer-motion";
-import { CalendarDays, Clock, MapPin, Award, FileCheck, MessageCircle } from "lucide-react";
+import { CalendarDays, Clock, MapPin, Award, FileCheck } from "lucide-react";
 import heroImg from "@/assets/hero-gala.jpg";
 import csaLogo from "@/assets/white_logo.jpg";
 import CountdownTimer from "./CountdownTimer";
@@ -36,20 +36,6 @@ const HeroSection = () => {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  const handleRegisterClick = (e: React.MouseEvent) => {
-    e.preventDefault();
-    // Scroll to tickets section
-    const ticketsSection = document.getElementById("tickets");
-    if (ticketsSection) {
-      ticketsSection.scrollIntoView({ behavior: "smooth" });
-      // Click the first "Select Package" button after scrolling
-      setTimeout(() => {
-        const firstPackageBtn = ticketsSection.querySelector<HTMLButtonElement>("button");
-        if (firstPackageBtn) firstPackageBtn.click();
-      }, 600);
-    }
-  };
-
   return (
     <section className="relative min-h-screen flex items-center justify-center overflow-hidden">
       <img
@@ -62,25 +48,6 @@ const HeroSection = () => {
         decoding="async"
       />
       <div className="absolute inset-0 bg-gradient-to-b from-background/80 via-background/70 to-background" />
-
-      {/* Floating WhatsApp Button */}
-      <motion.a
-        href="https://wa.me/254758647130?text=Hello,%20I%20am%20interested%20in%20booking%20a%20ticket%20for%20the%20CSA%20Gala%20Dinner"
-        target="_blank"
-        rel="noopener noreferrer"
-        initial={{ opacity: 0, scale: 0.5 }}
-        animate={{ opacity: 1, scale: 1 }}
-        transition={{ duration: 0.4, delay: 0.8 }}
-        whileHover={{ scale: 1.1 }}
-        whileTap={{ scale: 0.95 }}
-        className="fixed bottom-6 right-6 z-50 flex items-center gap-2 bg-[#25D366] text-white px-4 py-3 rounded-full shadow-2xl hover:bg-[#20bc5a] transition-colors duration-300 group"
-        title="Chat with us on WhatsApp"
-      >
-        <MessageCircle size={24} className="flex-shrink-0" />
-        <span className="text-sm font-semibold hidden sm:inline whitespace-nowrap overflow-hidden max-w-0 group-hover:max-w-xs transition-all duration-500 ease-out">
-          Book a Ticket
-        </span>
-      </motion.a>
 
       <div className="relative z-10 container mx-auto px-4 text-center pt-24 pb-16">
 
@@ -116,23 +83,19 @@ const HeroSection = () => {
           {s.hero_subtitle}
         </motion.p>
 
-        {/* Event meta — Date, Time, Venue, Theme — enlarged and more visible */}
         <motion.div
           initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.35, delay: 0.2 }}
-          className="flex flex-wrap justify-center gap-5 mb-10"
+          className="flex flex-wrap justify-center gap-6 text-sm text-muted-foreground mb-10"
         >
-          <span className="flex items-center gap-2.5 bg-background/40 backdrop-blur-sm border border-primary/30 rounded-xl px-5 py-2.5 text-foreground font-semibold text-base sm:text-lg shadow-sm">
-            <CalendarDays size={20} className="text-primary flex-shrink-0" />
-            {s.hero_date}
+          <span className="flex items-center gap-2">
+            <CalendarDays size={16} className="text-primary" /> {s.hero_date}
           </span>
-          <span className="flex items-center gap-2.5 bg-background/40 backdrop-blur-sm border border-primary/30 rounded-xl px-5 py-2.5 text-foreground font-semibold text-base sm:text-lg shadow-sm">
-            <Clock size={20} className="text-primary flex-shrink-0" />
-            {s.hero_time}
+          <span className="flex items-center gap-2">
+            <Clock size={16} className="text-primary" /> {s.hero_time}
           </span>
-          <span className="flex items-center gap-2.5 bg-background/40 backdrop-blur-sm border border-primary/30 rounded-xl px-5 py-2.5 text-foreground font-semibold text-base sm:text-lg shadow-sm">
-            <MapPin size={20} className="text-primary flex-shrink-0" />
-            {s.hero_venue}
+          <span className="flex items-center gap-2">
+            <MapPin size={16} className="text-primary" /> {s.hero_venue}
           </span>
         </motion.div>
 
@@ -143,20 +106,24 @@ const HeroSection = () => {
           transition={{ duration: 0.35, delay: 0.3 }}
           className="flex flex-wrap justify-center gap-4 mt-10"
         >
-          {/* Register Now — scrolls to tickets and opens modal */}
-          <button
-            onClick={handleRegisterClick}
+          {/* Register Now — scrolls to #tickets */}
+          <a
+            href="#tickets"
+            onClick={(e) => {
+              e.preventDefault();
+              document.getElementById("tickets")?.scrollIntoView({ behavior: "smooth" });
+            }}
             className="px-8 py-3.5 rounded-lg bg-primary text-primary-foreground font-bold hover:bg-primary/90 hover:scale-105 transition-all duration-300"
           >
             Register Now
-          </button>
+          </a>
 
           <a href="#sponsor"
             className="px-8 py-3.5 rounded-lg border-2 border-foreground/30 text-foreground font-bold hover:border-primary hover:text-primary transition-all duration-300">
             Sponsor a Student
           </a>
 
-          {/* Nomination button — shows when admin sets nomination URL */}
+          {/* Nomination button */}
           {nominationUrl && (
             <a href={nominationUrl} target="_blank" rel="noopener noreferrer"
               className="px-8 py-3.5 rounded-lg border-2 border-primary/60 text-primary font-bold hover:bg-primary/10 transition-all duration-300 flex items-center gap-2">
@@ -164,31 +131,42 @@ const HeroSection = () => {
             </a>
           )}
 
-          {/* Finalist Cert button — premium gold styling to stand out as a special button */}
+          {/* Finalist Cert — unique premium gold shimmer button */}
           {votingUrl && (
-            <a href={votingUrl} target="_blank" rel="noopener noreferrer"
-              className="relative px-8 py-3.5 rounded-lg font-bold flex items-center gap-2.5 overflow-hidden group transition-all duration-300 hover:scale-105"
-              style={{
-                background: "linear-gradient(135deg, #b8860b 0%, #ffd700 40%, #daa520 70%, #b8860b 100%)",
-                color: "#1a1000",
-                boxShadow: "0 0 18px rgba(255,215,0,0.45), 0 4px 15px rgba(0,0,0,0.3)",
-                border: "1px solid rgba(255,215,0,0.6)",
-              }}
+            <a
+              href={votingUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="finalist-cert-btn px-8 py-3.5 rounded-lg font-bold flex items-center gap-2 relative overflow-hidden"
             >
-              {/* Shimmer overlay */}
-              <span
-                className="absolute inset-0 opacity-0 group-hover:opacity-100 transition-opacity duration-500 pointer-events-none"
-                style={{
-                  background: "linear-gradient(105deg, transparent 30%, rgba(255,255,255,0.35) 50%, transparent 70%)",
-                  animation: "none",
-                }}
-              />
-              <FileCheck size={18} className="relative z-10 flex-shrink-0" />
-              <span className="relative z-10 tracking-wide">✦ Finalist Cert</span>
+              <FileCheck size={18} className="relative z-10" />
+              <span className="relative z-10">Finalist Cert</span>
             </a>
           )}
         </motion.div>
       </div>
+
+      {/* Finalist Cert button styles injected inline to avoid extra CSS file dependencies */}
+      <style>{`
+        .finalist-cert-btn {
+          background: linear-gradient(135deg, #b8860b 0%, #D4AF37 40%, #ffd700 60%, #b8860b 100%);
+          background-size: 200% 200%;
+          color: #0a0a0a;
+          border: 2px solid rgba(212,175,55,0.6);
+          box-shadow: 0 0 18px rgba(212,175,55,0.45), inset 0 1px 0 rgba(255,255,255,0.25);
+          animation: certShimmer 3s ease-in-out infinite;
+          transition: transform 0.2s, box-shadow 0.2s;
+        }
+        .finalist-cert-btn:hover {
+          transform: scale(1.06);
+          box-shadow: 0 0 28px rgba(212,175,55,0.7), inset 0 1px 0 rgba(255,255,255,0.3);
+        }
+        @keyframes certShimmer {
+          0%   { background-position: 0% 50%; }
+          50%  { background-position: 100% 50%; }
+          100% { background-position: 0% 50%; }
+        }
+      `}</style>
     </section>
   );
 };
