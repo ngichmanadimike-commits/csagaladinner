@@ -1,14 +1,6 @@
-// src/components/HeroSection.tsx  ← FULL REPLACEMENT FILE
-// Changes vs original:
-//   • nominationUrl now reads from event.nomination_url (set by admin in Event Config)
-//     instead of a hardcoded Google Forms URL.
-//   • "Awards Nomination" button only renders when a nomination URL is configured,
-//     keeping the hero clean if the admin hasn't set it yet.
-//   • "Vote Now" button continues to show only when voting_url is set (unchanged).
-
 import { useEffect, useState } from "react";
 import { motion } from "framer-motion";
-import { CalendarDays, Clock, MapPin, Vote, Award } from "lucide-react";
+import { CalendarDays, Clock, MapPin, Award, FileCheck } from "lucide-react";
 import heroImg from "@/assets/hero-gala.jpg";
 import csaLogo from "@/assets/white_logo.jpg";
 import CountdownTimer from "./CountdownTimer";
@@ -28,8 +20,8 @@ const HeroSection = () => {
   });
 
   const { event } = useEventData();
-  const votingUrl      = event?.voting_url      ?? null;
-  const nominationUrl  = event?.nomination_url  ?? null;  // ← was hardcoded before
+  const votingUrl     = event?.voting_url     ?? null;
+  const nominationUrl = event?.nomination_url ?? null;
 
   useEffect(() => {
     supabase
@@ -38,9 +30,7 @@ const HeroSection = () => {
       .then(({ data }) => {
         if (!data) return;
         const map = { ...s };
-        data.forEach((r: any) => {
-          if (r.value) map[r.key] = r.value;
-        });
+        data.forEach((r: any) => { if (r.value) map[r.key] = r.value; });
         setS(map);
       });
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -52,8 +42,7 @@ const HeroSection = () => {
         src={heroImg}
         alt="CSA Gala Dinner"
         className="absolute inset-0 w-full h-full object-cover"
-        width={1920}
-        height={1080}
+        width={1920} height={1080}
         loading="eager"
         fetchPriority="high"
         decoding="async"
@@ -71,8 +60,7 @@ const HeroSection = () => {
         </div>
 
         <motion.p
-          initial={{ opacity: 0, y: 10 }}
-          animate={{ opacity: 1, y: 0 }}
+          initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.35, delay: 0.05 }}
           className="text-primary font-semibold text-sm uppercase tracking-widest mb-3"
         >
@@ -80,8 +68,7 @@ const HeroSection = () => {
         </motion.p>
 
         <motion.h1
-          initial={{ opacity: 0, y: 10 }}
-          animate={{ opacity: 1, y: 0 }}
+          initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.35, delay: 0.1 }}
           className="font-display text-4xl sm:text-6xl lg:text-7xl font-bold text-foreground mb-4 leading-tight"
         >
@@ -89,8 +76,7 @@ const HeroSection = () => {
         </motion.h1>
 
         <motion.p
-          initial={{ opacity: 0, y: 10 }}
-          animate={{ opacity: 1, y: 0 }}
+          initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.35, delay: 0.15 }}
           className="text-muted-foreground text-lg sm:text-xl max-w-3xl mx-auto mb-8"
         >
@@ -98,8 +84,7 @@ const HeroSection = () => {
         </motion.p>
 
         <motion.div
-          initial={{ opacity: 0, y: 10 }}
-          animate={{ opacity: 1, y: 0 }}
+          initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.35, delay: 0.2 }}
           className="flex flex-wrap justify-center gap-6 text-sm text-muted-foreground mb-10"
         >
@@ -117,46 +102,33 @@ const HeroSection = () => {
         <CountdownTimer targetDate={s.hero_countdown} />
 
         <motion.div
-          initial={{ opacity: 0, y: 10 }}
-          animate={{ opacity: 1, y: 0 }}
+          initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.35, delay: 0.3 }}
           className="flex flex-wrap justify-center gap-4 mt-10"
         >
-          <a
-            href="#register"
-            className="px-8 py-3.5 rounded-lg bg-primary text-primary-foreground font-bold hover:bg-primary/90 hover:scale-105 transition-all duration-300"
-          >
+          <a href="#register"
+            className="px-8 py-3.5 rounded-lg bg-primary text-primary-foreground font-bold hover:bg-primary/90 hover:scale-105 transition-all duration-300">
             Register Now
           </a>
 
-          <a
-            href="#sponsor"
-            className="px-8 py-3.5 rounded-lg border-2 border-foreground/30 text-foreground font-bold hover:border-primary hover:text-primary transition-all duration-300"
-          >
+          <a href="#sponsor"
+            className="px-8 py-3.5 rounded-lg border-2 border-foreground/30 text-foreground font-bold hover:border-primary hover:text-primary transition-all duration-300">
             Sponsor a Student
           </a>
 
-          {/* NOMINATIONS BUTTON — only shows when admin sets a nomination URL in Event Config */}
+          {/* Nomination button — shows when admin sets nomination URL */}
           {nominationUrl && (
-            <a
-              href={nominationUrl}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="px-8 py-3.5 rounded-lg border-2 border-primary/60 text-primary font-bold hover:bg-primary/10 transition-all duration-300 flex items-center gap-2"
-            >
+            <a href={nominationUrl} target="_blank" rel="noopener noreferrer"
+              className="px-8 py-3.5 rounded-lg border-2 border-primary/60 text-primary font-bold hover:bg-primary/10 transition-all duration-300 flex items-center gap-2">
               <Award size={18} /> Awards Nomination
             </a>
           )}
 
-          {/* VOTING BUTTON — only shows when admin sets a voting URL in Event Config */}
+          {/* Finalist Cert button — matches Awards Nomination style, shows when admin sets voting URL */}
           {votingUrl && (
-            <a
-              href={votingUrl}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="px-8 py-3.5 rounded-lg bg-emerald-600 text-white font-bold hover:bg-emerald-500 hover:scale-105 transition-all duration-300 flex items-center gap-2"
-            >
-              <Vote size={18} /> Vote Now
+            <a href={votingUrl} target="_blank" rel="noopener noreferrer"
+              className="px-8 py-3.5 rounded-lg border-2 border-primary/60 text-primary font-bold hover:bg-primary/10 transition-all duration-300 flex items-center gap-2">
+              <FileCheck size={18} /> Finalist Cert
             </a>
           )}
         </motion.div>
