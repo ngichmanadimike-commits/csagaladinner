@@ -32,16 +32,18 @@ const AdminSponsorships = () => {
   }, []);
 
   const setVerified = async (id: string, verified: boolean) => {
+    // Only update fields that actually exist on the sponsorships table
+    // payment_status is a generated column (DEFAULT status) — cannot be set directly
     const { error } = await supabase
       .from("sponsorships")
       .update({
         verified,
-        payment_status: verified ? "verified" : "pending",
+        status: verified ? "paid" : "pending",
         verified_at: verified ? new Date().toISOString() : null,
       })
       .eq("id", id);
     if (error) toast.error(error.message);
-    else { toast.success(verified ? "Verified" : "Marked pending"); load(); }
+    else { toast.success(verified ? "Sponsorship verified ✓" : "Marked as pending"); load(); }
   };
 
   const handleDeleteRow = async (id: string, name: string) => {
@@ -58,14 +60,10 @@ const AdminSponsorships = () => {
   };
 
   const toggleSelect = (id: string) =>
-    setSelectedIds((prev) =>
-      prev.includes(id) ? prev.filter((i) => i !== id) : [...prev, id]
-    );
+    setSelectedIds((prev) => prev.includes(id) ? prev.filter((i) => i !== id) : [...prev, id]);
 
   const toggleSelectAll = () =>
-    setSelectedIds(
-      selectedIds.length === filtered.length ? [] : filtered.map((r) => r.id)
-    );
+    setSelectedIds(selectedIds.length === filtered.length ? [] : filtered.map((r) => r.id));
 
   const handleDeleteSelected = async () => {
     if (!selectedIds.length || !confirm(`Delete ${selectedIds.length} sponsorship(s)? Cannot be undone.`)) return;
@@ -86,7 +84,8 @@ const AdminSponsorships = () => {
       !search ||
       r.sponsor_name?.toLowerCase().includes(q) ||
       r.sponsor_phone?.includes(q) ||
-      r.mpesa_code?.toLowerCase().includes(q)
+      r.mpesa_code?.toLowerCase().includes(q) ||
+      r.sponsor_email?.toLowerCase().includes(q)
     );
   });
 
@@ -97,27 +96,18 @@ const AdminSponsorships = () => {
         <div className="flex gap-2 flex-wrap">
           <div className="relative">
             <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
-            <input
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              placeholder="Search..."
-              className="pl-9 pr-4 py-2 rounded-lg bg-muted border border-border text-sm w-full sm:w-64"
-            />
+            <input value={search} onChange={(e) => setSearch(e.target.value)}
+              placeholder="Search..." className="pl-9 pr-4 py-2 rounded-lg bg-muted border border-border text-sm w-full sm:w-64" />
           </div>
           {selectedIds.length > 0 && (
-            <button
-              onClick={handleDeleteSelected}
-              disabled={deletingSelected}
-              className="flex items-center gap-2 px-3 py-2 rounded-lg bg-red-600 text-white text-sm font-semibold disabled:opacity-50 hover:bg-red-700"
-            >
+            <button onClick={handleDeleteSelected} disabled={deletingSelected}
+              className="flex items-center gap-2 px-3 py-2 rounded-lg bg-red-600 text-white text-sm font-semibold disabled:opacity-50 hover:bg-red-700">
               <Trash2 size={14} />
               {deletingSelected ? "Deleting..." : `Delete (${selectedIds.length})`}
             </button>
           )}
-          <button
-            onClick={() => exportToXlsx(filtered, "sponsorships", "Sponsorships")}
-            className="flex items-center gap-2 px-3 py-2 rounded-lg bg-primary text-primary-foreground text-sm font-semibold"
-          >
+          <button onClick={() => exportToXlsx(filtered, "sponsorships", "Sponsorships")}
+            className="flex items-center gap-2 px-3 py-2 rounded-lg bg-primary text-primary-foreground text-sm font-semibold">
             <Download size={16} /> Export
           </button>
         </div>
@@ -140,12 +130,10 @@ const AdminSponsorships = () => {
               <thead>
                 <tr className="text-left text-muted-foreground border-b border-border bg-muted/30">
                   <th className="p-3 w-10">
-                    <input
-                      type="checkbox"
+                    <input type="checkbox"
                       checked={selectedIds.length === filtered.length && filtered.length > 0}
                       onChange={toggleSelectAll}
-                      className="w-4 h-4 cursor-pointer accent-primary"
-                    />
+                      className="w-4 h-4 cursor-pointer accent-primary" />
                   </th>
                   <th className="p-3">Sponsor</th>
                   <th className="p-3">Phone</th>
@@ -161,12 +149,9 @@ const AdminSponsorships = () => {
                 {filtered.map((r) => (
                   <tr key={r.id} className="border-b border-border/50 hover:bg-muted/20">
                     <td className="p-3">
-                      <input
-                        type="checkbox"
-                        checked={selectedIds.includes(r.id)}
+                      <input type="checkbox" checked={selectedIds.includes(r.id)}
                         onChange={() => toggleSelect(r.id)}
-                        className="w-4 h-4 cursor-pointer accent-primary"
-                      />
+                        className="w-4 h-4 cursor-pointer accent-primary" />
                     </td>
                     <td className="p-3 text-foreground">
                       {r.sponsor_name}
@@ -175,47 +160,32 @@ const AdminSponsorships = () => {
                     <td className="p-3 text-muted-foreground">{r.sponsor_phone}</td>
                     <td className="p-3 text-foreground">{r.num_students}</td>
                     <td className="p-3 text-muted-foreground">{r.level}</td>
-                    <td className="p-3 text-foreground font-semibold">
-                      KES {Number(r.amount).toLocaleString()}
-                    </td>
+                    <td className="p-3 text-foreground font-semibold">KES {Number(r.amount).toLocaleString()}</td>
                     <td className="p-3 text-muted-foreground font-mono text-xs">{r.mpesa_code || "—"}</td>
                     <td className="p-3">
-                      <span
-                        className={`px-2 py-0.5 rounded-full text-xs font-medium ${
-                          r.verified
-                            ? "bg-emerald-400/10 text-emerald-400"
-                            : "bg-yellow-400/10 text-yellow-400"
-                        }`}
-                      >
+                      <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${
+                        r.verified ? "bg-emerald-400/10 text-emerald-400" : "bg-yellow-400/10 text-yellow-400"
+                      }`}>
                         {r.verified ? "Verified" : "Pending"}
                       </span>
                     </td>
                     <td className="p-3">
                       <div className="flex gap-1 items-center">
                         {!r.verified && (
-                          <button
-                            onClick={() => setVerified(r.id, true)}
-                            className="p-1.5 rounded-lg text-emerald-400 hover:bg-emerald-400/10"
-                            title="Verify"
-                          >
+                          <button onClick={() => setVerified(r.id, true)}
+                            className="p-1.5 rounded-lg text-emerald-400 hover:bg-emerald-400/10" title="Verify">
                             <CheckCircle2 size={16} />
                           </button>
                         )}
                         {r.verified && (
-                          <button
-                            onClick={() => setVerified(r.id, false)}
-                            className="p-1.5 rounded-lg text-yellow-400 hover:bg-yellow-400/10"
-                            title="Unverify"
-                          >
+                          <button onClick={() => setVerified(r.id, false)}
+                            className="p-1.5 rounded-lg text-yellow-400 hover:bg-yellow-400/10" title="Unverify">
                             <XCircle size={16} />
                           </button>
                         )}
-                        <button
-                          onClick={() => handleDeleteRow(r.id, r.sponsor_name)}
+                        <button onClick={() => handleDeleteRow(r.id, r.sponsor_name)}
                           disabled={deletingId === r.id}
-                          className="p-1.5 rounded-lg text-red-400 hover:bg-red-400/10 disabled:opacity-40 transition-colors"
-                          title="Delete"
-                        >
+                          className="p-1.5 rounded-lg text-red-400 hover:bg-red-400/10 disabled:opacity-40 transition-colors" title="Delete">
                           {deletingId === r.id ? <span className="text-xs">...</span> : <Trash2 size={15} />}
                         </button>
                       </div>
