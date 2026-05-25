@@ -3,7 +3,7 @@ import { supabase } from "@/integrations/supabase/client";
 import AdminLayout from "@/components/admin/AdminLayout";
 import { useAuth } from "@/hooks/useAuth";
 import { toast } from "sonner";
-import { Loader2, Save, Upload, Plus, Trash2, Image as ImageIcon } from "lucide-react";
+import { Loader2, Save, Upload, Plus, Trash2 } from "lucide-react";
 
 interface ContentItem {
   id: string;
@@ -64,7 +64,7 @@ const AdminContent = () => {
   };
 
   const handleDelete = async (id: string, key: string) => {
-    if (!confirm(`Delete section "${key}"?`)) return;
+    if (!confirm(`Delete organizer section "${key}"?`)) return;
     const { error } = await supabase.from("site_content").delete().eq("id", id);
     if (error) toast.error("Failed to delete");
     else {
@@ -94,7 +94,6 @@ const AdminContent = () => {
     );
     setItems(updated);
 
-    // Auto-save the image URL
     await supabase
       .from("site_content")
       .update({ image_url: urlData.publicUrl, updated_by: user?.id })
@@ -110,17 +109,25 @@ const AdminContent = () => {
 
   return (
     <AdminLayout>
-      <h1 className="font-display text-2xl font-bold text-foreground mb-6">Content Management</h1>
+      <div className="flex items-center gap-3 mb-6">
+        <div>
+          <h1 className="font-display text-2xl font-bold text-foreground">Organizers</h1>
+          <p className="text-sm text-muted-foreground mt-0.5">
+            Manage organizer profiles shown on the public site
+          </p>
+        </div>
+      </div>
 
       {/* Create new section */}
       <div className="glass rounded-xl p-5 mb-6">
-        <h2 className="font-display text-lg font-bold text-foreground mb-3">Add Content Section</h2>
+        <h2 className="font-display text-lg font-bold text-foreground mb-3">Add Organizer</h2>
         <div className="flex gap-2">
           <input
             type="text"
-            placeholder="Section key (e.g. hero, about, sponsors)"
+            placeholder="Section key (e.g. chair, treasurer, secretary)"
             value={newKey}
             onChange={(e) => setNewKey(e.target.value)}
+            onKeyDown={(e) => e.key === "Enter" && handleCreate()}
             className="flex-1 px-4 py-2.5 rounded-lg bg-muted border border-border text-foreground text-sm focus:outline-none focus:ring-2 focus:ring-primary/50"
           />
           <button
@@ -140,7 +147,7 @@ const AdminContent = () => {
         </div>
       ) : items.length === 0 ? (
         <div className="glass rounded-xl p-8 text-center">
-          <p className="text-muted-foreground">No content sections yet. Add one above.</p>
+          <p className="text-muted-foreground">No organizer profiles yet. Add one above.</p>
         </div>
       ) : (
         <div className="space-y-4">
@@ -160,29 +167,31 @@ const AdminContent = () => {
 
               <div className="space-y-3">
                 <div>
-                  <label className="text-xs text-muted-foreground mb-1 block">Title</label>
+                  <label className="text-xs text-muted-foreground mb-1 block">Name / Title</label>
                   <input
                     type="text"
                     value={item.title || ""}
                     onChange={(e) => updateItem(item.id, "title", e.target.value)}
                     className="w-full px-3 py-2 rounded-lg bg-muted border border-border text-foreground text-sm focus:outline-none focus:ring-2 focus:ring-primary/50"
+                    placeholder="e.g. Jane Doe — Chairperson"
                   />
                 </div>
                 <div>
-                  <label className="text-xs text-muted-foreground mb-1 block">Body</label>
+                  <label className="text-xs text-muted-foreground mb-1 block">Bio / Description</label>
                   <textarea
                     value={item.body || ""}
                     onChange={(e) => updateItem(item.id, "body", e.target.value)}
                     rows={3}
                     className="w-full px-3 py-2 rounded-lg bg-muted border border-border text-foreground text-sm focus:outline-none focus:ring-2 focus:ring-primary/50 resize-none"
+                    placeholder="Short bio or role description…"
                   />
                 </div>
 
                 {/* Image */}
                 <div>
-                  <label className="text-xs text-muted-foreground mb-1 block">Image</label>
+                  <label className="text-xs text-muted-foreground mb-1 block">Photo</label>
                   {item.image_url && (
-                    <div className="mb-2 rounded-lg overflow-hidden border border-border w-32 h-20">
+                    <div className="mb-2 rounded-lg overflow-hidden border border-border w-24 h-24">
                       <img src={item.image_url} alt="" className="w-full h-full object-cover" />
                     </div>
                   )}
@@ -192,7 +201,7 @@ const AdminContent = () => {
                     ) : (
                       <Upload size={14} />
                     )}
-                    Upload Image
+                    Upload Photo
                     <input
                       type="file"
                       accept="image/*"
