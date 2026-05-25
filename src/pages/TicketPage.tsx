@@ -38,7 +38,7 @@ const TicketPage = () => {
       if (reg.event_id) {
         const { data: ev } = await supabase
           .from("events")
-          .select("title, theme, venue, event_date, description")
+          .select("title, theme, venue, event_date, end_time, description")
           .eq("id", reg.event_id)
           .maybeSingle();
         eventData = ev;
@@ -48,7 +48,7 @@ const TicketPage = () => {
       if (!eventData) {
         const { data: ev } = await supabase
           .from("events")
-          .select("title, theme, venue, event_date, description")
+          .select("title, theme, venue, event_date, end_time, description")
           .eq("status", "published")
           .order("created_at", { ascending: false })
           .limit(1)
@@ -74,6 +74,7 @@ const TicketPage = () => {
         event_venue: eventData?.venue ?? "Utalii Hotel",
         event_date: eventData?.event_date ?? null,
         event_description: eventData?.description ?? "",
+        event_end_time: eventData?.end_time ?? null,
       });
 
       setLoading(false);
