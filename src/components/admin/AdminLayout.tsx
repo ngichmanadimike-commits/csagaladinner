@@ -5,7 +5,7 @@ import {
   LayoutDashboard, CreditCard, Users, Calendar, LogOut, Menu, Shield,
   FileText, Image, Handshake, GraduationCap, Mail, Mic, Settings,
   Ticket, Activity, Package, Tag, ShieldAlert, ScanLine, Gift,
-  ChevronLeft, ChevronRight,
+  ChevronLeft, ChevronRight, UserSquare2,
 } from "lucide-react";
 
 const navItems: { label: string; icon: any; path: string; superOnly?: boolean }[] = [
@@ -25,7 +25,7 @@ const navItems: { label: string; icon: any; path: string; superOnly?: boolean }[
   { label: "Speakers",           icon: Mic,             path: "/admin/speakers" },
   { label: "Documents",          icon: FileText,        path: "/admin/documents" },
   { label: "Event Config",       icon: Calendar,        path: "/admin/event" },
-  { label: "Content",            icon: FileText,        path: "/admin/content" },
+  { label: "Organizers",         icon: UserSquare2,     path: "/admin/content" },
   { label: "Gallery",            icon: Image,           path: "/admin/gallery" },
   { label: "Site Settings",      icon: Settings,        path: "/admin/settings" },
   { label: "Users & Roles",      icon: Shield,          path: "/admin/users" },
