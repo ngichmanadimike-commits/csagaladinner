@@ -49,7 +49,7 @@ function formatEventDate(dateStr: string | null | undefined) {
     daySuffix: suffix,
     month: months[d.getMonth()],
     year: String(d.getFullYear()),
-    time: timeStr,
+    time: `${h}:${mins} ${ampm}`,
   };
 }
 
