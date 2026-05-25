@@ -27,13 +27,21 @@ const AdminEventConfig = () => {
   const handleSave = async () => {
     if (!selected) return;
     setSaving(true);
+
+    // Build event_date from date + start_time parts
+    let eventDateValue = selected.event_date;
+    if (selected._date_part && selected._start_time) {
+      eventDateValue = `${selected._date_part}T${selected._start_time}:00`;
+    }
+
     const { error } = await supabase
       .from("events")
       .update({
         title: selected.title,
         theme: selected.theme,
         venue: selected.venue,
-        event_date: selected.event_date,
+        event_date: eventDateValue,
+        end_time: selected.end_time || null,
         status: selected.status,
         nomination_url: selected.nomination_url,
         voting_url: selected.voting_url,
@@ -46,7 +54,7 @@ const AdminEventConfig = () => {
     if (error) {
       toast.error("Failed to save: " + error.message);
     } else {
-      setEvents((prev) => prev.map((e) => (e.id === selected.id ? selected : e)));
+      setEvents((prev) => prev.map((e) => (e.id === selected.id ? { ...selected, event_date: eventDateValue } : e)));
       toast.success("Event updated successfully");
     }
   };
@@ -67,8 +75,24 @@ const AdminEventConfig = () => {
   };
 
   const updateField = (field: string, value: any) => {
-    setSelected({ ...selected, [field]: value });
+    setSelected((prev: any) => ({ ...prev, [field]: value }));
   };
+
+  // Parse event_date into date and time parts for the split inputs
+  const getDatePart = () => {
+    if (selected?._date_part) return selected._date_part;
+    if (!selected?.event_date) return "";
+    return selected.event_date.slice(0, 10);
+  };
+
+  const getStartTime = () => {
+    if (selected?._start_time) return selected._start_time;
+    if (!selected?.event_date) return "";
+    const t = selected.event_date.slice(11, 16);
+    return t || "";
+  };
+
+  const getEndTime = () => selected?.end_time || "";
 
   if (loading) {
     return (
@@ -80,7 +104,7 @@ const AdminEventConfig = () => {
     );
   }
 
-  const popupEnabled = selected?.popup_enabled !== false; // default true
+  const popupEnabled = selected?.popup_enabled !== false;
   const popupWillShow = popupEnabled && selected?.status === "published";
 
   return (
@@ -114,26 +138,79 @@ const AdminEventConfig = () => {
             <h2 className="font-semibold text-foreground text-base border-b border-border pb-2">
               Core Event Details
             </h2>
+
+            {/* Title */}
+            <div>
+              <label className="text-sm text-muted-foreground mb-1 block">Event Title</label>
+              <input type="text" value={selected.title || ""}
+                onChange={(e) => updateField("title", e.target.value)}
+                className="w-full px-4 py-2.5 rounded-lg bg-muted border border-border text-foreground text-sm focus:outline-none focus:ring-2 focus:ring-primary/50" />
+            </div>
+
+            {/* Theme */}
+            <div>
+              <label className="text-sm text-muted-foreground mb-1 block">Theme / Tagline</label>
+              <input type="text" value={selected.theme || ""}
+                onChange={(e) => updateField("theme", e.target.value)}
+                className="w-full px-4 py-2.5 rounded-lg bg-muted border border-border text-foreground text-sm focus:outline-none focus:ring-2 focus:ring-primary/50" />
+            </div>
+
+            {/* Venue */}
+            <div>
+              <label className="text-sm text-muted-foreground mb-1 block">Venue</label>
+              <input type="text" value={selected.venue || ""}
+                onChange={(e) => updateField("venue", e.target.value)}
+                className="w-full px-4 py-2.5 rounded-lg bg-muted border border-border text-foreground text-sm focus:outline-none focus:ring-2 focus:ring-primary/50" />
+            </div>
+
+            {/* Event Date */}
+            <div>
+              <label className="text-sm text-muted-foreground mb-1 block">Event Date</label>
+              <input type="date" value={getDatePart()}
+                onChange={(e) => updateField("_date_part", e.target.value)}
+                className="w-full px-4 py-2.5 rounded-lg bg-muted border border-border text-foreground text-sm focus:outline-none focus:ring-2 focus:ring-primary/50" />
+            </div>
+
+            {/* Start Time + End Time side by side */}
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <label className="text-sm text-muted-foreground mb-1 block">Start Time</label>
+                <input type="time" value={getStartTime()}
+                  onChange={(e) => updateField("_start_time", e.target.value)}
+                  className="w-full px-4 py-2.5 rounded-lg bg-muted border border-border text-foreground text-sm focus:outline-none focus:ring-2 focus:ring-primary/50" />
+              </div>
+              <div>
+                <label className="text-sm text-muted-foreground mb-1 block">End Time</label>
+                <input type="time" value={getEndTime()}
+                  onChange={(e) => updateField("end_time", e.target.value)}
+                  className="w-full px-4 py-2.5 rounded-lg bg-muted border border-border text-foreground text-sm focus:outline-none focus:ring-2 focus:ring-primary/50" />
+              </div>
+            </div>
+            <p className="text-xs text-muted-foreground -mt-2">
+              Start & end times appear on the ticket (e.g. 7:00 PM – 11:00 PM)
+            </p>
+
+            {/* Links */}
             {[
-              { label: "Event Title", field: "title", type: "text" },
-              { label: "Theme / Tagline", field: "theme", type: "text" },
-              { label: "Venue", field: "venue", type: "text" },
-              { label: "Event Date & Time", field: "event_date", type: "datetime-local" },
-              { label: "Nomination URL", field: "nomination_url", type: "url" },
-              { label: "Voting URL", field: "voting_url", type: "url" },
+              { label: "Nomination URL", field: "nomination_url" },
+              { label: "Finalist Certificate / Voting URL", field: "voting_url" },
             ].map((f) => (
               <div key={f.field}>
                 <label className="text-sm text-muted-foreground mb-1 block">{f.label}</label>
-                <input type={f.type} value={selected[f.field] || ""}
+                <input type="url" value={selected[f.field] || ""}
                   onChange={(e) => updateField(f.field, e.target.value)}
                   className="w-full px-4 py-2.5 rounded-lg bg-muted border border-border text-foreground text-sm focus:outline-none focus:ring-2 focus:ring-primary/50" />
               </div>
             ))}
+
+            {/* Description */}
             <div>
               <label className="text-sm text-muted-foreground mb-1 block">Description (shown on site)</label>
               <textarea value={selected.description || ""} onChange={(e) => updateField("description", e.target.value)}
                 rows={3} className="w-full px-4 py-2.5 rounded-lg bg-muted border border-border text-foreground text-sm focus:outline-none focus:ring-2 focus:ring-primary/50 resize-none" />
             </div>
+
+            {/* Status */}
             <div>
               <label className="text-sm text-muted-foreground mb-1 block">Status</label>
               <select value={selected.status || "draft"} onChange={(e) => updateField("status", e.target.value)}
@@ -179,14 +256,12 @@ const AdminEventConfig = () => {
             )}
           </div>
 
-          {/* Popup notification control */}
+          {/* Popup toggle */}
           <div className="glass rounded-xl p-6 space-y-4">
             <h2 className="font-semibold text-foreground text-base border-b border-border pb-2 flex items-center gap-2">
               {popupEnabled ? <Bell size={18} className="text-primary" /> : <BellOff size={18} className="text-muted-foreground" />}
               Event Notification Popup
             </h2>
-
-            {/* On/off toggle */}
             <div className="flex items-center justify-between p-4 rounded-xl bg-muted/50 border border-border">
               <div>
                 <p className="text-sm font-semibold text-foreground">Popup Notification</p>
@@ -200,15 +275,11 @@ const AdminEventConfig = () => {
                   popupEnabled ? "bg-primary" : "bg-muted-foreground/30"
                 }`}
               >
-                <span
-                  className={`inline-block h-5 w-5 transform rounded-full bg-white shadow-md transition-transform ${
-                    popupEnabled ? "translate-x-8" : "translate-x-1"
-                  }`}
-                />
+                <span className={`inline-block h-5 w-5 transform rounded-full bg-white shadow-md transition-transform ${
+                  popupEnabled ? "translate-x-8" : "translate-x-1"
+                }`} />
               </button>
             </div>
-
-            {/* Status indicator */}
             <div className={`flex items-center gap-3 px-4 py-3 rounded-xl ${
               popupWillShow
                 ? "bg-emerald-500/10 border border-emerald-500/30"
