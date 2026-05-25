@@ -143,8 +143,10 @@ const AdminPayments = () => {
     if (!allPays) return;
 
     const pays = allPays.map((p: any) => {
-      if (p.id === excludePaymentId) return null; // deleted
-      if (overrideVerified !== null && p.id === excludePaymentId) return { ...p, verified: overrideVerified };
+      if (excludePaymentId !== null && p.id === excludePaymentId) {
+        if (overrideVerified === null) return null; // being deleted
+        return { ...p, verified: overrideVerified }; // override verified state
+      }
       return p;
     }).filter(Boolean) as any[];
 
@@ -194,7 +196,7 @@ const AdminPayments = () => {
     }
 
     if (target.registration_id) {
-      const result = await syncRegistrationStatus(target.registration_id, null, null);
+      const result = await syncRegistrationStatus(target.registration_id, paymentId, verified);
 
       if (verified && result?.newStatus === "paid") {
         toast.success("✅ Payment approved — ticket issued!");
