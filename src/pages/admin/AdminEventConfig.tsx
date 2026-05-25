@@ -3,13 +3,15 @@ import { useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import AdminLayout from "@/components/admin/AdminLayout";
 import { toast } from "sonner";
-import { Loader2, Save, Info, Image, Bell, BellOff } from "lucide-react";
+import { Loader2, Save, Info, Image, Bell, BellOff, Trash2, AlertTriangle } from "lucide-react";
 
 const AdminEventConfig = () => {
   const [events, setEvents] = useState<any[]>([]);
   const [selected, setSelected] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [deleteConfirm, setDeleteConfirm] = useState(false);
+  const [deleting, setDeleting] = useState(false);
 
   useEffect(() => {
     const fetchEvents = async () => {
@@ -28,7 +30,6 @@ const AdminEventConfig = () => {
     if (!selected) return;
     setSaving(true);
 
-    // Build event_date from date + start_time parts
     let eventDateValue = selected.event_date;
     if (selected._date_part && selected._start_time) {
       eventDateValue = `${selected._date_part}T${selected._start_time}:00`;
@@ -74,11 +75,29 @@ const AdminEventConfig = () => {
     }
   };
 
+  const handleDelete = async () => {
+    if (!selected) return;
+    setDeleting(true);
+    const { error } = await supabase
+      .from("events")
+      .delete()
+      .eq("id", selected.id);
+    setDeleting(false);
+    if (error) {
+      toast.error("Failed to delete event: " + error.message);
+    } else {
+      const remaining = events.filter((e) => e.id !== selected.id);
+      setEvents(remaining);
+      setSelected(remaining.length > 0 ? remaining[0] : null);
+      setDeleteConfirm(false);
+      toast.success("Event deleted successfully");
+    }
+  };
+
   const updateField = (field: string, value: any) => {
     setSelected((prev: any) => ({ ...prev, [field]: value }));
   };
 
-  // Parse event_date into date and time parts for the split inputs
   const getDatePart = () => {
     if (selected?._date_part) return selected._date_part;
     if (!selected?.event_date) return "";
@@ -120,7 +139,7 @@ const AdminEventConfig = () => {
       {events.length > 1 && (
         <div className="flex gap-2 mb-4 overflow-x-auto pb-2">
           {events.map((ev) => (
-            <button key={ev.id} onClick={() => setSelected(ev)}
+            <button key={ev.id} onClick={() => { setSelected(ev); setDeleteConfirm(false); }}
               className={`px-3 py-1.5 rounded-lg text-sm whitespace-nowrap transition-colors ${
                 selected?.id === ev.id
                   ? "bg-primary text-primary-foreground"
@@ -139,7 +158,6 @@ const AdminEventConfig = () => {
               Core Event Details
             </h2>
 
-            {/* Title */}
             <div>
               <label className="text-sm text-muted-foreground mb-1 block">Event Title</label>
               <input type="text" value={selected.title || ""}
@@ -147,7 +165,6 @@ const AdminEventConfig = () => {
                 className="w-full px-4 py-2.5 rounded-lg bg-muted border border-border text-foreground text-sm focus:outline-none focus:ring-2 focus:ring-primary/50" />
             </div>
 
-            {/* Theme */}
             <div>
               <label className="text-sm text-muted-foreground mb-1 block">Theme / Tagline</label>
               <input type="text" value={selected.theme || ""}
@@ -155,7 +172,6 @@ const AdminEventConfig = () => {
                 className="w-full px-4 py-2.5 rounded-lg bg-muted border border-border text-foreground text-sm focus:outline-none focus:ring-2 focus:ring-primary/50" />
             </div>
 
-            {/* Venue */}
             <div>
               <label className="text-sm text-muted-foreground mb-1 block">Venue</label>
               <input type="text" value={selected.venue || ""}
@@ -163,7 +179,6 @@ const AdminEventConfig = () => {
                 className="w-full px-4 py-2.5 rounded-lg bg-muted border border-border text-foreground text-sm focus:outline-none focus:ring-2 focus:ring-primary/50" />
             </div>
 
-            {/* Event Date */}
             <div>
               <label className="text-sm text-muted-foreground mb-1 block">Event Date</label>
               <input type="date" value={getDatePart()}
@@ -171,7 +186,6 @@ const AdminEventConfig = () => {
                 className="w-full px-4 py-2.5 rounded-lg bg-muted border border-border text-foreground text-sm focus:outline-none focus:ring-2 focus:ring-primary/50" />
             </div>
 
-            {/* Start Time + End Time side by side */}
             <div className="grid grid-cols-2 gap-4">
               <div>
                 <label className="text-sm text-muted-foreground mb-1 block">Start Time</label>
@@ -187,10 +201,9 @@ const AdminEventConfig = () => {
               </div>
             </div>
             <p className="text-xs text-muted-foreground -mt-2">
-              Start & end times appear on the ticket (e.g. 7:00 PM – 11:00 PM)
+              Start &amp; end times appear on the ticket (e.g. 7:00 PM – 11:00 PM)
             </p>
 
-            {/* Links */}
             {[
               { label: "Nomination URL", field: "nomination_url" },
               { label: "Finalist Certificate / Voting URL", field: "voting_url" },
@@ -203,14 +216,12 @@ const AdminEventConfig = () => {
               </div>
             ))}
 
-            {/* Description */}
             <div>
               <label className="text-sm text-muted-foreground mb-1 block">Description (shown on site)</label>
               <textarea value={selected.description || ""} onChange={(e) => updateField("description", e.target.value)}
                 rows={3} className="w-full px-4 py-2.5 rounded-lg bg-muted border border-border text-foreground text-sm focus:outline-none focus:ring-2 focus:ring-primary/50 resize-none" />
             </div>
 
-            {/* Status */}
             <div>
               <label className="text-sm text-muted-foreground mb-1 block">Status</label>
               <select value={selected.status || "draft"} onChange={(e) => updateField("status", e.target.value)}
@@ -307,11 +318,48 @@ const AdminEventConfig = () => {
             </div>
           </div>
 
-          <button onClick={handleSave} disabled={saving}
-            className="flex items-center gap-2 px-6 py-3 rounded-lg bg-primary text-primary-foreground font-bold hover:scale-[1.02] transition-transform disabled:opacity-50">
-            {saving ? <Loader2 size={18} className="animate-spin" /> : <Save size={18} />}
-            Save Changes
-          </button>
+          {/* Action buttons row */}
+          <div className="flex items-center justify-between gap-4 flex-wrap">
+            <button onClick={handleSave} disabled={saving}
+              className="flex items-center gap-2 px-6 py-3 rounded-lg bg-primary text-primary-foreground font-bold hover:scale-[1.02] transition-transform disabled:opacity-50">
+              {saving ? <Loader2 size={18} className="animate-spin" /> : <Save size={18} />}
+              Save Changes
+            </button>
+
+            {/* Delete Event */}
+            {!deleteConfirm ? (
+              <button
+                onClick={() => setDeleteConfirm(true)}
+                className="flex items-center gap-2 px-5 py-3 rounded-lg border border-red-500/40 text-red-400 text-sm font-semibold hover:bg-red-500/10 hover:border-red-500/70 transition-all duration-200"
+              >
+                <Trash2 size={16} />
+                Delete Event
+              </button>
+            ) : (
+              <div className="flex items-center gap-3 p-3 rounded-xl bg-red-500/10 border border-red-500/40 flex-wrap">
+                <AlertTriangle size={18} className="text-red-400 flex-shrink-0" />
+                <p className="text-sm text-red-300 font-medium">
+                  Delete <span className="font-bold text-red-200">"{selected.title}"</span>? This cannot be undone.
+                </p>
+                <div className="flex gap-2 ml-auto">
+                  <button
+                    onClick={() => setDeleteConfirm(false)}
+                    className="px-4 py-1.5 rounded-lg bg-muted text-muted-foreground text-sm font-semibold hover:text-foreground transition-colors"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    onClick={handleDelete}
+                    disabled={deleting}
+                    className="flex items-center gap-1.5 px-4 py-1.5 rounded-lg bg-red-600 text-white text-sm font-bold hover:bg-red-700 transition-colors disabled:opacity-50"
+                  >
+                    {deleting ? <Loader2 size={14} className="animate-spin" /> : <Trash2 size={14} />}
+                    Yes, Delete
+                  </button>
+                </div>
+              </div>
+            )}
+          </div>
         </div>
       )}
 
