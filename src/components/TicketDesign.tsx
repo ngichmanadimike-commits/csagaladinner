@@ -17,11 +17,20 @@ type TicketData = {
   event_venue?: string;
   event_date?: string | null;
   event_description?: string;
+  event_end_time?: string | null;
 };
+
+function formatEndTime(timeStr: string | null | undefined): string {
+  if (!timeStr) return "";
+  const [h, m] = timeStr.split(":").map(Number);
+  const ampm = h >= 12 ? "PM" : "AM";
+  const hour = h % 12 || 12;
+  return `${hour}:${m.toString().padStart(2, "0")} ${ampm}`;
+}
 
 function formatEventDate(dateStr: string | null | undefined) {
   if (!dateStr) {
-    return { dayName: "FRIDAY", day: "5", daySuffix: "TH", month: "JUNE", year: "2026", time: "7:00 PM – 11:00 PM" };
+    return { dayName: "FRIDAY", day: "5", daySuffix: "TH", month: "JUNE", year: "2026", time: "7:00 PM" };
   }
   const d = new Date(dateStr);
   const days = ["SUNDAY","MONDAY","TUESDAY","WEDNESDAY","THURSDAY","FRIDAY","SATURDAY"];
@@ -40,7 +49,7 @@ function formatEventDate(dateStr: string | null | undefined) {
     daySuffix: suffix,
     month: months[d.getMonth()],
     year: String(d.getFullYear()),
-    time: `${h}:${mins} ${ampm}`,
+    time: timeStr,
   };
 }
 
@@ -59,6 +68,8 @@ export default function TicketDesign({ ticket }: { ticket: TicketData }) {
   const eventTheme   = ticket.event_theme || "Laying the First Stone: Honoring the Past, Empowering the Present, Inspiring the Future";
   const eventVenue   = ticket.event_venue || "UTALII HOTEL";
   const date         = formatEventDate(ticket.event_date);
+  const endTimeStr   = ticket.event_end_time ? formatEndTime(ticket.event_end_time) : "";
+  const timeDisplay  = endTimeStr ? `${date.time} – ${endTimeStr}` : date.time;
 
   const buildHtml = () => `<!DOCTYPE html>
 <html>
@@ -197,7 +208,8 @@ body {
       </div>
       <div class="bottom-row">
         <div class="ticket-no">TICKET NO. <span>${ticketNo}</span></div>
-        <div class="tagline-script">Pooling Construction Students Together!</div></div>
+        <div class="tagline-script">Pooling Construction Students Together!</div>
+      </div>
     </div>
   </div>
   <div class="right">
@@ -336,7 +348,7 @@ body {
                 <div style={{ fontSize: 11, fontWeight: 600 }}>{date.month}<br />{date.year}</div>
               </div>
               <div className="td-divider" />
-              <div className="td-info"><i className="fa-solid fa-clock"></i>{date.time}</div>
+              <div className="td-info"><i className="fa-solid fa-clock"></i>{timeDisplay}</div>
               <div className="td-divider" />
               <div className="td-info"><i className="fa-solid fa-location-dot"></i>{eventVenue.toUpperCase()}</div>
             </div>
