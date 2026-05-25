@@ -12,7 +12,6 @@ type TicketData = {
   quantity?: number;
   email?: string;
   phone?: string;
-  // Live event fields from DB
   event_title?: string;
   event_theme?: string;
   event_venue?: string;
@@ -20,23 +19,16 @@ type TicketData = {
   event_description?: string;
 };
 
-function formatEventDate(dateStr: string | null | undefined): {
-  dayName: string;
-  day: string;
-  daySuffix: string;
-  month: string;
-  year: string;
-  time: string;
-} {
+function formatEventDate(dateStr: string | null | undefined) {
   if (!dateStr) {
     return { dayName: "FRIDAY", day: "5", daySuffix: "TH", month: "JUNE", year: "2026", time: "7:00 PM – 11:00 PM" };
   }
   const d = new Date(dateStr);
-  const days = ["SUNDAY", "MONDAY", "TUESDAY", "WEDNESDAY", "THURSDAY", "FRIDAY", "SATURDAY"];
+  const days = ["SUNDAY","MONDAY","TUESDAY","WEDNESDAY","THURSDAY","FRIDAY","SATURDAY"];
   const months = ["JANUARY","FEBRUARY","MARCH","APRIL","MAY","JUNE","JULY","AUGUST","SEPTEMBER","OCTOBER","NOVEMBER","DECEMBER"];
   const dayNum = d.getDate();
-  const suffixes = ["TH","ST","ND","RD"];
   const mod = dayNum % 100;
+  const suffixes = ["TH","ST","ND","RD"];
   const suffix = suffixes[(mod - 20) % 10] || suffixes[mod] || suffixes[0];
   const hours = d.getHours();
   const mins = d.getMinutes().toString().padStart(2, "0");
@@ -55,247 +47,356 @@ function formatEventDate(dateStr: string | null | undefined): {
 export default function TicketDesign({ ticket }: { ticket: TicketData }) {
   const ticketRef = useRef<HTMLDivElement>(null);
 
-  const ticketType = (ticket.type_name || ticket.ticket_type || "Regular").toString();
-  const safeBookingCode = ticket.booking_code ?? "";
-  const safeQrCode = ticket.qr_code || ticket.booking_code || "";
-  const safePurchaserName = ticket.purchaser_name ?? "";
-  const safeTicketNumber = ticket.ticket_number ?? "";
-  const safePaymentStatus = ticket.payment_status ?? "pending";
-  const safeTotalAmount = ticket.total_amount ?? 0;
+  const ticketType   = (ticket.type_name || ticket.ticket_type || "Regular").toString();
+  const bookingCode  = ticket.booking_code ?? "";
+  const qrCode       = ticket.qr_code || ticket.booking_code || "";
+  const name         = ticket.purchaser_name ?? "";
+  const ticketNo     = ticket.ticket_number ?? "";
+  const status       = (ticket.payment_status ?? "pending").toUpperCase();
+  const amount       = ticket.total_amount ?? 0;
 
-  // Live event fields with fallbacks
-  const eventTitle = ticket.event_title || "CSA Gala Dinner 2026";
-  const eventTheme = ticket.event_theme || "Laying the First Stone: Honoring the Past, Empowering the Present, Inspiring the Future";
-  const eventVenue = ticket.event_venue || "Utalii Hotel";
-  const dateInfo = formatEventDate(ticket.event_date);
+  const eventTitle   = ticket.event_title || "CSA Gala Dinner 2026";
+  const eventTheme   = ticket.event_theme || "Laying the First Stone: Honoring the Past, Empowering the Present, Inspiring the Future";
+  const eventVenue   = ticket.event_venue || "UTALII HOTEL";
+  const date         = formatEventDate(ticket.event_date);
 
-  const handlePrint = () => {
-    const printContent = ticketRef.current?.innerHTML;
-    if (!printContent) return;
-    const win = window.open("", "_blank");
-    if (!win) return;
-    win.document.write(`<!DOCTYPE html>
+  const buildHtml = () => `<!DOCTYPE html>
 <html>
 <head>
-  <title>${eventTitle} — Ticket ${safeTicketNumber}</title>
-  <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@700;900&family=Montserrat:wght@400;600;700&family=Great+Vibes&family=Cinzel:wght@600;700&display=swap" rel="stylesheet"/>
-  <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet"/>
-  <style>
-    * { box-sizing: border-box; margin: 0; padding: 0; }
-    body { background: white; display: flex; align-items: center; justify-content: center; min-height: 100vh; padding: 20px; }
-    ${TICKET_CSS}
-    @media print { body { min-height: auto; } .ticket { filter: none; } }
-  </style>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>${eventTitle} — Ticket ${ticketNo}</title>
+<link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@700;900&family=Montserrat:wght@400;600;700&family=Great+Vibes&display=swap" rel="stylesheet">
+<link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
+<style>
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body {
+  background: #e8e8e8; padding: 20px;
+  display: flex; justify-content: center; align-items: center; min-height: 100vh;
+  font-family: 'Montserrat', sans-serif;
+}
+.ticket-wrapper { width: 100%; max-width: 980px; overflow-x: auto; }
+.ticket {
+  width: 980px; display: flex; flex-direction: row;
+  background: #0a1128; color: white;
+  position: relative; border-radius: 10px;
+  filter: drop-shadow(0 15px 35px rgba(0,0,0,0.4)); overflow: hidden;
+}
+.left {
+  width: 665px; padding: 25px; position: relative;
+  background-image: linear-gradient(rgba(10,17,40,0.82), rgba(10,17,40,0.82)),
+    url('https://images.unsplash.com/photo-1414235077428-338989a2e8c0?q=80&w=2070');
+  background-size: cover; background-position: center; display: flex; gap: 25px;
+}
+.left::after {
+  content: ''; position: absolute; right: 0; top: 0; height: 100%;
+  border-right: 2px dashed #D4AF37;
+}
+.ticket::before {
+  content: ''; position: absolute; right: 315px; top: 50%; transform: translateY(-50%);
+  width: 30px; height: 30px; background: #e8e8e8; border-radius: 50%; z-index: 10;
+}
+.right {
+  width: 315px; background: #F5F1E8; color: #0a1128;
+  padding: 20px 44px 20px 20px; position: relative;
+}
+.gold-sidebar {
+  position: absolute; right: 0; top: 0; height: 100%; width: 32px;
+  background: #D4AF37; writing-mode: vertical-rl; text-orientation: mixed;
+  display: flex; align-items: center; justify-content: center;
+  font-weight: 700; font-size: 11px; color: #0a1128; letter-spacing: 1px; overflow: hidden;
+}
+.csa-logo {
+  width: 75px; height: 75px; background: white; border-radius: 50%;
+  border: 3px solid #D4AF37; display: flex; align-items: center; justify-content: center;
+  margin-bottom: 20px; overflow: hidden;
+}
+.csa-logo img { width: 85%; height: 85%; object-fit: contain; }
+.left-col { width: 140px; flex-shrink: 0; }
+.date-box { border-left: 1px solid #D4AF37; padding-left: 12px; margin: 15px 0; }
+.date-box i { color: #D4AF37; margin-bottom: 6px; font-size: 16px; display: block; }
+.date-box .day { font-size: 38px; font-weight: 700; color: #D4AF37; line-height: 1; }
+.date-box .th { font-size: 16px; vertical-align: super; color: #D4AF37; }
+.info-row { font-size: 11px; margin: 15px 0; font-weight: 600; }
+.info-row i { color: #D4AF37; margin-right: 6px; width: 14px; }
+.main-content { flex: 1; }
+.gala { font-family: 'Playfair Display', serif; font-size: 48px; font-weight: 900; color: #D4AF37; line-height: 1; }
+.dinner { font-family: 'Playfair Display', serif; font-size: 38px; font-weight: 700; color: white; }
+.tagline { color: #D4AF37; font-size: 11px; font-weight: 600; margin: 8px 0 15px; letter-spacing: 1.5px; }
+.theme-box {
+  border: 1px solid #D4AF37; border-radius: 6px; padding: 10px 15px;
+  margin: 15px 0; font-size: 11px; background: rgba(10,17,40,0.6);
+  max-height: 56px; overflow: hidden;
+}
+.theme-box span { color: #D4AF37; font-weight: 700; }
+.ticket-type-label { color: #D4AF37; font-size: 11px; font-weight: 700; margin-top: 15px; }
+.ticket-type-bar {
+  background: #FFD700; color: #0a1128; padding: 10px; margin: 5px 0 15px;
+  font-weight: 900; font-size: 16px; text-align: center; position: relative; border-radius: 3px;
+}
+.ticket-type-bar i { position: absolute; top: 50%; transform: translateY(-50%); color: #0a1128; }
+.ticket-type-bar .left-star { left: 15px; }
+.ticket-type-bar .right-star { right: 15px; }
+.bottom-row { display: flex; align-items: flex-end; justify-content: space-between; margin-top: 15px; }
+.ticket-no { background: #F5F1E8; color: #0a1128; padding: 8px 12px; font-weight: 700; font-size: 11px; border-radius: 4px; }
+.tagline-script { font-family: 'Great Vibes', cursive; color: #D4AF37; font-size: 16px; }
+.admit { text-align: center; font-weight: 900; font-size: 18px; color: #0a1128; margin-bottom: 8px; }
+.admit i { color: #D4AF37; font-size: 12px; margin: 0 4px; }
+.detail-item {
+  display: flex; align-items: center; gap: 8px; margin: 10px 0;
+  font-size: 10px; font-weight: 700; color: #D4AF37;
+  border-bottom: 1px dotted #D4AF37; padding-bottom: 6px;
+}
+.detail-item i {
+  width: 22px; height: 22px; border: 1px solid #D4AF37; border-radius: 50%;
+  display: flex; align-items: center; justify-content: center; font-size: 11px; flex-shrink: 0;
+}
+.detail-value {
+  color: #0a1128; margin-left: auto; font-size: 11px;
+  font-weight: 600; text-align: right; word-break: break-word; max-width: 140px;
+}
+.barcode { width: 100%; margin: 12px 0 8px; text-align: center; }
+.barcode img { width: 100%; height: 45px; object-fit: fill; }
+.scan-text { text-align: right; font-size: 9px; font-weight: 700; color: #0a1128; line-height: 1.2; }
+.scan-text i { margin-right: 3px; font-size: 8px; }
+@media print {
+  body { background: white; padding: 0; min-height: auto; }
+  .ticket { filter: none; }
+}
+</style>
 </head>
 <body>
-  <div class="ticket-wrapper">${printContent}</div>
-  <script>window.onload = () => { window.print(); window.close(); }<\/script>
+<div class="ticket-wrapper">
+<div class="ticket">
+  <div class="left">
+    <div class="left-col">
+      <div class="csa-logo">
+        <img src="https://i.postimg.cc/Y4nqnP2p/IMG-20260420-WA0002.jpg" alt="CSA Logo">
+      </div>
+      <div class="date-box">
+        <i class="fa-solid fa-calendar-days"></i>
+        <div style="font-size:11px;font-weight:600;">${date.dayName}</div>
+        <div><span class="day">${date.day}</span><span class="th">${date.daySuffix}</span></div>
+        <div style="font-size:11px;font-weight:600;">${date.month}<br>${date.year}</div>
+      </div>
+      <div style="border-top:1px solid #D4AF37;margin:12px 0;"></div>
+      <div class="info-row"><i class="fa-solid fa-clock"></i>${date.time}</div>
+      <div style="border-top:1px solid #D4AF37;margin:12px 0;"></div>
+      <div class="info-row"><i class="fa-solid fa-location-dot"></i>${eventVenue.toUpperCase()}</div>
+    </div>
+    <div class="main-content">
+      <div class="gala">GALA</div>
+      <div class="dinner">DINNER ${date.year}</div>
+      <div class="tagline">AWARDS • NETWORKING • ENTERTAINMENT</div>
+      <div class="theme-box"><span>THEME:</span> ${eventTheme}</div>
+      <div class="ticket-type-label">TICKET TYPE</div>
+      <div class="ticket-type-bar">
+        <i class="fa-solid fa-star left-star"></i>
+        ${ticketType.toUpperCase()}
+        <i class="fa-solid fa-star right-star"></i>
+      </div>
+      <div class="bottom-row">
+        <div class="ticket-no">TICKET NO. <span>${ticketNo}</span></div>
+        <div class="tagline-script">Pooling Construction Students Together!</div></div>
+    </div>
+  </div>
+  <div class="right">
+    <div class="admit"><i class="fa-solid fa-star"></i> ADMIT <i class="fa-solid fa-star"></i></div>
+    <div style="border-top:1px solid #D4AF37;margin:8px 0 12px;"></div>
+    <div class="detail-item"><i class="fa-solid fa-user"></i> NAME <span class="detail-value">${name}</span></div>
+    <div class="detail-item"><i class="fa-solid fa-tag"></i> BOOKING CODE <span class="detail-value">${bookingCode}</span></div>
+    <div class="detail-item"><i class="fa-solid fa-ticket"></i> TICKET TYPE <span class="detail-value">${ticketType}</span></div>
+    <div class="detail-item"><i class="fa-solid fa-wallet"></i> STATUS <span class="detail-value">${status}</span></div>
+    <div class="detail-item"><i class="fa-solid fa-coins"></i> AMOUNT <span class="detail-value">KSH ${amount.toLocaleString()}</span></div>
+    <div class="barcode">
+      <img src="https://barcode.tec-it.com/barcode.ashx?data=${encodeURIComponent(qrCode)}&code=Code128&translate-esc=false" alt="Barcode">
+    </div>
+    <div class="scan-text"><i class="fa-solid fa-play"></i>SCAN<br>FOR ENTRY<br>VERIFICATION</div>
+    <div class="gold-sidebar">${eventTitle.toUpperCase()}</div>
+  </div>
+</div>
+</div>
 </body>
-</html>`);
-    win.document.close();
+</html>`;
+
+  const handleDownload = () => {
+    const html = buildHtml();
+    const blob = new Blob([html], { type: "text/html;charset=utf-8" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `ticket-${ticketNo}.html`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
   };
+
+  // ── Inline preview styles (same design, rendered in-page) ──────────────────
+  const css = `
+    .td-wrapper { width:100%; overflow-x:auto; -webkit-overflow-scrolling:touch; }
+    .td-ticket {
+      width:980px; display:flex; flex-direction:row;
+      background:#0a1128; color:white; position:relative;
+      border-radius:10px; filter:drop-shadow(0 15px 35px rgba(0,0,0,0.4)); overflow:hidden;
+      font-family:'Montserrat',sans-serif;
+    }
+    .td-left {
+      width:665px; padding:25px; position:relative;
+      background-image:linear-gradient(rgba(10,17,40,0.82),rgba(10,17,40,0.82)),
+        url('https://images.unsplash.com/photo-1414235077428-338989a2e8c0?q=80&w=2070');
+      background-size:cover; background-position:center; display:flex; gap:25px;
+    }
+    .td-left::after {
+      content:''; position:absolute; right:0; top:0; height:100%; border-right:2px dashed #D4AF37;
+    }
+    .td-ticket::before {
+      content:''; position:absolute; right:315px; top:50%; transform:translateY(-50%);
+      width:30px; height:30px; background:#1a1a2e; border-radius:50%; z-index:10;
+    }
+    .td-right {
+      width:315px; background:#F5F1E8; color:#0a1128;
+      padding:20px 44px 20px 20px; position:relative;
+    }
+    .td-gold-sidebar {
+      position:absolute; right:0; top:0; height:100%; width:32px; background:#D4AF37;
+      writing-mode:vertical-rl; text-orientation:mixed; display:flex; align-items:center;
+      justify-content:center; font-weight:700; font-size:11px; color:#0a1128;
+      letter-spacing:1px; overflow:hidden;
+    }
+    .td-logo {
+      width:75px; height:75px; background:white; border-radius:50%; border:3px solid #D4AF37;
+      display:flex; align-items:center; justify-content:center; margin-bottom:20px; overflow:hidden;
+    }
+    .td-logo img { width:85%; height:85%; object-fit:contain; }
+    .td-left-col { width:140px; flex-shrink:0; }
+    .td-date-box { border-left:1px solid #D4AF37; padding-left:12px; margin:15px 0; }
+    .td-date-box i { color:#D4AF37; margin-bottom:6px; font-size:16px; display:block; }
+    .td-day { font-size:38px; font-weight:700; color:#D4AF37; line-height:1; }
+    .td-th { font-size:16px; vertical-align:super; color:#D4AF37; }
+    .td-info { font-size:11px; margin:15px 0; font-weight:600; }
+    .td-info i { color:#D4AF37; margin-right:6px; width:14px; }
+    .td-main { flex:1; }
+    .td-gala { font-family:'Playfair Display',serif; font-size:48px; font-weight:900; color:#D4AF37; line-height:1; }
+    .td-dinner { font-family:'Playfair Display',serif; font-size:38px; font-weight:700; color:white; }
+    .td-tagline { color:#D4AF37; font-size:11px; font-weight:600; margin:8px 0 15px; letter-spacing:1.5px; }
+    .td-theme {
+      border:1px solid #D4AF37; border-radius:6px; padding:10px 15px; margin:15px 0;
+      font-size:11px; background:rgba(10,17,40,0.6); max-height:56px; overflow:hidden;
+    }
+    .td-theme span { color:#D4AF37; font-weight:700; }
+    .td-type-label { color:#D4AF37; font-size:11px; font-weight:700; margin-top:15px; }
+    .td-type-bar {
+      background:#FFD700; color:#0a1128; padding:10px; margin:5px 0 15px;
+      font-weight:900; font-size:16px; text-align:center; position:relative; border-radius:3px;
+    }
+    .td-type-bar i { position:absolute; top:50%; transform:translateY(-50%); color:#0a1128; }
+    .td-type-bar .td-lstar { left:15px; }
+    .td-type-bar .td-rstar { right:15px; }
+    .td-bottom { display:flex; align-items:flex-end; justify-content:space-between; margin-top:15px; }
+    .td-ticketno { background:#F5F1E8; color:#0a1128; padding:8px 12px; font-weight:700; font-size:11px; border-radius:4px; }
+    .td-script { font-family:'Great Vibes',cursive; color:#D4AF37; font-size:16px; }
+    .td-admit { text-align:center; font-weight:900; font-size:18px; color:#0a1128; margin-bottom:8px; }
+    .td-admit i { color:#D4AF37; font-size:12px; margin:0 4px; }
+    .td-detail {
+      display:flex; align-items:center; gap:8px; margin:10px 0;
+      font-size:10px; font-weight:700; color:#D4AF37;
+      border-bottom:1px dotted #D4AF37; padding-bottom:6px;
+    }
+    .td-detail i {
+      width:22px; height:22px; border:1px solid #D4AF37; border-radius:50%;
+      display:flex; align-items:center; justify-content:center; font-size:11px; flex-shrink:0;
+    }
+    .td-dval { color:#0a1128; margin-left:auto; font-size:11px; font-weight:600; text-align:right; word-break:break-word; max-width:140px; }
+    .td-barcode { width:100%; margin:12px 0 8px; text-align:center; }
+    .td-barcode img { width:100%; height:45px; object-fit:fill; }
+    .td-scan { text-align:right; font-size:9px; font-weight:700; color:#0a1128; line-height:1.2; }
+    .td-scan i { margin-right:3px; font-size:8px; }
+    .td-divider { border-top:1px solid #D4AF37; margin:12px 0; }
+  `;
 
   return (
     <>
-      <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@700;900&family=Montserrat:wght@400;600;700&family=Great+Vibes&family=Cinzel:wght@600;700&display=swap" rel="stylesheet" />
+      <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@700;900&family=Montserrat:wght@400;600;700&family=Great+Vibes&display=swap" rel="stylesheet" />
       <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet" />
-      <style dangerouslySetInnerHTML={{ __html: TICKET_CSS }} />
+      <style dangerouslySetInnerHTML={{ __html: css }} />
 
-      {/* Scrollable on mobile */}
-      <div style={{ width: "100%", overflowX: "auto", WebkitOverflowScrolling: "touch" as any }}>
-        <div ref={ticketRef} className="ticket-wrapper">
-          <div className="ticket">
-            <div className="hole"></div>
-
-            <div className="left">
-              <div className="left-col">
-                <div className="csa-logo">
-                  <img src="https://i.postimg.cc/Y4nqnP2p/IMG-20260420-WA0002.jpg" alt="CSA Logo" />
-                </div>
-
-                {/* DATE — from event_date */}
-                <div className="date-block">
-                  <i className="fa-solid fa-calendar-days"></i>
-                  <div className="day-label">{dateInfo.dayName}</div>
-                  <div>
-                    <span className="day">{dateInfo.day}</span>
-                    <span className="th">{dateInfo.daySuffix}</span>
-                  </div>
-                  <div className="month-year">
-                    {dateInfo.month}<br />{dateInfo.year}
-                  </div>
-                </div>
-
-                {/* TIME — parsed from event_date */}
-                <div className="info-block">
-                  <div><i className="fa-solid fa-clock"></i>{dateInfo.time}</div>
-                </div>
-
-                {/* VENUE — from event.venue */}
-                <div className="info-block">
-                  <div>
-                    <i className="fa-solid fa-location-dot"></i>
-                    {eventVenue.toUpperCase()}
-                  </div>
-                </div>
+      {/* Inline scrollable preview */}
+      <div className="td-wrapper">
+        <div ref={ticketRef} className="td-ticket">
+          <div className="td-left">
+            <div className="td-left-col">
+              <div className="td-logo">
+                <img src="https://i.postimg.cc/Y4nqnP2p/IMG-20260420-WA0002.jpg" alt="CSA Logo" />
               </div>
-
-              <div className="main-content">
-                {/* TITLE — split into two lines like "GALA" / "DINNER 2026" */}
-                <div className="gala">GALA</div>
-                <div className="dinner">DINNER {dateInfo.year}</div>
-                <div className="tagline">AWARDS • NETWORKING • ENTERTAINMENT</div>
-
-                {/* THEME — from event.theme */}
-                <div className="theme-box">
-                  <span>THEME:</span> {eventTheme}
-                </div>
-
-                <div className="ticket-type-label">TICKET TYPE</div>
-                <div className="ticket-type-ribbon">
-                  <i className="fa-solid fa-star"></i>
-                  {ticketType.toUpperCase()}
-                  <i className="fa-solid fa-star"></i>
-                </div>
-
-                <div className="bottom-row">
-                  <div className="ticket-no">TICKET NO. <span>{safeTicketNumber}</span></div>
-                  <div className="tagline-script">Pooling Construction Students Together!</div>
-                </div>
+              <div className="td-date-box">
+                <i className="fa-solid fa-calendar-days"></i>
+                <div style={{ fontSize: 11, fontWeight: 600 }}>{date.dayName}</div>
+                <div><span className="td-day">{date.day}</span><span className="td-th">{date.daySuffix}</span></div>
+                <div style={{ fontSize: 11, fontWeight: 600 }}>{date.month}<br />{date.year}</div>
               </div>
+              <div className="td-divider" />
+              <div className="td-info"><i className="fa-solid fa-clock"></i>{date.time}</div>
+              <div className="td-divider" />
+              <div className="td-info"><i className="fa-solid fa-location-dot"></i>{eventVenue.toUpperCase()}</div>
             </div>
 
-            <div className="right">
-              <div className="admit">
-                <i className="fa-solid fa-star"></i> ADMIT <i className="fa-solid fa-star"></i>
+            <div className="td-main">
+              <div className="td-gala">GALA</div>
+              <div className="td-dinner">DINNER {date.year}</div>
+              <div className="td-tagline">AWARDS • NETWORKING • ENTERTAINMENT</div>
+              <div className="td-theme"><span>THEME:</span> {eventTheme}</div>
+              <div className="td-type-label">TICKET TYPE</div>
+              <div className="td-type-bar">
+                <i className="fa-solid fa-star td-lstar"></i>
+                {ticketType.toUpperCase()}
+                <i className="fa-solid fa-star td-rstar"></i>
               </div>
-              <div style={{ borderTop: "1px solid #C9A227", margin: "10px 0 15px" }}></div>
-
-              <div className="detail-list">
-                <div className="detail-item">
-                  <i className="fa-solid fa-user"></i>
-                  <div><div className="detail-label">Name</div></div>
-                  <span className="detail-value">{safePurchaserName}</span>
-                </div>
-                <div className="detail-item">
-                  <i className="fa-solid fa-tag"></i>
-                  <div><div className="detail-label">Booking Code</div></div>
-                  <span className="detail-value">{safeBookingCode}</span>
-                </div>
-                <div className="detail-item">
-                  <i className="fa-solid fa-ticket"></i>
-                  <div><div className="detail-label">Ticket Type</div></div>
-                  <span className="detail-value">{ticketType}</span>
-                </div>
-                <div className="detail-item">
-                  <i className="fa-solid fa-wallet"></i>
-                  <div><div className="detail-label">Status</div></div>
-                  <span className="detail-value">{safePaymentStatus}</span>
-                </div>
-                <div className="detail-item">
-                  <i className="fa-solid fa-coins"></i>
-                  <div><div className="detail-label">Amount</div></div>
-                  <span className="detail-value">KSH {safeTotalAmount.toLocaleString()}</span>
-                </div>
+              <div className="td-bottom">
+                <div className="td-ticketno">TICKET NO. <span>{ticketNo}</span></div>
+                <div className="td-script">Pooling Construction Students Together!</div>
               </div>
-
-              <div className="barcode">
-                <img
-                  src={`https://barcode.tec-it.com/barcode.ashx?data=${encodeURIComponent(safeQrCode)}&code=Code128&translate-esc=false`}
-                  alt="Barcode"
-                />
-              </div>
-
-              <div className="scan-text">
-                <i className="fa-solid fa-play"></i>SCAN<br />FOR ENTRY<br />VERIFICATION
-              </div>
-
-              <div className="gold-sidebar">{eventTitle.toUpperCase()}</div>
             </div>
+          </div>
+
+          <div className="td-right">
+            <div className="td-admit"><i className="fa-solid fa-star"></i> ADMIT <i className="fa-solid fa-star"></i></div>
+            <div style={{ borderTop: "1px solid #D4AF37", margin: "8px 0 12px" }} />
+            <div className="td-detail"><i className="fa-solid fa-user"></i> NAME <span className="td-dval">{name}</span></div>
+            <div className="td-detail"><i className="fa-solid fa-tag"></i> BOOKING CODE <span className="td-dval">{bookingCode}</span></div>
+            <div className="td-detail"><i className="fa-solid fa-ticket"></i> TICKET TYPE <span className="td-dval">{ticketType}</span></div>
+            <div className="td-detail"><i className="fa-solid fa-wallet"></i> STATUS <span className="td-dval">{status}</span></div>
+            <div className="td-detail"><i className="fa-solid fa-coins"></i> AMOUNT <span className="td-dval">KSH {amount.toLocaleString()}</span></div>
+            <div className="td-barcode">
+              <img src={`https://barcode.tec-it.com/barcode.ashx?data=${encodeURIComponent(qrCode)}&code=Code128&translate-esc=false`} alt="Barcode" />
+            </div>
+            <div className="td-scan"><i className="fa-solid fa-play"></i>SCAN<br />FOR ENTRY<br />VERIFICATION</div>
+            <div className="td-gold-sidebar">{eventTitle.toUpperCase()}</div>
           </div>
         </div>
       </div>
 
-      {/* Download button */}
-      <div style={{ display: "flex", justifyContent: "center", marginTop: "20px" }}>
+      {/* Download button — uses Blob, works on Android */}
+      <div style={{ display: "flex", justifyContent: "center", marginTop: 24 }}>
         <button
-          onClick={handlePrint}
+          onClick={handleDownload}
           style={{
-            display: "flex", alignItems: "center", gap: "10px",
+            display: "flex", alignItems: "center", gap: 10,
             padding: "14px 32px",
-            background: "linear-gradient(135deg, #E6C875 0%, #C9A227 100%)",
-            color: "#0B0F1A", border: "none", borderRadius: "10px",
-            fontWeight: 700, fontSize: "16px", cursor: "pointer",
-            fontFamily: "Montserrat, sans-serif",
-            boxShadow: "0 4px 15px rgba(201,162,39,0.4)",
+            background: "linear-gradient(135deg,#E6C875 0%,#D4AF37 100%)",
+            color: "#0a1128", border: "none", borderRadius: 10,
+            fontWeight: 700, fontSize: 16, cursor: "pointer",
+            fontFamily: "Montserrat,sans-serif",
+            boxShadow: "0 4px 15px rgba(212,175,55,0.45)",
           }}
         >
           <i className="fa-solid fa-download"></i>
-          Download / Print Ticket
+          Download Ticket
         </button>
       </div>
+      <p style={{ textAlign: "center", marginTop: 10, fontSize: 12, color: "#888", fontFamily: "Montserrat,sans-serif" }}>
+        Opens as an HTML file · Open in browser → Print → Save as PDF
+      </p>
     </>
   );
 }
-
-const TICKET_CSS = `
-  * { box-sizing: border-box; margin: 0; padding: 0; }
-  .ticket-wrapper { width: 980px; }
-  .ticket {
-    width: 980px; height: 380px; display: flex;
-    background: #0B0F1A; color: white; position: relative;
-    filter: drop-shadow(0 15px 35px rgba(0,0,0,0.4));
-    font-family: 'Montserrat', sans-serif;
-    clip-path: polygon(0 0, 0 100%, 15px 100%, 15px calc(100% - 15px), 0 calc(100% - 15px), 0 calc(100% - 30px), 15px calc(100% - 30px), 15px 30px, 0 30px, 0 15px, 15px 15px, 15px 0, calc(100% - 15px) 0, calc(100% - 15px) 15px, 100% 15px, 100% 30px, calc(100% - 15px) 30px, calc(100% - 15px) calc(100% - 30px), 100% calc(100% - 30px), 100% calc(100% - 15px), calc(100% - 15px) calc(100% - 15px), calc(100% - 15px) 100%, 100% 100%, 100% 0);
-  }
-  .ticket::after {
-    content: ''; position: absolute; right: 300px; top: 0;
-    height: 100%; border-right: 2px dashed rgba(201,162,39,0.6);
-  }
-  .hole { position: absolute; top: 20px; left: 75px; width: 20px; height: 20px; background: #e8e8e8; border-radius: 50%; z-index: 5; }
-  .left {
-    width: 680px; padding: 30px 35px 25px 35px; position: relative;
-    background-image: linear-gradient(rgba(11,15,26,0.88), rgba(11,15,26,0.88)), url('https://images.unsplash.com/photo-1414235077428-338989a2e8c0?q=80&w=2070');
-    background-size: cover; background-position: center; display: flex; gap: 30px;
-  }
-  .left-col { width: 140px; flex-shrink: 0; display: flex; flex-direction: column; align-items: center; }
-  .csa-logo { width: 85px; height: 85px; background: white; border-radius: 50%; border: 3px solid #C9A227; display: flex; align-items: center; justify-content: center; margin-bottom: 25px; overflow: hidden; }
-  .csa-logo img { width: 90%; height: 90%; object-fit: contain; }
-  .date-block { border-left: 2px solid #C9A227; padding-left: 15px; margin: 20px 0; text-align: left; width: 100%; }
-  .date-block i { color: #C9A227; font-size: 18px; margin-bottom: 8px; display: block; }
-  .date-block .day-label { font-size: 11px; font-weight: 600; letter-spacing: 1px; }
-  .date-block .day { font-size: 44px; font-weight: 700; color: #C9A227; line-height: 1; }
-  .date-block .th { font-size: 18px; vertical-align: super; color: #C9A227; }
-  .date-block .month-year { font-size: 12px; font-weight: 600; margin-top: 4px; }
-  .info-block { border-top: 1px solid #C9A227; padding-top: 15px; margin-top: 15px; font-size: 11px; width: 100%; text-align: left; }
-  .info-block i { color: #C9A227; margin-right: 8px; width: 16px; }
-  .info-block div { margin: 12px 0; font-weight: 600; }
-  .main-content { flex: 1; padding-top: 10px; }
-  .gala { font-family: 'Playfair Display', serif; font-size: 68px; font-weight: 900; background: linear-gradient(180deg, #E6C875 0%, #C9A227 100%); -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text; line-height: 0.9; letter-spacing: 2px; }
-  .dinner { font-family: 'Cinzel', serif; font-size: 42px; font-weight: 700; color: white; letter-spacing: 3px; margin-top: -5px; }
-  .tagline { color: #C9A227; font-size: 12px; font-weight: 600; margin: 12px 0 20px; letter-spacing: 2px; display: flex; align-items: center; gap: 8px; }
-  .tagline::before, .tagline::after { content: '◆'; font-size: 8px; }
-  .theme-box { border: 1.5px solid #C9A227; border-radius: 8px; padding: 12px 18px; margin: 20px 0; font-size: 11px; background: #0B0F1A; max-height: 60px; overflow: hidden; }
-  .theme-box span { color: #C9A227; font-weight: 700; }
-  .ticket-type-label { color: #C9A227; font-size: 12px; font-weight: 700; margin-top: 25px; letter-spacing: 1px; }
-  .ticket-type-ribbon { background: linear-gradient(135deg, #E6C875 0%, #C9A227 100%); color: #0B0F1A; padding: 14px 20px; margin: 8px 0 20px; font-weight: 900; font-size: 20px; text-align: center; position: relative; clip-path: polygon(0 0, calc(100% - 20px) 0, 100% 50%, calc(100% - 20px) 100%, 0 100%); box-shadow: 0 4px 12px rgba(201,162,39,0.3); }
-  .ticket-type-ribbon i { position: absolute; top: 50%; transform: translateY(-50%); font-size: 14px; }
-  .ticket-type-ribbon .fa-star:first-child { left: 20px; }
-  .ticket-type-ribbon .fa-star:last-child { right: 35px; }
-  .bottom-row { display: flex; align-items: center; justify-content: space-between; margin-top: 25px; }
-  .ticket-no { background: #F6F1E3; color: #0B0F1A; padding: 10px 16px; font-weight: 700; font-size: 12px; border-radius: 6px; border: 2px solid #C9A227; }
-  .tagline-script { font-family: 'Great Vibes', cursive; color: #C9A227; font-size: 20px; margin-left: auto; padding-left: 20px; border-left: 1px solid #C9A227; }
-  .right { width: 300px; background: #F6F1E3; color: #0B0F1A; padding: 25px 45px 25px 25px; position: relative; }
-  .gold-sidebar { position: absolute; right: 0; top: 0; height: 100%; width: 35px; background: linear-gradient(180deg, #E6C875 0%, #C9A227 100%); writing-mode: vertical-rl; text-orientation: mixed; display: flex; align-items: center; justify-content: center; font-weight: 700; font-size: 11px; color: #0B0F1A; letter-spacing: 1.5px; overflow: hidden; }
-  .admit { text-align: center; font-weight: 900; font-size: 20px; color: #0B0F1A; margin-bottom: 10px; letter-spacing: 1px; }
-  .admit i { color: #C9A227; font-size: 14px; margin: 0 6px; }
-  .detail-list { margin: 15px 0; }
-  .detail-item { display: flex; align-items: center; gap: 10px; margin: 12px 0; padding-bottom: 10px; border-bottom: 1px dotted #C9A227; }
-  .detail-item i { width: 26px; height: 26px; border: 1.5px solid #C9A227; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 12px; flex-shrink: 0; color: #C9A227; }
-  .detail-label { font-size: 10px; font-weight: 700; color: #C9A227; text-transform: uppercase; letter-spacing: 0.5px; }
-  .detail-value { color: #0B0F1A; margin-left: auto; font-size: 12px; font-weight: 600; text-align: right; word-break: break-word; max-width: 130px; }
-  .barcode { width: 100%; height: 50px; margin: 20px 0 10px; display: flex; justify-content: center; align-items: center; }
-  .barcode img { height: 50px; max-width: 100%; }
-  .scan-text { text-align: right; font-size: 10px; font-weight: 700; color: #0B0F1A; line-height: 1.3; }
-  .scan-text i { margin-right: 4px; font-size: 9px; }
-`;
