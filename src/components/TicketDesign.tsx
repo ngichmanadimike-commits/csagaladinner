@@ -1,4 +1,4 @@
-import { useRef, useState } from "react";
+import { useRef, useState, useEffect } from "react";
 
 /* ─────────────────────────────────────────────────────────────
    Types
@@ -88,6 +88,7 @@ const RENDER_SCALE = 3;    // px per pt for the hidden render clone
 export default function TicketDesign({ ticket }: { ticket: TicketData }) {
   const ticketRef = useRef<HTMLDivElement>(null);
   const [downloading, setDownloading] = useState(false);
+  const [qrDataUrl, setQrDataUrl]     = useState<string>("");
 
   /* derived values */
   const ticketType  = (ticket.type_name || ticket.ticket_type || "Regular").toString();
@@ -104,6 +105,68 @@ export default function TicketDesign({ ticket }: { ticket: TicketData }) {
   const date        = formatEventDate(ticket.event_date);
   const endTimeStr  = ticket.event_end_time ? formatEndTime(ticket.event_end_time) : "";
   const timeDisplay = endTimeStr ? `${date.time} – ${endTimeStr}` : date.time;
+
+  /*
+   * QR payload — a compact JSON string your admin scanner decodes.
+   * Contains everything needed to look up and admit the ticket.
+   */
+  const qrPayload = JSON.stringify({
+    t: ticketNo,      // ticket_number
+    b: bookingCode,   // booking_code
+    q: qrCode,        // qr_code field from DB (may be a UUID / token)
+  });
+
+  /* Generate QR code into a canvas once on mount / whenever qrPayload changes */
+  useEffect(() => {
+    let cancelled = false;
+    loadScript("https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js")
+      .then(() => {
+        /* eslint-disable @typescript-eslint/no-explicit-any */
+        const QRCode = (window as any).QRCode;
+        /* eslint-enable @typescript-eslint/no-explicit-any */
+        if (!QRCode || cancelled) return;
+
+        /* Render into a throw-away div, extract dataURL */
+        const tmp = document.createElement("div");
+        tmp.style.cssText = "position:fixed;top:-9999px;left:-9999px;";
+        document.body.appendChild(tmp);
+
+        new QRCode(tmp, {
+          text: qrPayload,
+          width: 300,
+          height: 300,
+          colorDark: "#0a1128",
+          colorLight: "#F5F1E8",
+          correctLevel: QRCode.CorrectLevel.H,   // high error-correction
+        });
+
+        /* QRCode.js appends a canvas or img depending on browser */
+        const img = tmp.querySelector("img") as HTMLImageElement | null;
+        const cvs = tmp.querySelector("canvas") as HTMLCanvasElement | null;
+
+        const finish = (url: string) => {
+          if (!cancelled) setQrDataUrl(url);
+          document.body.removeChild(tmp);
+        };
+
+        if (cvs) {
+          finish(cvs.toDataURL("image/png"));
+        } else if (img) {
+          img.onload = () => finish(img.src);
+          if (img.complete) finish(img.src);
+        }
+      })
+      .catch(() => {
+        /* Fallback: use a free QR API (requires network) */
+        if (!cancelled)
+          setQrDataUrl(
+            `https://api.qrserver.com/v1/create-qr-code/?size=300x300&ecc=H&data=${encodeURIComponent(qrPayload)}`
+          );
+      });
+
+    return () => { cancelled = true; };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [qrPayload]);
 
   /* ── PDF download ─────────────────────────────────────────── */
   const handleDownload = async () => {
@@ -283,9 +346,9 @@ body{
   display:flex;align-items:center;justify-content:center;font-size:11px;flex-shrink:0;
 }
 .detail-value{color:#0a1128;margin-left:auto;font-size:11px;font-weight:600;text-align:right;word-break:break-word;max-width:140px;}
-.barcode{width:100%;margin:12px 0 8px;text-align:center;}
-.barcode img{width:100%;height:45px;object-fit:fill;}
-.scan-text{text-align:right;font-size:9px;font-weight:700;color:#0a1128;line-height:1.2;}
+.qr-block{display:flex;flex-direction:column;align-items:center;margin:10px 0 6px;gap:4px;}
+.qr-block img{width:110px;height:110px;border:3px solid #D4AF37;border-radius:6px;background:#F5F1E8;display:block;}
+.scan-text{text-align:center;font-size:9px;font-weight:700;color:#0a1128;line-height:1.4;}
 .scan-text i{margin-right:3px;font-size:8px;}
 @media print{
   body{background:white;padding:0;min-height:auto;}
@@ -335,10 +398,10 @@ body{
     <div class="detail-item"><i class="fa-solid fa-ticket"></i> TICKET TYPE <span class="detail-value">${ticketType}</span></div>
     <div class="detail-item"><i class="fa-solid fa-wallet"></i> STATUS <span class="detail-value">${status}</span></div>
     <div class="detail-item"><i class="fa-solid fa-coins"></i> AMOUNT <span class="detail-value">KSH ${amount.toLocaleString()}</span></div>
-    <div class="barcode">
-      <img src="https://barcode.tec-it.com/barcode.ashx?data=${encodeURIComponent(qrCode)}&code=Code128&translate-esc=false" alt="Barcode">
+    <div class="qr-block">
+      <img src="https://api.qrserver.com/v1/create-qr-code/?size=300x300&ecc=H&data=${encodeURIComponent(qrPayload)}" alt="QR Code">
     </div>
-    <div class="scan-text"><i class="fa-solid fa-play"></i>SCAN<br>FOR ENTRY<br>VERIFICATION</div>
+    <div class="scan-text"><i class="fa-solid fa-qrcode"></i>SCAN QR<br>FOR ENTRY<br>VERIFICATION</div>
     <div class="gold-sidebar">${eventTitle.toUpperCase()}</div>
   </div>
 </div>
@@ -429,9 +492,10 @@ body{
       display:flex;align-items:center;justify-content:center;font-size:11px;flex-shrink:0;
     }
     .td-dval{color:#0a1128;margin-left:auto;font-size:11px;font-weight:600;text-align:right;word-break:break-word;max-width:140px;}
-    .td-barcode{width:100%;margin:12px 0 8px;text-align:center;}
-    .td-barcode img{width:100%;height:45px;object-fit:fill;}
-    .td-scan{text-align:right;font-size:9px;font-weight:700;color:#0a1128;line-height:1.2;}
+    .td-qr{display:flex;flex-direction:column;align-items:center;margin:10px 0 6px;gap:4px;}
+    .td-qr img,.td-qr canvas{width:110px;height:110px;border:3px solid #D4AF37;border-radius:6px;background:#F5F1E8;display:block;}
+    .td-qr-placeholder{width:110px;height:110px;border:3px solid #D4AF37;border-radius:6px;background:#F5F1E8;display:flex;align-items:center;justify-content:center;font-size:9px;color:#0a1128;font-weight:700;text-align:center;padding:6px;}
+    .td-scan{text-align:center;font-size:9px;font-weight:700;color:#0a1128;line-height:1.4;}
     .td-scan i{margin-right:3px;font-size:8px;}
     .td-divider{border-top:1px solid #D4AF37;margin:12px 0;}
   `;
@@ -489,10 +553,13 @@ body{
             <div className="td-detail"><i className="fa-solid fa-ticket"></i> TICKET TYPE <span className="td-dval">{ticketType}</span></div>
             <div className="td-detail"><i className="fa-solid fa-wallet"></i> STATUS <span className="td-dval">{status}</span></div>
             <div className="td-detail"><i className="fa-solid fa-coins"></i> AMOUNT <span className="td-dval">KSH {amount.toLocaleString()}</span></div>
-            <div className="td-barcode">
-              <img src={`https://barcode.tec-it.com/barcode.ashx?data=${encodeURIComponent(qrCode)}&code=Code128&translate-esc=false`} alt="Barcode" />
+            <div className="td-qr">
+              {qrDataUrl
+                ? <img src={qrDataUrl} alt={`QR – ${ticketNo}`} />
+                : <div className="td-qr-placeholder">Generating QR…</div>
+              }
             </div>
-            <div className="td-scan"><i className="fa-solid fa-play"></i>SCAN<br />FOR ENTRY<br />VERIFICATION</div>
+            <div className="td-scan"><i className="fa-solid fa-qrcode"></i>SCAN QR<br />FOR ENTRY<br />VERIFICATION</div>
             <div className="td-gold-sidebar">{eventTitle.toUpperCase()}</div>
           </div>
         </div>
