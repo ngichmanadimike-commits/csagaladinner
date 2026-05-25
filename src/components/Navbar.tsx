@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { useLocation } from "react-router-dom";
+import csaLogo from "@/assets/white_logo.jpg";
 
 const links = [
   { label: "Tickets", href: "/#tickets" },
@@ -31,9 +32,17 @@ const Navbar = () => {
   return (
     <nav className="fixed top-0 left-0 right-0 z-50 bg-background/80 backdrop-blur border-b border-border">
       <div className="container mx-auto px-4 flex items-center justify-between h-16">
-        <a href="/" className="flex items-center gap-3">
-          <img src="/images/csa-logo.png" alt="CSA" className="h-8 w-8 rounded-full" />
-          <span className="font-display font-bold text-foreground hidden sm:block">CSA Gala 2026</span>
+
+        {/* Logo + Name */}
+        <a href="/" className="flex items-center gap-3 min-w-0">
+          <img
+            src={csaLogo}
+            alt="CSA Logo"
+            className="h-9 w-9 rounded-full object-cover border border-primary/30 flex-shrink-0"
+          />
+          <span className="font-display font-bold text-foreground text-sm sm:text-base whitespace-nowrap">
+            CSA GALA DINNER
+          </span>
         </a>
 
         {/* Desktop links */}
