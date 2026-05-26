@@ -3,7 +3,7 @@ import { useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import AdminLayout from "@/components/admin/AdminLayout";
 import { toast } from "sonner";
-import { Loader2, Save, Info, Image, Bell, BellOff, Trash2, AlertTriangle } from "lucide-react";
+import { Loader2, Save, Info, Image, Bell, BellOff, Trash2, AlertTriangle, Upload, X } from "lucide-react";
 
 const AdminEventConfig = () => {
   const [events, setEvents] = useState<any[]>([]);
@@ -12,6 +12,7 @@ const AdminEventConfig = () => {
   const [saving, setSaving] = useState(false);
   const [deleteConfirm, setDeleteConfirm] = useState(false);
   const [deleting, setDeleting] = useState(false);
+  const [uploading, setUploading] = useState(false);
 
   useEffect(() => {
     const fetchEvents = async () => {
@@ -98,6 +99,26 @@ const AdminEventConfig = () => {
     setSelected((prev: any) => ({ ...prev, [field]: value }));
   };
 
+  const handleFlyerUpload = async (file: File) => {
+    if (!selected) return;
+    setUploading(true);
+    const ext = file.name.split(".").pop();
+    const path = `flyers/${selected.id}-${Date.now()}.${ext}`;
+    const { error: uploadError } = await supabase.storage
+      .from("event-assets")
+      .upload(path, file, { upsert: true });
+    if (uploadError) {
+      toast.error("Upload failed: " + uploadError.message);
+      setUploading(false);
+      return;
+    }
+    const { data: urlData } = supabase.storage.from("event-assets").getPublicUrl(path);
+    updateField("flyer_url", urlData.publicUrl);
+    await supabase.from("events").update({ flyer_url: urlData.publicUrl }).eq("id", selected.id);
+    toast.success("Flyer uploaded successfully");
+    setUploading(false);
+  };
+
   const getDatePart = () => {
     if (selected?._date_part) return selected._date_part;
     if (!selected?.event_date) return "";
@@ -124,7 +145,7 @@ const AdminEventConfig = () => {
   }
 
   const popupEnabled = selected?.popup_enabled !== false;
-  const popupWillShow = popupEnabled && selected?.status === "published";
+  const popupWillShow = popupEnabled && selected?.status === "published" && !!selected?.flyer_url;
 
   return (
     <AdminLayout>
@@ -233,51 +254,20 @@ const AdminEventConfig = () => {
             </div>
           </div>
 
-          {/* Flyer section */}
-          <div className="glass rounded-xl p-6 space-y-4">
-            <h2 className="font-semibold text-foreground text-base border-b border-border pb-2 flex items-center gap-2">
-              <Image size={18} className="text-primary" /> Event Popup Flyer
-            </h2>
-            <div className="flex gap-3 items-start p-3 rounded-lg bg-primary/5 border border-primary/20">
-              <Info size={16} className="text-primary flex-shrink-0 mt-0.5" />
-              <p className="text-xs text-muted-foreground">
-                Paste a public image URL here to override the default flyer shown in the popup.
-                Leave blank to use the built-in flyer. To upload: go to{" "}
-                <strong className="text-foreground">Supabase → Storage → event-assets</strong>,
-                upload the image, copy the public URL, and paste it below.
-              </p>
-            </div>
-            <div>
-              <label className="text-sm text-muted-foreground mb-1 block">Flyer Image URL (optional)</label>
-              <input type="url" value={selected.flyer_url || ""}
-                onChange={(e) => updateField("flyer_url", e.target.value)}
-                placeholder="https://xxxx.supabase.co/storage/v1/object/public/event-assets/flyer.jpg"
-                className="w-full px-4 py-2.5 rounded-lg bg-muted border border-border text-foreground text-sm focus:outline-none focus:ring-2 focus:ring-primary/50" />
-            </div>
-            {selected.flyer_url && (
-              <div>
-                <p className="text-xs text-muted-foreground mb-2">Preview:</p>
-                <img src={selected.flyer_url} alt="Flyer preview"
-                  className="w-full max-w-xs rounded-xl border border-border object-cover"
-                  onError={(e) => {
-                    (e.target as HTMLImageElement).style.display = "none";
-                    toast.error("Could not load image — check the URL");
-                  }} />
-              </div>
-            )}
-          </div>
-
-          {/* Popup toggle */}
-          <div className="glass rounded-xl p-6 space-y-4">
+          {/* Flyer + Popup toggle — combined card */}
+          <div className="glass rounded-xl p-6 space-y-5">
             <h2 className="font-semibold text-foreground text-base border-b border-border pb-2 flex items-center gap-2">
               {popupEnabled ? <Bell size={18} className="text-primary" /> : <BellOff size={18} className="text-muted-foreground" />}
               Event Notification Popup
             </h2>
+
+            {/* ON / OFF toggle */}
             <div className="flex items-center justify-between p-4 rounded-xl bg-muted/50 border border-border">
               <div>
                 <p className="text-sm font-semibold text-foreground">Popup Notification</p>
                 <p className="text-xs text-muted-foreground mt-0.5">
                   When ON and status is Published, the flyer popup shows to visitors once per session.
+                  A flyer image must be uploaded for the popup to appear.
                 </p>
               </div>
               <button
@@ -291,6 +281,64 @@ const AdminEventConfig = () => {
                 }`} />
               </button>
             </div>
+
+            {/* Flyer upload */}
+            <div className="space-y-3">
+              <p className="text-sm font-semibold text-foreground">Popup Flyer Image</p>
+              <p className="text-xs text-muted-foreground -mt-1">
+                Upload the flyer image to display in the popup. If no image is set, the popup will not show even if the toggle is ON.
+              </p>
+
+              {/* Upload button */}
+              <label className={`inline-flex items-center gap-2 px-4 py-2.5 rounded-lg border cursor-pointer transition-colors text-sm font-medium ${
+                uploading
+                  ? "border-border text-muted-foreground cursor-wait"
+                  : "border-primary/50 text-primary hover:bg-primary/10"
+              }`}>
+                {uploading ? (
+                  <><Loader2 size={15} className="animate-spin" /> Uploading…</>
+                ) : (
+                  <><Upload size={15} /> Upload Flyer Image</>
+                )}
+                <input
+                  type="file"
+                  accept="image/*"
+                  className="hidden"
+                  disabled={uploading}
+                  onChange={(e) => {
+                    const f = e.target.files?.[0];
+                    if (f) handleFlyerUpload(f);
+                  }}
+                />
+              </label>
+
+              {/* Preview + remove */}
+              {selected.flyer_url ? (
+                <div className="relative inline-block">
+                  <img
+                    src={selected.flyer_url}
+                    alt="Flyer preview"
+                    className="w-full max-w-xs rounded-xl border border-border object-cover"
+                    onError={(e) => {
+                      (e.target as HTMLImageElement).style.display = "none";
+                      toast.error("Could not load flyer image");
+                    }}
+                  />
+                  <button
+                    onClick={() => updateField("flyer_url", "")}
+                    className="absolute top-2 right-2 p-1 rounded-full bg-black/60 text-white hover:bg-black/80 transition-colors"
+                    title="Remove flyer"
+                  >
+                    <X size={14} />
+                  </button>
+                </div>
+              ) : (
+                <div className="flex items-center gap-2 px-3 py-2.5 rounded-lg border border-dashed border-border text-xs text-muted-foreground">
+                  <Image size={14} /> No flyer uploaded — popup will not show
+                </div>
+              )}
+            </div>
+
             <div className={`flex items-center gap-3 px-4 py-3 rounded-xl ${
               popupWillShow
                 ? "bg-emerald-500/10 border border-emerald-500/30"
@@ -310,7 +358,11 @@ const AdminEventConfig = () => {
                   <div className="text-sm">
                     <p className="font-semibold text-yellow-300">Popup is INACTIVE</p>
                     <p className="text-muted-foreground text-xs">
-                      {!popupEnabled ? "Toggle is OFF — enable it above." : "Status is not Published — set status to Published above."}
+                      {!popupEnabled
+                        ? "Toggle is OFF — enable it above."
+                        : !selected.flyer_url
+                        ? "No flyer uploaded — upload a flyer image above."
+                        : "Status is not Published — set status to Published above."}
                     </p>
                   </div>
                 </>
