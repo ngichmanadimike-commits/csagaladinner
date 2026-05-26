@@ -102,16 +102,31 @@ const AdminQRScanner = () => {
     setResult(null);
 
     try {
-      const { data: reg, error: regErr } = await supabase
+      // Look up by ticket_code first, then by secure_ticket_token (used in QR codes)
+      let { data: reg, error: regErr } = await supabase
         .from("registrations")
         .select("id, name, package_type, quantity, payment_status, ticket_code")
         .eq("ticket_code", code)
         .maybeSingle();
 
       if (regErr) { setResult({ status: "error", message: regErr.message }); return; }
+
+      // If not found by ticket_code, try secure_ticket_token
+      if (!reg) {
+        const { data: regByToken, error: tokenErr } = await supabase
+          .from("registrations")
+          .select("id, name, package_type, quantity, payment_status, ticket_code")
+          .eq("secure_ticket_token", code)
+          .maybeSingle();
+        if (tokenErr) { setResult({ status: "error", message: tokenErr.message }); return; }
+        reg = regByToken;
+        // Use actual ticket_code for scan record if found by token
+        if (reg) code = reg.ticket_code ?? code;
+      }
+
       if (!reg) { setResult({ status: "not_found" }); return; }
 
-      if (reg.payment_status !== "paid" && reg.payment_status !== "verified" && reg.payment_status !== "confirmed") {
+      if (reg.payment_status !== "paid" && reg.payment_status !== "partial") {
         setResult({ status: "unpaid", name: reg.name, payment_status: reg.payment_status });
         return;
       }
