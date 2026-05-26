@@ -1,18 +1,21 @@
 import { useState, useEffect } from "react";
 import { supabase } from "@/integrations/supabase/client";
 
-interface EventData {
-  id: number;
-  name: string;
-  theme: string;
+export interface EventData {
+  id: string;          // uuid in schema
+  title: string | null;
+  theme: string | null;
+  description: string | null;
   event_date: string | null;
   venue: string | null;
   status: string | null;
   flyer_url: string | null;
-  title: string | null;
-  description: string | null;
   nomination_url: string | null;
   voting_url: string | null;
+  popup_enabled: boolean;
+  end_time: string | null;
+  created_at: string;
+  updated_at: string;
 }
 
 let cachedEvent: EventData | null = null;
@@ -39,6 +42,7 @@ async function fetchActiveEvent(): Promise<EventData | null> {
           .single()
           .then(({ data: d }) => {
             if (d) cachedEvent = d as EventData;
+            fetchPromise = null;
             return cachedEvent;
           });
       }
@@ -66,5 +70,12 @@ export function useEventData() {
     });
   }, []);
 
-  return { event, loading };
-    }
+  // Allow components to invalidate cache and refetch (e.g. after admin edits)
+  const refetch = () => {
+    cachedEvent = null;
+    fetchPromise = null;
+    fetchActiveEvent().then((e) => setEvent(e));
+  };
+
+  return { event, loading, refetch };
+}
