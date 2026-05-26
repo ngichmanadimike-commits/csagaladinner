@@ -1,7 +1,6 @@
 // src/components/EventNotification.tsx
 import { useState, useEffect } from "react";
 import { X } from "lucide-react";
-import flyerImage from "@/assets/IMG-20260512-WA0019.jpg";
 import { useEventData } from "@/hooks/useEventData";
 
 const SESSION_KEY = "csaEventNotificationSeen";
@@ -10,15 +9,17 @@ const EventNotification = () => {
   const [isOpen, setIsOpen] = useState(false);
   const { event } = useEventData();
 
-  const flyerUrl = event?.flyer_url || flyerImage;
+  // Only show if admin has set a flyer_url — no hardcoded fallback image
+  const flyerUrl = event?.flyer_url ?? null;
   const eventTitle = event?.title || "CSA Gala Dinner 2026";
 
   // popup_enabled defaults to true if not set (backward compatible)
   const popupEnabled = event?.popup_enabled !== false;
 
   useEffect(() => {
-    // Don't show if: admin turned it off, or event not published, or already seen this session
+    // Don't show if: admin turned it off, or event not published, or no flyer set, or already seen
     if (!popupEnabled) return;
+    if (!flyerUrl) return;
     if (event && event.status !== "published") return;
 
     const alreadySeen = sessionStorage.getItem(SESSION_KEY);
@@ -26,14 +27,14 @@ const EventNotification = () => {
       const timer = setTimeout(() => setIsOpen(true), 800);
       return () => clearTimeout(timer);
     }
-  }, [popupEnabled, event?.status]);
+  }, [popupEnabled, flyerUrl, event?.status]);
 
   const handleClose = () => {
     sessionStorage.setItem(SESSION_KEY, "true");
     setIsOpen(false);
   };
 
-  if (!isOpen) return null;
+  if (!isOpen || !flyerUrl) return null;
 
   return (
     <div
