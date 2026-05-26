@@ -9,7 +9,7 @@ interface GalleryImage {
   id: string;
   image_url: string;
   title: string | null;
-  description: string | null;
+  caption: string | null;
   created_at: string;
 }
 
