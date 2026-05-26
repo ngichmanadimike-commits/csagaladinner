@@ -527,10 +527,10 @@ const RegistrationModal = ({
                 </div>
                 <div>
                   <p className="text-white/50 text-xs uppercase tracking-wider mb-0.5">
-                    {mode === "returning" ? "Balance Due" : "Full Amount"}
+                    Amount to Pay
                   </p>
                   <p className="font-bold text-lg" style={{ color: "#D4AF37" }}>
-                    KES {(mode === "returning" ? remainingBalance : finalAmount).toLocaleString()}
+                    KES {(Number(payAmount) > 0 ? Number(payAmount) : (mode === "returning" ? remainingBalance : finalAmount)).toLocaleString()}
                   </p>
                 </div>
               </div>
@@ -563,7 +563,7 @@ const RegistrationModal = ({
                         ? "bg-primary text-primary-foreground border-primary"
                         : "bg-muted text-foreground border-border hover:border-primary"
                     }`}>
-                    Full: KES {(mode === "returning" ? remainingBalance : finalAmount).toLocaleString()}
+                    Full: KES {(Number(payAmount) > 0 ? Number(payAmount) : (mode === "returning" ? remainingBalance : finalAmount)).toLocaleString()}
                   </button>
                 </div>
               </div>
@@ -647,10 +647,10 @@ const RegistrationModal = ({
             <div className="glass rounded-xl p-4 text-left space-y-2 text-sm">
               <p className="font-semibold">What happens next?</p>
               <ul className="text-muted-foreground space-y-1.5">
-                <li>✅ Your registration & payment are saved</li>
-                <li>⏳ Treasurer verifies your M-Pesa payment (3–6 hrs)</li>
-                <li>🎫 Once approved, your ticket is issued</li>
-                <li>🔍 Use your booking code on the Lookup page to check status or pay more</li>
+                <li> Your registration & payment are saved</li>
+                <li> Treasurer verifies your M-Pesa payment (3–6 hrs)</li>
+                <li> Once approved, your ticket is issued</li>
+                <li> Use your booking code on the Lookup page to check status or pay more</li>
               </ul>
             </div>
             <p className="text-sm text-muted-foreground">
