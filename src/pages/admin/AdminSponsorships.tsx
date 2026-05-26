@@ -23,14 +23,13 @@ interface Sponsorship {
   sponsor_name: string;
   sponsor_email: string | null;
   sponsor_phone: string | null;
-  package_id: string | null;
+  level: string | null;
   amount: number;
   mpesa_code: string | null;
   sponsor_code: string | null;
   num_students: number | null;
   status: string | null;
   created_at: string;
-  partner_packages?: { name: string; price: number } | null;
 }
 
 // ── Blank package helper ──────────────────────────────────────────────────────
@@ -78,7 +77,7 @@ const AdminSponsorships = () => {
   const fetchSponsorships = async () => {
     const { data, error } = await supabase
       .from("sponsorships")
-      .select("*, partner_packages(name, price)")
+      .select("id, sponsor_name, sponsor_email, sponsor_phone, level, amount, mpesa_code, sponsor_code, num_students, status, created_at")
       .order("created_at", { ascending: false });
     if (error) toast.error("Failed to load sponsorships: " + error.message);
     setSponsorships((data as Sponsorship[]) || []);
@@ -352,7 +351,7 @@ const AdminSponsorships = () => {
                   <div className="flex-1 min-w-0">
                     <p className="text-sm font-semibold text-foreground truncate">{s.sponsor_name}</p>
                     <p className="text-xs text-muted-foreground">
-                      {s.partner_packages?.name ?? "No package"} ·{" "}
+                      {s.level ?? "No package"} ·{" "}
                       KES {Number(s.amount).toLocaleString()}
                     </p>
                   </div>
