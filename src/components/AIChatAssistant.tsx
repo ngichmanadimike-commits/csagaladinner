@@ -780,7 +780,7 @@ If a user reports an urgent issue (failed payment, refund request, complaint, or
             <div className="flex items-center justify-center gap-1.5 py-1.5 flex-shrink-0"
               style={{ borderTop: "1px solid rgba(212,175,55,0.08)" }}>
               <span className="text-[10px]" style={{ color: "rgba(212,175,55,0.35)" }}>
-                Official CSA Gala Dinner 2026 Assistant · Powered by AI
+                Official CSA Gala Dinner 2026 Assistant · Powered by MikeCreations 
               </span>
             </div>
           </motion.div>
