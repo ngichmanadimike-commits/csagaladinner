@@ -1,41 +1,96 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { motion } from "framer-motion";
 import { GraduationCap } from "lucide-react";
 import MpesaPayment from "./MpesaPayment";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 
-const levels = [
-  { label: "Half Sponsorship", multiplier: 0.5 },
-  { label: "Three-Quarter Sponsorship", multiplier: 0.75 },
-  { label: "Full Sponsorship", multiplier: 1 },
-];
+interface SponsorLevel {
+  label: string;
+  multiplier: number;
+}
 
-const COST_PER_STUDENT = 2000;
+interface SponsorSettings {
+  enabled: boolean;
+  costPerStudent: number;
+  levels: SponsorLevel[];
+}
+
+const DEFAULTS: SponsorSettings = {
+  enabled: true,
+  costPerStudent: 2000,
+  levels: [
+    { label: "Half Sponsorship", multiplier: 0.5 },
+    { label: "Three-Quarter Sponsorship", multiplier: 0.75 },
+    { label: "Full Sponsorship", multiplier: 1 },
+  ],
+};
 
 const SponsorSection = () => {
+  const [settings, setSettings] = useState<SponsorSettings>(DEFAULTS);
+  const [settingsLoaded, setSettingsLoaded] = useState(false);
+
   const [students, setStudents] = useState(1);
   const [levelIdx, setLevelIdx] = useState(2);
   const [showPayment, setShowPayment] = useState(false);
   const [sponsor, setSponsor] = useState({ name: "", email: "", phone: "" });
   const [sponsorCode, setSponsorCode] = useState<string | null>(null);
 
-  const total = Math.round(students * COST_PER_STUDENT * levels[levelIdx].multiplier);
+  useEffect(() => {
+    supabase
+      .from("site_settings")
+      .select("key, value")
+      .in("key", ["sponsor_enabled", "sponsor_cost_per_student", "sponsor_levels"])
+      .then(({ data }) => {
+        const map: Record<string, string> = {};
+        (data || []).forEach((r) => { map[r.key] = r.value ?? ""; });
 
-  const handlePaymentSubmitted = async (info: { mpesaCode: string; phone: string; source: "stk" | "manual" }) => {
-    const { data, error } = await supabase.from("sponsorships").insert({
-      sponsor_name: sponsor.name,
-      sponsor_email: sponsor.email || null,
-      sponsor_phone: sponsor.phone || info.phone,
-      level: levels[levelIdx].label,
-      num_students: students,
-      amount: total,
-      mpesa_code: info.mpesaCode || null,
-      payment_method: info.source === "stk" ? "mpesa_stk" : "mpesa_manual",
-      payment_status: info.source === "stk" ? "paid" : "pending",
-      verified: info.source === "stk",
-      verified_at: info.source === "stk" ? new Date().toISOString() : null,
-    }).select("sponsor_code").single();
+        const enabled = map["sponsor_enabled"] !== "false";
+        const cost = Number(map["sponsor_cost_per_student"]) || DEFAULTS.costPerStudent;
+
+        let levels = DEFAULTS.levels;
+        if (map["sponsor_levels"]) {
+          try {
+            const parsed = JSON.parse(map["sponsor_levels"]);
+            if (Array.isArray(parsed) && parsed.length > 0) levels = parsed;
+          } catch {
+            // fall back to defaults
+          }
+        }
+
+        setSettings({ enabled, costPerStudent: cost, levels });
+        // Default selected level to the last (highest) option
+        setLevelIdx(levels.length - 1);
+        setSettingsLoaded(true);
+      });
+  }, []);
+
+  const { enabled, costPerStudent, levels } = settings;
+
+  const total = Math.round(students * costPerStudent * (levels[levelIdx]?.multiplier ?? 1));
+
+  const handlePaymentSubmitted = async (info: {
+    mpesaCode: string;
+    phone: string;
+    source: "stk" | "manual";
+  }) => {
+    const { data, error } = await supabase
+      .from("sponsorships")
+      .insert({
+        sponsor_name: sponsor.name,
+        sponsor_email: sponsor.email || null,
+        sponsor_phone: sponsor.phone || info.phone,
+        level: levels[levelIdx]?.label ?? "",
+        num_students: students,
+        amount: total,
+        mpesa_code: info.mpesaCode || null,
+        payment_method: info.source === "stk" ? "mpesa_stk" : "mpesa_manual",
+        payment_status: info.source === "stk" ? "paid" : "pending",
+        verified: info.source === "stk",
+        verified_at: info.source === "stk" ? new Date().toISOString() : null,
+      })
+      .select("sponsor_code")
+      .single();
 
     if (error) {
       toast.error("Failed to save sponsorship: " + error.message);
@@ -49,6 +104,9 @@ const SponsorSection = () => {
   };
 
   const canProceed = sponsor.name.trim() && sponsor.phone.trim();
+
+  // Hide entirely if disabled in admin, or while settings are loading
+  if (!settingsLoaded || !enabled) return null;
 
   return (
     <section id="sponsor" className="py-24">
@@ -118,7 +176,7 @@ const SponsorSection = () => {
 
             <div>
               <label className="text-sm text-muted-foreground mb-2 block">Sponsorship Level</label>
-              <div className="grid grid-cols-3 gap-2">
+              <div className={`grid gap-2`} style={{ gridTemplateColumns: `repeat(${levels.length}, 1fr)` }}>
                 {levels.map((l, i) => (
                   <button
                     key={l.label}
@@ -133,12 +191,15 @@ const SponsorSection = () => {
                   </button>
                 ))}
               </div>
-              <p className="text-xs text-muted-foreground mt-1">{levels[levelIdx].label}</p>
+              <p className="text-xs text-muted-foreground mt-1">{levels[levelIdx]?.label}</p>
             </div>
 
             <div className="glass rounded-xl p-4 text-center">
               <p className="text-sm text-muted-foreground">Total Sponsorship Amount</p>
               <p className="font-display text-3xl font-bold text-primary mt-1">KES {total.toLocaleString()}</p>
+              <p className="text-xs text-muted-foreground mt-1">
+                KES {costPerStudent.toLocaleString()} × {students} student{students !== 1 ? "s" : ""} × {Math.round((levels[levelIdx]?.multiplier ?? 1) * 100)}%
+              </p>
             </div>
 
             <button
