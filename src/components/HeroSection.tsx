@@ -13,9 +13,9 @@ const HeroSection = () => {
     hero_title: "CSA Gala Dinner 2026",
     hero_subtitle:
       "Laying the First Stone: Honoring the Past, Empowering the Present, and Inspiring the Future of Construction",
-    hero_date: "05 June 2026",
+    hero_date: "12 June 2026",
     hero_time: "7:00 PM – 11:00 PM",
-    hero_venue: "Utalii House",
+    hero_venue: "KINGFISHER NEST HOTEL",
     hero_countdown: "2026-06-05T19:00:00+03:00",
   });
 
@@ -78,7 +78,7 @@ const HeroSection = () => {
         <motion.p
           initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.35, delay: 0.15 }}
-          className="text-muted-foreground text-lg sm:text-xl max-w-3xl mx-auto mb-8"
+          className="text-white/90 text-xl sm:text-2xl max-w-3xl mx-auto mb-8 font-medium leading-snug"
         >
           {s.hero_subtitle}
         </motion.p>
@@ -86,16 +86,16 @@ const HeroSection = () => {
         <motion.div
           initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.35, delay: 0.2 }}
-          className="flex flex-wrap justify-center gap-6 text-sm text-muted-foreground mb-10"
+          className="flex flex-wrap justify-center gap-6 text-base sm:text-lg text-white/85 mb-10 font-medium"
         >
           <span className="flex items-center gap-2">
-            <CalendarDays size={16} className="text-primary" /> {s.hero_date}
+            <CalendarDays size={18} className="text-primary" /> {s.hero_date}
           </span>
           <span className="flex items-center gap-2">
-            <Clock size={16} className="text-primary" /> {s.hero_time}
+            <Clock size={18} className="text-primary" /> {s.hero_time}
           </span>
           <span className="flex items-center gap-2">
-            <MapPin size={16} className="text-primary" /> {s.hero_venue}
+            <MapPin size={18} className="text-primary" /> {s.hero_venue}
           </span>
         </motion.div>
 
