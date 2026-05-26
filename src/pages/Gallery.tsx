@@ -1,9 +1,7 @@
 import { useEffect, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { Camera, X, Loader2, Upload, Trash2, Edit2, Check, XIcon } from "lucide-react";
+import { Camera, X, Loader2 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
-import { useAuth } from "@/hooks/useAuth";
-import { toast } from "sonner";
 import Navbar from "@/components/Navbar";
 import Footer from "@/components/Footer";
 
@@ -16,15 +14,9 @@ interface GalleryImage {
 }
 
 const Gallery = () => {
-  const { isAdmin, user } = useAuth();
   const [images, setImages] = useState<GalleryImage[]>([]);
   const [loading, setLoading] = useState(true);
-  const [uploading, setUploading] = useState(false);
-  const [previewFile, setPreviewFile] = useState<{ file: File; url: string } | null>(null);
-  const [uploadTitle, setUploadTitle] = useState("");
   const [lightbox, setLightbox] = useState<GalleryImage | null>(null);
-  const [editingId, setEditingId] = useState<string | null>(null);
-  const [editTitle, setEditTitle] = useState("");
 
   const fetchImages = async () => {
     const { data } = await supabase
@@ -44,78 +36,6 @@ const Gallery = () => {
     return () => { supabase.removeChannel(channel); };
   }, []);
 
-  const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-    if (!file.type.startsWith("image/")) {
-      toast.error("Please select an image file");
-      return;
-    }
-    if (file.size > 10 * 1024 * 1024) {
-      toast.error("File must be under 10MB");
-      return;
-    }
-    setPreviewFile({ file, url: URL.createObjectURL(file) });
-  };
-
-  const handleUpload = async () => {
-    if (!previewFile) return;
-    setUploading(true);
-    const ext = previewFile.file.name.split(".").pop();
-    const path = `gallery/${Date.now()}_${Math.random().toString(36).slice(2)}.${ext}`;
-
-    const { error: uploadErr } = await supabase.storage
-      .from("site-images")
-      .upload(path, previewFile.file, { upsert: true });
-
-    if (uploadErr) {
-      toast.error("Upload failed: " + uploadErr.message);
-      setUploading(false);
-      return;
-    }
-
-    const { data: urlData } = supabase.storage.from("site-images").getPublicUrl(path);
-
-    const { error: dbErr } = await supabase.from("gallery_images").insert({
-      image_url: urlData.publicUrl,
-      title: uploadTitle.trim() || null,
-      uploaded_by: user?.id,
-    } as any);
-
-    if (dbErr) {
-      toast.error("Failed to save: " + dbErr.message);
-    } else {
-      toast.success("Image uploaded!");
-      setPreviewFile(null);
-      setUploadTitle("");
-      fetchImages();
-    }
-    setUploading(false);
-  };
-
-  const handleDelete = async (img: GalleryImage) => {
-    if (!confirm("Delete this image?")) return;
-    const { error } = await supabase.from("gallery_images").delete().eq("id", img.id);
-    if (error) toast.error("Delete failed");
-    else {
-      toast.success("Image deleted");
-      fetchImages();
-    }
-  };
-
-  const handleEditSave = async (id: string) => {
-    const { error } = await supabase
-      .from("gallery_images")
-      .update({ title: editTitle.trim() || null })
-      .eq("id", id);
-    if (error) toast.error("Update failed");
-    else {
-      toast.success("Updated");
-      setEditingId(null);
-      fetchImages();
-    }
-  };
-
   return (
     <div className="min-h-screen bg-background">
       <Navbar />
@@ -133,47 +53,6 @@ const Gallery = () => {
               Photos and memories from CSA events
             </p>
           </motion.div>
-
-          {/* Admin Upload */}
-          {isAdmin && (
-            <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="glass rounded-xl p-5 mb-8 max-w-xl mx-auto">
-              <h3 className="font-display font-bold text-foreground text-sm mb-3">Upload Image</h3>
-              {previewFile ? (
-                <div className="space-y-3">
-                  <div className="relative rounded-lg overflow-hidden border border-border aspect-video">
-                    <img src={previewFile.url} alt="Preview" className="w-full h-full object-cover" />
-                    <button
-                      onClick={() => { URL.revokeObjectURL(previewFile.url); setPreviewFile(null); }}
-                      className="absolute top-2 right-2 p-1 rounded-full bg-background/80 text-foreground hover:bg-destructive hover:text-destructive-foreground transition-colors"
-                    >
-                      <X size={16} />
-                    </button>
-                  </div>
-                  <input
-                    type="text"
-                    placeholder="Image title (optional)"
-                    value={uploadTitle}
-                    onChange={(e) => setUploadTitle(e.target.value)}
-                    className="w-full px-3 py-2 rounded-lg bg-muted border border-border text-foreground text-sm focus:outline-none focus:ring-2 focus:ring-primary/50"
-                  />
-                  <button
-                    onClick={handleUpload}
-                    disabled={uploading}
-                    className="w-full py-2.5 rounded-lg bg-primary text-primary-foreground font-semibold text-sm flex items-center justify-center gap-2 disabled:opacity-50"
-                  >
-                    {uploading ? <Loader2 size={16} className="animate-spin" /> : <Upload size={16} />}
-                    {uploading ? "Uploading…" : "Upload"}
-                  </button>
-                </div>
-              ) : (
-                <label className="flex flex-col items-center justify-center p-8 border-2 border-dashed border-border rounded-lg cursor-pointer hover:border-primary transition-colors">
-                  <Upload className="text-muted-foreground mb-2" size={24} />
-                  <span className="text-sm text-muted-foreground">Click to select an image</span>
-                  <input type="file" accept="image/*" className="hidden" onChange={handleFileSelect} />
-                </label>
-              )}
-            </motion.div>
-          )}
 
           {/* Gallery Grid */}
           {loading ? (
@@ -193,50 +72,23 @@ const Gallery = () => {
                   initial={{ opacity: 0, y: 20 }}
                   animate={{ opacity: 1, y: 0 }}
                   transition={{ delay: Math.min(i * 0.05, 0.5) }}
-                  className="break-inside-avoid group relative rounded-xl overflow-hidden border border-border bg-card"
+                  className="break-inside-avoid group relative rounded-xl overflow-hidden border border-border bg-card cursor-pointer"
+                  onClick={() => setLightbox(img)}
                 >
                   <img
                     src={img.image_url}
                     alt={img.title || "Gallery image"}
-                    className="w-full object-cover cursor-pointer transition-transform duration-300 group-hover:scale-105"
+                    className="w-full object-cover transition-transform duration-300 group-hover:scale-105"
                     loading="lazy"
-                    onClick={() => setLightbox(img)}
                   />
-                  <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none" />
-                  <div className="absolute bottom-0 left-0 right-0 p-3 opacity-0 group-hover:opacity-100 transition-opacity">
-                    {editingId === img.id ? (
-                      <div className="flex gap-1">
-                        <input
-                          value={editTitle}
-                          onChange={(e) => setEditTitle(e.target.value)}
-                          className="flex-1 px-2 py-1 rounded bg-background/80 text-foreground text-xs border border-border"
-                          autoFocus
-                        />
-                        <button onClick={() => handleEditSave(img.id)} className="p-1 rounded bg-primary text-primary-foreground"><Check size={14} /></button>
-                        <button onClick={() => setEditingId(null)} className="p-1 rounded bg-muted text-foreground"><XIcon size={14} /></button>
+                  {img.title && (
+                    <>
+                      <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none" />
+                      <div className="absolute bottom-0 left-0 right-0 p-3 opacity-0 group-hover:opacity-100 transition-opacity">
+                        <p className="text-white text-sm font-medium truncate">{img.title}</p>
                       </div>
-                    ) : (
-                      <div className="flex items-end justify-between">
-                        <p className="text-white text-sm font-medium truncate">{img.title || ""}</p>
-                        {isAdmin && (
-                          <div className="flex gap-1">
-                            <button
-                              onClick={(e) => { e.stopPropagation(); setEditingId(img.id); setEditTitle(img.title || ""); }}
-                              className="p-1.5 rounded-lg bg-background/60 text-foreground hover:bg-primary hover:text-primary-foreground transition-colors"
-                            >
-                              <Edit2 size={14} />
-                            </button>
-                            <button
-                              onClick={(e) => { e.stopPropagation(); handleDelete(img); }}
-                              className="p-1.5 rounded-lg bg-background/60 text-foreground hover:bg-destructive hover:text-destructive-foreground transition-colors"
-                            >
-                              <Trash2 size={14} />
-                            </button>
-                          </div>
-                        )}
-                      </div>
-                    )}
-                  </div>
+                    </>
+                  )}
                 </motion.div>
               ))}
             </div>
