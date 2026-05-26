@@ -1,7 +1,6 @@
 import Navbar from "@/components/Navbar";
 import HeroSection from "@/components/HeroSection";
 import TicketsSection from "@/components/TicketsSection";
-import SponsorSection from "@/components/SponsorSection";
 import PartnersSection from "@/components/PartnersSection";
 import PartnerForm from "@/components/PartnerForm";
 import OrganizersSection from "@/components/OrganizersSection";
@@ -12,7 +11,7 @@ import PromoBanner from "@/components/PromoBanner";
 import PromoPopup from "@/components/PromoPopup";
 import EventNotification from "@/components/EventNotification";
 import WhatsAppButton from "@/components/WhatsAppButton";
-import AIChatAssistant from "@/components/AIChatAssistant"; // <-- added
+import AIChatAssistant from "@/components/AIChatAssistant";
 
 const Index = () => {
   return (
@@ -24,16 +23,16 @@ const Index = () => {
       <main>
         <HeroSection />
         <TicketsSection />
-        <SponsorSection />
-        <PartnerForm />
+        {/* PartnersSection includes the Sponsor a Student section internally */}
         <PartnersSection />
+        <PartnerForm />
         <OrganizersSection />
         <PaymentStatusLookup />
         <SocialSection />
       </main>
       <Footer />
       <WhatsAppButton />
-      <AIChatAssistant /> {/* <-- added here */}
+      <AIChatAssistant />
     </div>
   );
 };
