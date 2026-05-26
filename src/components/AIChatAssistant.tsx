@@ -16,7 +16,7 @@
  * Setup:
  *  1. Drop into src/components/AIChatAssistant.tsx
  *  2. Add <AIChatAssistant /> to Index.tsx
- *  3. Set VITE_ANTHROPIC_API_KEY in .env
+ *  3. Set VITE_GROQ_API_KEY in .env
  *  4. Run the SQL migration below in Supabase SQL Editor
  *
  * SQL Migration:
@@ -56,9 +56,7 @@ import {
 import { supabase } from "@/integrations/supabase/client";
 
 // ─── API ──────────────────────────────────────────────────────────────────────
-const ANTHROPIC_API_KEY = import.meta.env.VITE_ANTHROPIC_API_KEY as string;
-const CSA_WEBSITE_URL = "https://csatukenya.org/";
-
+const GROQ_API_KEY = import.meta.env.VITE_GROQ_API_KEY as string;
 // ─── Links ────────────────────────────────────────────────────────────────────
 const WA_LINK = "https://wa.me/254758647130?text=Hello,%20I%20am%20interested%20in%20booking%20a%20ticket%20for%20the%20CSA%20Gala%20Dinner";
 
@@ -511,31 +509,22 @@ export default function AIChatAssistant() {
     if (csaContext || csaLoading) return;
     setCsaLoading(true);
     try {
-      // We ask Claude to fetch and summarise the CSA website for context
+      // We ask the model to summarise CSA info for context
       // This is done as a background task and stored in state
-      const res = await fetch("https://api.anthropic.com/v1/messages", {
+      const res = await fetch("https://api.groq.com/openai/v1/chat/completions", {
         method: "POST",
-        headers: { "Content-Type": "application/json", "x-api-key": ANTHROPIC_API_KEY, "anthropic-version": "2023-06-01", "anthropic-beta": "web-search-2025-03-05" },
+        headers: { "Content-Type": "application/json", "Authorization": `Bearer ${GROQ_API_KEY}` },
         body: JSON.stringify({
-          model: "claude-sonnet-4-20250514",
+          model: "llama-3.3-70b-versatile",
           max_tokens: 1500,
-          tools: [{ type: "web_search_20250305", name: "web_search" }],
           messages: [{
             role: "user",
-            content: `Please visit ${CSA_WEBSITE_URL} and extract a comprehensive summary of:
-1. What CSA (Construction Students Association) at TU-Kenya is
-2. Their mission, vision, and values
-3. Key activities, events they run, and achievements
-4. Leadership structure (if shown)
-5. Any upcoming events or news
-6. Their history and background
-
-Provide a structured summary (under 1200 words) I can use to answer questions about CSA.`
+            content: "Please provide a comprehensive summary about the Construction Students Association (CSA) at Technical University of Kenya (TU-Kenya), covering: 1) What CSA is, 2) Their mission, vision, and values, 3) Key activities, events they run and achievements, 4) Leadership structure, 5) Their history and background. Provide a structured summary under 1200 words.",
           }]
         })
       });
       const data = await res.json();
-      const text = data?.content?.filter((b: any) => b.type === "text").map((b: any) => b.text).join("\n") || "";
+      const text = data?.choices?.[0]?.message?.content || "";
       if (text) setCsaContext(text);
     } catch (_) {
       // Silent — we'll rely on AI's training knowledge as fallback
@@ -753,15 +742,13 @@ IMPORTANT: You're not just a FAQ bot — you're a knowledgeable event companion.
 
     try {
       const systemPrompt = buildSystemPrompt();
-      const hasImage = !!userMsg.imageBase64;
-
-      // Build messages for Anthropic API with vision support
+      // Build messages for Groq API (OpenAI-compatible) with vision support
       const apiMessages = updatedMessages.map(m => {
         if (m.role === "user" && m.imageBase64) {
           return {
             role: "user" as const,
             content: [
-              { type: "image", source: { type: "base64", media_type: m.imageType || "image/jpeg", data: m.imageBase64 } },
+              { type: "image_url", image_url: { url: `data:${m.imageType || "image/jpeg"};base64,${m.imageBase64}` } },
               { type: "text", text: m.content || "Please analyse this image and help me." },
             ],
           };
@@ -769,25 +756,24 @@ IMPORTANT: You're not just a FAQ bot — you're a knowledgeable event companion.
         return { role: m.role as "user" | "assistant", content: m.content };
       });
 
-      const response = await fetch("https://api.anthropic.com/v1/messages", {
+      const response = await fetch("https://api.groq.com/openai/v1/chat/completions", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          "x-api-key": ANTHROPIC_API_KEY,
-          "anthropic-version": "2023-06-01",
-          "anthropic-beta": "web-search-2025-03-05",
+          "Authorization": `Bearer ${GROQ_API_KEY}`,
         },
         body: JSON.stringify({
-          model: "claude-sonnet-4-20250514",
+          model: "llama-3.3-70b-versatile",
           max_tokens: 1000,
-          system: systemPrompt,
-          tools: [{ type: "web_search_20250305", name: "web_search" }],
-          messages: apiMessages,
+          messages: [
+            { role: "system", content: systemPrompt },
+            ...apiMessages,
+          ],
         }),
       });
 
       const data = await response.json();
-      const replyText = data?.content?.filter((b: any) => b.type === "text").map((b: any) => b.text).join("\n")
+      const replyText = data?.choices?.[0]?.message?.content
         || "I'm sorry, I had a hiccup there. Please try again or reach out to us via WhatsApp!";
 
       const { severity } = shouldEscalate ? classifyEscalation(text) : { severity: "" };
@@ -999,7 +985,7 @@ IMPORTANT: You're not just a FAQ bot — you're a knowledgeable event companion.
             <div className="flex items-center justify-center gap-1 py-1.5 flex-shrink-0" style={{ borderTop: "1px solid rgba(212,175,55,0.07)" }}>
               <Globe size={9} style={{ color: "rgba(212,175,55,0.3)" }} />
               <span className="text-[10px]" style={{ color: "rgba(212,175,55,0.3)" }}>
-                CSA Gala Dinner 2026 · Powered by MikeCreations 
+                CSA Gala Dinner 2026 · Powered by AI · Always up-to-date
               </span>
             </div>
           </motion.div>
