@@ -12,6 +12,7 @@ import PromoBanner from "@/components/PromoBanner";
 import PromoPopup from "@/components/PromoPopup";
 import EventNotification from "@/components/EventNotification";
 import WhatsAppButton from "@/components/WhatsAppButton";
+import AIChatAssistant from "@/components/AIChatAssistant"; // <-- added
 
 const Index = () => {
   return (
@@ -32,6 +33,7 @@ const Index = () => {
       </main>
       <Footer />
       <WhatsAppButton />
+      <AIChatAssistant /> {/* <-- added here */}
     </div>
   );
 };
