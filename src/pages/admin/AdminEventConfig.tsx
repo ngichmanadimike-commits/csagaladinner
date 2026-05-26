@@ -79,6 +79,11 @@ const AdminEventConfig = () => {
   const handleDelete = async () => {
     if (!selected) return;
     setDeleting(true);
+    // Detach registrations first to avoid FK constraint violation
+    await supabase
+      .from("registrations")
+      .update({ event_id: null })
+      .eq("event_id", selected.id);
     const { error } = await supabase
       .from("events")
       .delete()
@@ -105,14 +110,14 @@ const AdminEventConfig = () => {
     const ext = file.name.split(".").pop();
     const path = `flyers/${selected.id}-${Date.now()}.${ext}`;
     const { error: uploadError } = await supabase.storage
-      .from("event-assets")
+      .from("site-images")
       .upload(path, file, { upsert: true });
     if (uploadError) {
       toast.error("Upload failed: " + uploadError.message);
       setUploading(false);
       return;
     }
-    const { data: urlData } = supabase.storage.from("event-assets").getPublicUrl(path);
+    const { data: urlData } = supabase.storage.from("site-images").getPublicUrl(path);
     updateField("flyer_url", urlData.publicUrl);
     await supabase.from("events").update({ flyer_url: urlData.publicUrl }).eq("id", selected.id);
     toast.success("Flyer uploaded successfully");
