@@ -7,6 +7,9 @@ import { supabase } from "@/integrations/supabase/client";
 const iconFor = (id: string) =>
   id === "individual" ? User : id === "corporate" ? Building2 : id === "group10" ? UserPlus : Users;
 
+// Strip trailing punctuation/whitespace from package names (e.g. "Individual." → "Individual")
+const cleanName = (name: string) => name.replace(/[\s.]+$/, "");
+
 interface PkgRow {
   id: string; name: string; price: number; icon: any; perks: string[]; partial: boolean;
   installments: number[]; installment_mode: "amount" | "percent";
@@ -19,7 +22,7 @@ const TicketsSection = () => {
   useEffect(() => {
     supabase.from("ticket_packages").select("*").eq("active", true).order("display_order").then(({ data }) => {
       const rows = (data || []).map((p: any) => ({
-        id: p.slug, name: p.name, price: Number(p.price), icon: iconFor(p.slug),
+        id: p.slug, name: cleanName(p.name), price: Number(p.price), icon: iconFor(p.slug),
         perks: Array.isArray(p.perks) ? p.perks : [],
         partial: !!p.partial_allowed,
         installments: Array.isArray(p.installments) ? p.installments.map(Number) : [],
