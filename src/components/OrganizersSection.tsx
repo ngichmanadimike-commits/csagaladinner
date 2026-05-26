@@ -11,6 +11,14 @@ interface OrganizerItem {
   image_url: string | null;
 }
 
+/** Return up to 2 uppercase initials from a name string */
+const getInitials = (name: string | null, fallback: string): string => {
+  const source = name || fallback;
+  const words = source.replace(/_/g, " ").trim().split(/\s+/);
+  if (words.length === 1) return words[0][0]?.toUpperCase() ?? "?";
+  return (words[0][0] + words[words.length - 1][0]).toUpperCase();
+};
+
 const OrganizersSection = () => {
   const [organizers, setOrganizers] = useState<OrganizerItem[]>([]);
 
@@ -45,44 +53,50 @@ const OrganizersSection = () => {
         </motion.div>
 
         <div className="grid sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6 max-w-6xl mx-auto">
-          {organizers.map((org, i) => (
-            <motion.div
-              key={org.id}
-              initial={{ opacity: 0, y: 30 }}
-              whileInView={{ opacity: 1, y: 0 }}
-              viewport={{ once: true }}
-              transition={{ delay: i * 0.08 }}
-              className="glass rounded-2xl p-6 flex flex-col items-center text-center hover:border-primary/40 transition-all duration-300 group"
-            >
-              {org.image_url ? (
-                <div className="w-20 h-20 rounded-full overflow-hidden border-2 border-primary/30 mb-4 group-hover:border-primary/60 transition-colors">
-                  <img
-                    src={org.image_url}
-                    alt={org.title || org.section_key}
-                    className="w-full h-full object-cover"
-                  />
-                </div>
-              ) : (
-                <div className="w-20 h-20 rounded-full bg-primary/10 border-2 border-primary/20 flex items-center justify-center mb-4">
-                  <Users2 className="text-primary/60" size={28} />
-                </div>
-              )}
+          {organizers.map((org, i) => {
+            const displayName = org.title || org.section_key.replace(/_/g, " ");
+            const initials = getInitials(org.title, org.section_key);
 
-              {org.title && (
-                <h3 className="font-display font-bold text-foreground text-base leading-tight mb-1">
-                  {org.title}
-                </h3>
-              )}
-              {!org.title && (
+            return (
+              <motion.div
+                key={org.id}
+                initial={{ opacity: 0, y: 30 }}
+                whileInView={{ opacity: 1, y: 0 }}
+                viewport={{ once: true }}
+                transition={{ delay: i * 0.08 }}
+                className="glass rounded-2xl p-6 flex flex-col items-center text-center hover:border-primary/40 transition-all duration-300 group"
+              >
+                {org.image_url ? (
+                  <div className="w-20 h-20 rounded-full overflow-hidden border-2 border-primary/30 mb-4 group-hover:border-primary/60 transition-colors">
+                    <img
+                      src={org.image_url}
+                      alt={displayName}
+                      className="w-full h-full object-cover"
+                      onError={(e) => {
+                        // If image fails to load, hide it and show initials fallback
+                        const target = e.currentTarget;
+                        const parent = target.parentElement;
+                        if (parent) {
+                          parent.innerHTML = `<span class="w-full h-full flex items-center justify-center text-primary font-bold text-xl">${initials}</span>`;
+                        }
+                      }}
+                    />
+                  </div>
+                ) : (
+                  <div className="w-20 h-20 rounded-full bg-primary/10 border-2 border-primary/20 flex items-center justify-center mb-4 group-hover:border-primary/40 transition-colors">
+                    <span className="text-primary font-bold text-xl">{initials}</span>
+                  </div>
+                )}
+
                 <h3 className="font-display font-bold text-foreground text-base leading-tight mb-1 capitalize">
-                  {org.section_key.replace(/_/g, " ")}
+                  {displayName}
                 </h3>
-              )}
-              {org.body && (
-                <p className="text-sm text-muted-foreground leading-relaxed mt-1">{org.body}</p>
-              )}
-            </motion.div>
-          ))}
+                {org.body && org.body !== "Short bio" && (
+                  <p className="text-sm text-muted-foreground leading-relaxed mt-1">{org.body}</p>
+                )}
+              </motion.div>
+            );
+          })}
         </div>
       </div>
     </section>
