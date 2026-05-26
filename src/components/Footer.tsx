@@ -7,6 +7,10 @@ const Footer = () => (
         <img src={logo} alt="CSA" className="h-10 w-10 rounded-full object-cover" />
         <span className="text-sm text-muted-foreground">
           © 2026 Construction Students Association. All rights reserved.
+          <span className="block text-xs text-muted-foreground/60 mt-0.5">
+            Powered &amp; Created by{" "}
+            <span className="text-primary/80 font-medium">MikeCreations</span>
+          </span>
         </span>
       </div>
       <div className="flex gap-6 text-sm text-muted-foreground">
