@@ -3,14 +3,14 @@ import { useLocation } from "react-router-dom";
 import csaLogo from "@/assets/white_logo.jpg";
 
 const links = [
-  { label: "Tickets",       href: "/#tickets" },
-  { label: "Sponsor",       href: "/#sponsor" },
-  { label: "Partners",      href: "/#partners" },
-  { label: "Event Insights",href: "/insights" },
-  { label: "Gallery",       href: "/gallery" },
-  { label: "Organizers",    href: "/#organizers" },
-  { label: "Lookup",        href: "/lookup" },
-  { label: "Contact",       href: "/#connect" },
+  { label: "Tickets",        href: "/#tickets" },
+  { label: "Sponsor",        href: "/#sponsor" },
+  { label: "Partners",       href: "/#partner-packages" },  // fixed: was /#partners
+  { label: "Event Insights", href: "/insights" },
+  { label: "Gallery",        href: "/gallery" },
+  { label: "Organizers",     href: "/#organizers" },
+  { label: "Lookup",         href: "/lookup" },
+  { label: "Contact",        href: "/#connect" },
 ];
 
 const Navbar = () => {
