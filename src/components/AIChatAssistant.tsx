@@ -985,7 +985,7 @@ IMPORTANT: You're not just a FAQ bot — you're a knowledgeable event companion.
             <div className="flex items-center justify-center gap-1 py-1.5 flex-shrink-0" style={{ borderTop: "1px solid rgba(212,175,55,0.07)" }}>
               <Globe size={9} style={{ color: "rgba(212,175,55,0.3)" }} />
               <span className="text-[10px]" style={{ color: "rgba(212,175,55,0.3)" }}>
-                CSA Gala Dinner 2026 · Powered by AI · Always up-to-date
+                CSA Gala Dinner 2026 · Powered by MikeCreations 
               </span>
             </div>
           </motion.div>
