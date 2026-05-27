@@ -85,7 +85,7 @@ const SponsorSection = () => {
         amount: total,
         mpesa_code: info.mpesaCode || null,
         payment_method: info.source === "stk" ? "mpesa_stk" : "mpesa_manual",
-        payment_status: info.source === "stk" ? "paid" : "pending",
+        status: info.source === "stk" ? "paid" : "pending",
         verified: info.source === "stk",
         verified_at: info.source === "stk" ? new Date().toISOString() : null,
       })
