@@ -1,6 +1,7 @@
 import Navbar from "@/components/Navbar";
 import HeroSection from "@/components/HeroSection";
 import TicketsSection from "@/components/TicketsSection";
+import SponsorSection from "@/components/SponsorSection";
 import PartnersSection from "@/components/PartnersSection";
 import PartnerForm from "@/components/PartnerForm";
 import OrganizersSection from "@/components/OrganizersSection";
@@ -23,8 +24,8 @@ const Index = () => {
       <main>
         <HeroSection />
         <TicketsSection />
-        {/* PartnersSection includes the Sponsor a Student section internally */}
-        <PartnersSection />
+        <SponsorSection />        {/* id="sponsor" — nav /#sponsor links here */}
+        <PartnersSection />       {/* id="partner-packages" — nav /#partner-packages links here */}
         <PartnerForm />
         <OrganizersSection />
         <PaymentStatusLookup />
