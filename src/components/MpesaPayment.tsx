@@ -1,6 +1,5 @@
 import { useState } from "react";
 import { ArrowLeft, CheckCircle2, Loader2, Smartphone } from "lucide-react";
-import { supabase } from "@/integrations/supabase/client";
 
 interface MpesaPaymentProps {
   amount: number;
@@ -8,63 +7,22 @@ interface MpesaPaymentProps {
   onPaymentSubmitted?: (info: { mpesaCode: string; phone: string; source: "stk" | "manual" }) => Promise<void> | void;
 }
 
-function normalizePhone(raw: string): string {
-  const digits = raw.replace(/\D/g, "");
-  if (digits.startsWith("254") && digits.length === 12) return digits;
-  if (digits.startsWith("0") && digits.length === 10) return "254" + digits.slice(1);
-  if (digits.startsWith("7") && digits.length === 9) return "254" + digits;
-  if (digits.startsWith("1") && digits.length === 9) return "254" + digits;
-  return digits;
-}
-
-// ─── PAYMENT DETAILS FROM FLYER ────────────────────────────────────────────
+// ─── PAYMENT DETAILS ────────────────────────────────────────────────────────
 const PAYMENT = {
   method: "Buy Goods (Till)",
   tillNumber: "6776606",
   accountName: "Victor Mwoni Mutemi",
   contact: "0758647130",
 };
-// ───────────────────────────────────────────────────────────────────────────
+// ────────────────────────────────────────────────────────────────────────────
 
 const MpesaPayment = ({ amount, onBack, onPaymentSubmitted }: MpesaPaymentProps) => {
-  const [phone, setPhone] = useState("");
   const [txCode, setTxCode] = useState("");
-  const [step, setStep] = useState<"phone" | "waiting" | "confirm" | "done">("phone");
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState("");
+  const [done, setDone] = useState(false);
   const [submitting, setSubmitting] = useState(false);
+  const [error, setError] = useState("");
 
-  const handleStkPush = async () => {
-    if (!phone) return;
-    setLoading(true);
-    setError("");
-    try {
-      const normalizedPhone = normalizePhone(phone);
-      const { data, error: fnError } = await supabase.functions.invoke("mpesa-stk-push", {
-        body: {
-          phoneNumber: normalizedPhone,
-          amount: Math.round(amount),
-          accountReference: "CSA Gala",
-          transactionDesc: "Ticket Payment",
-        },
-      });
-      if (fnError) throw fnError;
-      if (data?.errorCode || data?.error) {
-        setError(data?.errorMessage || data?.error || "STK Push failed. Please try manually.");
-        setStep("confirm");
-      } else {
-        setStep("waiting");
-        setTimeout(() => setStep("confirm"), 20000);
-      }
-    } catch (err: any) {
-      setError("Could not initiate STK push. Please pay manually using the instructions below.");
-      setStep("confirm");
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  if (step === "done") {
+  if (done) {
     return (
       <div className="text-center py-6 space-y-4">
         <CheckCircle2 className="mx-auto text-primary" size={48} />
@@ -82,29 +40,13 @@ const MpesaPayment = ({ amount, onBack, onPaymentSubmitted }: MpesaPaymentProps)
     );
   }
 
-  if (step === "waiting") {
-    return (
-      <div className="text-center py-8 space-y-4">
-        <Loader2 className="mx-auto text-primary animate-spin" size={48} />
-        <h4 className="font-display text-lg font-bold">Check Your Phone</h4>
-        <p className="text-sm text-muted-foreground">
-          An M-PESA prompt has been sent to{" "}
-          <span className="text-foreground font-semibold">{phone}</span>. Enter your PIN to complete payment.
-        </p>
-        <button onClick={() => setStep("confirm")} className="text-sm text-primary underline mt-4">
-          I've completed the payment / Pay manually instead
-        </button>
-      </div>
-    );
-  }
-
   return (
     <div className="space-y-5">
       <button onClick={onBack} className="flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground">
         <ArrowLeft size={16} /> Back
       </button>
 
-      {/* Payment summary card matching the flyer */}
+      {/* Payment details card */}
       <div className="rounded-xl p-4 space-y-3" style={{ backgroundColor: "#0A2342", border: "2px solid #D4AF37" }}>
         <div className="flex items-center gap-2 mb-1">
           <Smartphone size={18} style={{ color: "#D4AF37" }} />
@@ -130,82 +72,55 @@ const MpesaPayment = ({ amount, onBack, onPaymentSubmitted }: MpesaPaymentProps)
         </div>
       </div>
 
-      {step === "phone" && (
-        <div className="space-y-3">
-          <div>
-            <label className="text-sm text-muted-foreground mb-1 block">Enter Your M-PESA Phone Number for STK Push</label>
-            <input
-              type="tel"
-              value={phone}
-              onChange={(e) => setPhone(e.target.value)}
-              placeholder="e.g. 0712345678"
-              className="w-full px-4 py-2.5 rounded-lg bg-muted border border-border text-foreground text-sm focus:outline-none focus:ring-2 focus:ring-primary/50"
-            />
-            <p className="text-xs text-muted-foreground mt-1">Accepts: 07XX, 01XX, or 254XXXXXXXXX</p>
-          </div>
-          {error && <p className="text-sm text-red-400">{error}</p>}
-          <button
-            onClick={handleStkPush}
-            disabled={!phone || loading}
-            className="w-full py-3 rounded-lg bg-primary text-primary-foreground font-bold hover:scale-[1.02] transition-transform disabled:opacity-50 disabled:hover:scale-100 flex items-center justify-center gap-2"
-          >
-            {loading && <Loader2 size={18} className="animate-spin" />}
-            {loading ? "Sending STK Push..." : `Pay KES ${amount.toLocaleString()} via STK Push`}
-          </button>
-          <button onClick={() => setStep("confirm")} className="w-full text-sm text-muted-foreground underline">
-            Pay manually instead
-          </button>
-        </div>
-      )}
+      {/* Manual payment instructions */}
+      <div className="glass rounded-xl p-4">
+        <h4 className="font-bold text-foreground mb-3">How to Pay</h4>
+        <ol className="text-sm text-muted-foreground space-y-1.5 list-decimal list-inside">
+          <li>Open M-PESA on your phone</li>
+          <li>Select <span className="text-foreground font-semibold">Lipa na M-PESA</span></li>
+          <li>Select <span className="text-foreground font-semibold">Buy Goods and Services</span></li>
+          <li>Enter Till Number: <span className="text-primary font-bold">{PAYMENT.tillNumber}</span></li>
+          <li>Enter Amount: <span className="text-primary font-bold">KES {amount.toLocaleString()}</span></li>
+          <li>Enter your M-PESA PIN</li>
+          <li>Confirm — you'll receive an SMS with a transaction code</li>
+          <li>Enter that code below</li>
+        </ol>
+      </div>
 
-      {step === "confirm" && (
-        <div className="space-y-4">
-          {error && <p className="text-sm text-yellow-400 bg-yellow-400/10 rounded-lg p-3">{error}</p>}
-          <div className="glass rounded-xl p-4">
-            <h4 className="font-bold text-foreground mb-3">How to Pay Manually</h4>
-            <ol className="text-sm text-muted-foreground space-y-1.5 list-decimal list-inside">
-              <li>Open M-PESA on your phone</li>
-              <li>Select <span className="text-foreground font-semibold">Lipa na M-PESA</span></li>
-              <li>Select <span className="text-foreground font-semibold">Buy Goods and Services</span></li>
-              <li>Enter Till Number: <span className="text-primary font-bold">{PAYMENT.tillNumber}</span></li>
-              <li>Enter Amount: <span className="text-primary font-bold">KES {amount.toLocaleString()}</span></li>
-              <li>Enter your M-PESA PIN</li>
-              <li>Confirm — you'll receive an SMS with a transaction code</li>
-              <li>Enter that code below</li>
-            </ol>
-          </div>
-          <div>
-            <label className="text-sm text-muted-foreground mb-1 block">M-PESA Transaction Code</label>
-            <input
-              type="text"
-              value={txCode}
-              onChange={(e) => setTxCode(e.target.value.toUpperCase())}
-              placeholder="e.g. SJK3H7T9XQ"
-              className="w-full px-4 py-2.5 rounded-lg bg-muted border border-border text-foreground text-sm focus:outline-none focus:ring-2 focus:ring-primary/50 mb-3"
-            />
-            <button
-              onClick={async () => {
-                if (!txCode) return;
-                setSubmitting(true);
-                try {
-                  if (onPaymentSubmitted) {
-                    await onPaymentSubmitted({ mpesaCode: txCode, phone, source: "manual" });
-                  }
-                  setStep("done");
-                } catch (e: any) {
-                  setError(e?.message || "Could not save payment. Please try again.");
-                } finally {
-                  setSubmitting(false);
-                }
-              }}
-              disabled={!txCode || submitting}
-              className="w-full py-3 rounded-lg bg-primary text-primary-foreground font-bold hover:scale-[1.02] transition-transform disabled:opacity-50 disabled:hover:scale-100"
-            >
-              {submitting ? "Saving..." : "Confirm Payment"}
-            </button>
-          </div>
-        </div>
-      )}
+      {/* Transaction code entry */}
+      <div>
+        <label className="text-sm text-muted-foreground mb-1 block">M-PESA Transaction Code</label>
+        <input
+          type="text"
+          value={txCode}
+          onChange={(e) => setTxCode(e.target.value.toUpperCase())}
+          placeholder="e.g. SJK3H7T9XQ"
+          className="w-full px-4 py-2.5 rounded-lg bg-muted border border-border text-foreground text-sm focus:outline-none focus:ring-2 focus:ring-primary/50 mb-3"
+        />
+        {error && <p className="text-sm text-red-400 mb-2">{error}</p>}
+        <button
+          onClick={async () => {
+            if (!txCode) return;
+            setSubmitting(true);
+            setError("");
+            try {
+              if (onPaymentSubmitted) {
+                await onPaymentSubmitted({ mpesaCode: txCode, phone: "", source: "manual" });
+              }
+              setDone(true);
+            } catch (e: any) {
+              setError(e?.message || "Could not save payment. Please try again.");
+            } finally {
+              setSubmitting(false);
+            }
+          }}
+          disabled={!txCode || submitting}
+          className="w-full py-3 rounded-lg bg-primary text-primary-foreground font-bold hover:scale-[1.02] transition-transform disabled:opacity-50 disabled:hover:scale-100 flex items-center justify-center gap-2"
+        >
+          {submitting && <Loader2 size={18} className="animate-spin" />}
+          {submitting ? "Saving..." : "Confirm Payment"}
+        </button>
+      </div>
     </div>
   );
 };
