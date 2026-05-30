@@ -1,22 +1,17 @@
 /**
- * TicketDesign.tsx — v4
- *
- * Layout mirrors the reference HTML exactly:
- *   left panel (68%): left-col (logo + date + time + venue) | main-content (title + theme + type + footer)
- *   right panel (32%): ADMIT header → detail rows (space-evenly) → QR block → gold sidebar strip
- *
- * Changes from v3:
- *   - Content spread evenly to match HTML reference layout
- *   - HTML fallback download removed; PDF-only download
- *   - Semicircle notch circles on tear line (top + bottom)
- *   - Right panel uses space-evenly flex to fill height properly
- *
- * Print size : 8.5 × 3.5 inches landscape
- * Render canvas : 1275 × 525 px (150 dpi)
+ * TicketDesign.tsx — v5
+ * Matches reference image exactly:
+ *  LEFT (dark, bg photo):
+ *    left-col  : logo | date block (day-name / big-day / month+year) | time | venue
+ *    main-col  : "GALA" (gold) / "DINNER 2026" (white) / tagline / theme box
+ *               → yellow banner "★ COUPLE ★"
+ *               → TICKET NO pill  +  italic tagline
+ *  RIGHT (cream):
+ *    gold "★ ADMIT ★" header  →  detail rows (icon+label+value)  →  QR  →  scan label
+ *    gold vertical sidebar strip (rightmost)
  */
 import { useRef, useState, useEffect } from "react";
 
-// ── Types ─────────────────────────────────────────────────────────────────────
 type TicketData = {
   ticket_number: string;
   purchaser_name: string;
@@ -37,32 +32,39 @@ type TicketData = {
   event_end_time?: string | null;
 };
 
-// ── Helpers ───────────────────────────────────────────────────────────────────
-function formatEndTime(t: string | null | undefined) {
-  if (!t) return "";
-  const [h, m] = t.split(":").map(Number);
-  return `${h % 12 || 12}:${m.toString().padStart(2, "0")} ${h >= 12 ? "PM" : "AM"}`;
+function ordinalSuffix(day: number) {
+  const mod100 = day % 100;
+  if (mod100 >= 11 && mod100 <= 13) return "TH";
+  switch (day % 10) {
+    case 1: return "ST";
+    case 2: return "ND";
+    case 3: return "RD";
+    default: return "TH";
+  }
 }
 
 function formatEventDate(dateStr: string | null | undefined) {
   const DAYS   = ["SUNDAY","MONDAY","TUESDAY","WEDNESDAY","THURSDAY","FRIDAY","SATURDAY"];
   const MONTHS = ["JANUARY","FEBRUARY","MARCH","APRIL","MAY","JUNE",
                   "JULY","AUGUST","SEPTEMBER","OCTOBER","NOVEMBER","DECEMBER"];
-  if (!dateStr) return { dayName:"FRIDAY", day:"12", suffix:"TH", month:"JUNE", year:"2026", time:"10:00 PM" };
-  const d   = new Date(dateStr);
+  if (!dateStr) return { dayName:"FRIDAY", day:"12", suffix:"TH", month:"JUNE", year:"2026", startTime:"10:00 PM" };
+  const d = new Date(dateStr);
   const day = d.getDate();
-  const mod = day % 100;
-  const sfx = ["TH","ST","ND","RD"];
-  const suffix = sfx[(mod - 20) % 10] ?? sfx[mod] ?? "TH";
   const h = d.getHours(), mm = d.getMinutes().toString().padStart(2,"0");
   return {
-    dayName : DAYS[d.getDay()],
-    day     : String(day),
-    suffix,
-    month   : MONTHS[d.getMonth()],
-    year    : String(d.getFullYear()),
-    time    : `${h % 12 || 12}:${mm} ${h >= 12 ? "PM" : "AM"}`,
+    dayName  : DAYS[d.getDay()],
+    day      : String(day),
+    suffix   : ordinalSuffix(day),
+    month    : MONTHS[d.getMonth()],
+    year     : String(d.getFullYear()),
+    startTime: `${h % 12 || 12}:${mm} ${h >= 12 ? "PM" : "AM"}`,
   };
+}
+
+function formatEndTime(t: string | null | undefined) {
+  if (!t) return "";
+  const [h, m] = t.split(":").map(Number);
+  return `${h % 12 || 12}:${m.toString().padStart(2,"0")} ${h >= 12 ? "PM" : "AM"}`;
 }
 
 function loadScript(src: string): Promise<void> {
@@ -74,27 +76,33 @@ function loadScript(src: string): Promise<void> {
   });
 }
 
-// ── Render dimensions (150 dpi) ───────────────────────────────────────────────
-const DPI  = 150;
-const IN_W = 8.5;
-const IN_H = 3.5;
-const PX_W = Math.round(IN_W * DPI);  // 1275
-const PX_H = Math.round(IN_H * DPI);  // 525
+// Render size: 8.5 × 3.5 in @ 150 dpi
+const PX_W = 1275;
+const PX_H = 525;
 
-// ── Palette ───────────────────────────────────────────────────────────────────
 const GOLD  = "#D4AF37";
-const DARK  = "#0a1128";
+const DARK  = "#0A1525";
 const CREAM = "#F5F1E8";
-const BG    = "https://images.unsplash.com/photo-1414235077428-338989a2e8c0?q=80&w=1200";
+const BG    = "https://images.unsplash.com/photo-1414235077428-338989a2e8c0?q=80&w=1400&auto=format";
 
-// ── Component ─────────────────────────────────────────────────────────────────
+// Icon paths mapped to SVG circles to avoid emoji rendering issues in canvas capture
+function DetailIcon({ size = 20 }: { size?: number }) {
+  return (
+    <div style={{
+      width: size, height: size,
+      border: `1.5px solid ${GOLD}`,
+      borderRadius: "50%",
+      flexShrink: 0,
+      display: "flex", alignItems: "center", justifyContent: "center",
+    }} />
+  );
+}
+
 export default function TicketDesign({ ticket }: { ticket: TicketData }) {
-  const renderRef = useRef<HTMLDivElement>(null);
-
+  const renderRef  = useRef<HTMLDivElement>(null);
   const [downloading, setDownloading] = useState(false);
   const [qrUrl, setQrUrl]             = useState("");
 
-  // Derived values
   const ticketType  = (ticket.type_name || ticket.ticket_type || "Regular").toUpperCase();
   const bookingCode = ticket.booking_code ?? "";
   const name        = ticket.purchaser_name ?? "";
@@ -102,27 +110,25 @@ export default function TicketDesign({ ticket }: { ticket: TicketData }) {
   const status      = (ticket.payment_status ?? "PENDING").toUpperCase();
   const amount      = ticket.total_amount ?? 0;
 
-  const eventTitle = ticket.event_title || "Annual CSA Gala Dinner";
-  const eventTheme = ticket.event_theme
+  const eventTitle  = ticket.event_title || "ANNUAL CSA GALA DINNER";
+  const eventTheme  = ticket.event_theme
     || "LAYING THE FIRST STONE: Honoring the Past, Empowering the Present and Inspiring the Future of Construction";
-  const eventVenue = ticket.event_venue || "KINGFISHER NEST HOTEL";
+  const eventVenue  = (ticket.event_venue || "KINGFISHER NEST HOTEL").toUpperCase();
   const date        = formatEventDate(ticket.event_date);
   const endTime     = formatEndTime(ticket.event_end_time);
-  const timeDisplay = endTime ? `${date.time} – ${endTime}` : date.time;
+  const timeDisplay = endTime ? `${date.startTime} – ${endTime}` : date.startTime;
 
-  const qrPayload = JSON.stringify({ t: ticketNo, b: bookingCode, q: ticket.qr_code || bookingCode });
+  // QR payload: plain ticket code so scanner can read it directly
+  const qrPayload = ticketNo || bookingCode;
 
   const details = [
-    { icon:"👤", label:"NAME",         val: name },
-    { icon:"🏷", label:"BOOKING CODE", val: bookingCode },
-    { icon:"🎫", label:"TICKET TYPE",  val: ticketType },
-    { icon:"💳", label:"STATUS",       val: status },
-    { icon:"🪙", label:"AMOUNT",       val: `KSH ${amount.toLocaleString()}` },
-    ...(ticket.email ? [{ icon:"✉",  label:"EMAIL", val: ticket.email }] : []),
-    ...(ticket.phone ? [{ icon:"📞", label:"PHONE", val: ticket.phone }] : []),
+    { label: "NAME",         val: name },
+    { label: "BOOKING CODE", val: bookingCode },
+    { label: "TICKET TYPE",  val: ticketType },
+    { label: "STATUS",       val: status },
+    { label: "AMOUNT",       val: `KSH ${amount.toLocaleString()}` },
   ];
 
-  // QR generation
   useEffect(() => {
     let cancelled = false;
     const apiUrl = `https://api.qrserver.com/v1/create-qr-code/?size=300x300&ecc=H&data=${encodeURIComponent(qrPayload)}`;
@@ -134,181 +140,208 @@ export default function TicketDesign({ ticket }: { ticket: TicketData }) {
         tmp.style.cssText = "position:fixed;top:-9999px;left:-9999px;";
         document.body.appendChild(tmp);
         new QRCode(tmp, { text: qrPayload, width: 300, height: 300,
-          colorDark: DARK, colorLight: CREAM, correctLevel: QRCode.CorrectLevel.H });
+          colorDark: "#000000", colorLight: "#FFFFFF", correctLevel: QRCode.CorrectLevel.H });
         const cvs = tmp.querySelector("canvas") as HTMLCanvasElement;
         const img = tmp.querySelector("img") as HTMLImageElement;
-        const finish = (url: string) => { if (!cancelled) setQrUrl(url); document.body.removeChild(tmp); };
+        const finish = (url: string) => {
+          if (!cancelled) setQrUrl(url);
+          if (document.body.contains(tmp)) document.body.removeChild(tmp);
+        };
         if (cvs) finish(cvs.toDataURL("image/png"));
         else if (img) { img.onload = () => finish(img.src); if (img.complete) finish(img.src); }
-        else { finish(apiUrl); document.body.removeChild(tmp); }
+        else finish(apiUrl);
       })
       .catch(() => { if (!cancelled) setQrUrl(apiUrl); });
     return () => { cancelled = true; };
   }, [qrPayload]);
 
-  // ── Ticket markup ─────────────────────────────────────────────────────────
+  // ─────────────────────────────────────────────────────────────────────────
+  // Ticket Markup — shared between preview and PDF render target
+  // ─────────────────────────────────────────────────────────────────────────
   function TicketMarkup({ forPdf = false }: { forPdf?: boolean }) {
     const p = forPdf;
+
+    // Proportional sizes
+    const leftW   = p ? Math.round(PX_W * 0.655) : "65.5%";
+    const rightW  = p ? Math.round(PX_W * 0.345) : "34.5%";
+    const sidebarW = p ? 34 : "9%";
+    const leftColW = p ? 138 : "20%";
 
     return (
       <div style={{
         width: p ? PX_W : "100%",
         height: p ? PX_H : "100%",
         display: "flex",
-        flexDirection: "row",
+        fontFamily: "'Montserrat', 'Arial', sans-serif",
         background: DARK,
-        color: "white",
-        fontFamily: "'Montserrat', sans-serif",
-        position: "relative",
         overflow: "hidden",
+        position: "relative",
       }}>
 
-        {/* ══════════ LEFT PANEL (68%) ══════════ */}
+        {/* ══════════ LEFT PANEL ══════════ */}
         <div style={{
-          width: p ? Math.round(PX_W * 0.68) : "68%",
+          width: leftW,
           flexShrink: 0,
           display: "flex",
           flexDirection: "row",
-          gap: p ? 24 : "2.5%",
-          backgroundImage: `linear-gradient(rgba(10,17,40,.82),rgba(10,17,40,.82)), url('${BG}')`,
+          backgroundImage: `linear-gradient(rgba(10,21,37,0.83),rgba(10,21,37,0.83)), url('${BG}')`,
           backgroundSize: "cover",
           backgroundPosition: "center",
-          padding: p ? "25px 20px" : "3.5% 2.5%",
+          padding: p ? "22px 18px 18px 20px" : "4% 2.8% 3.5% 3.2%",
           position: "relative",
           borderRight: `2px dashed ${GOLD}`,
           boxSizing: "border-box",
+          gap: p ? 18 : "2.5%",
         }}>
-          {/* Tear-line notch — top */}
-          <div style={{ position:"absolute", right:-15, top:-15, width:30, height:30,
-            background:"#e8e8e8", borderRadius:"50%", zIndex:10 }}/>
-          {/* Tear-line notch — bottom */}
-          <div style={{ position:"absolute", right:-15, bottom:-15, width:30, height:30,
-            background:"#e8e8e8", borderRadius:"50%", zIndex:10 }}/>
+          {/* Notch circles */}
+          <div style={{ position:"absolute", right:-14, top:-14, width:28, height:28,
+            background:"#d1d1d1", borderRadius:"50%", zIndex:10 }}/>
+          <div style={{ position:"absolute", right:-14, bottom:-14, width:28, height:28,
+            background:"#d1d1d1", borderRadius:"50%", zIndex:10 }}/>
 
-          {/* ── LEFT COL: logo + date + time + venue ── */}
+          {/* ── LEFT COL ── */}
           <div style={{
-            width: p ? 140 : "20%",
-            flexShrink: 0,
-            display: "flex",
-            flexDirection: "column",
-            alignItems: "flex-start",
+            width: leftColW, flexShrink: 0,
+            display: "flex", flexDirection: "column", alignItems: "flex-start",
           }}>
-            {/* CSA logo */}
+            {/* Logo */}
             <div style={{
-              width: p ? 75 : "clamp(44px,55%,75px)",
-              height: p ? 75 : "clamp(44px,55%,75px)",
+              width: p ? 68 : "clamp(44px,52%,68px)",
+              height: p ? 68 : "clamp(44px,52%,68px)",
               borderRadius: "50%",
               border: `3px solid ${GOLD}`,
               background: "white",
               overflow: "hidden",
-              marginBottom: p ? 18 : "8%",
+              marginBottom: p ? 16 : "6%",
               flexShrink: 0,
             }}>
-              <img src="https://i.postimg.cc/Y4nqnP2p/IMG-20260420-WA0002.jpg"
-                alt="CSA" style={{ width:"85%", height:"85%", objectFit:"contain",
-                  margin:"7.5%", display:"block" }}/>
+              <img
+                src="https://i.postimg.cc/Y4nqnP2p/IMG-20260420-WA0002.jpg"
+                alt="CSA"
+                style={{ width:"85%", height:"85%", objectFit:"contain", margin:"7.5%", display:"block" }}
+              />
             </div>
 
-            {/* Date block */}
-            <div style={{ borderLeft:`2px solid ${GOLD}`, paddingLeft: p ? 12 : "9%",
-              marginBottom: p ? 12 : "4%" }}>
-              <div style={{ fontSize: p ? 10 : "0.82em", fontWeight:700,
-                color:"rgba(255,255,255,0.8)", letterSpacing:1, marginBottom:2 }}>
-                {date.dayName}
-              </div>
-              <div style={{ lineHeight:1 }}>
-                <span style={{ fontSize: p ? 38 : "3.1em", fontWeight:900, color:GOLD }}>
-                  {date.day}
-                </span>
-                <sup style={{ fontSize: p ? 14 : "1em", color:GOLD, fontWeight:700 }}>
-                  {date.suffix}
-                </sup>
-              </div>
-              <div style={{ fontSize: p ? 10 : "0.82em", fontWeight:700,
-                color:"white", marginTop:3, lineHeight:1.5 }}>
-                {date.month}<br/>{date.year}
-              </div>
+            {/* Day name */}
+            <div style={{
+              fontSize: p ? 9.5 : "0.78em",
+              fontWeight: 700,
+              color: "rgba(255,255,255,0.75)",
+              letterSpacing: "0.05em",
+              marginBottom: p ? 2 : "0.5%",
+            }}>
+              {date.dayName}
+            </div>
+
+            {/* Big day number */}
+            <div style={{ display:"flex", alignItems:"flex-start", lineHeight:1, marginBottom: p ? 4 : "1.5%" }}>
+              <span style={{ fontSize: p ? 44 : "3.5em", fontWeight: 900, color: GOLD, lineHeight:0.9 }}>
+                {date.day}
+              </span>
+              <sup style={{ fontSize: p ? 13 : "1em", fontWeight:700, color:GOLD, marginTop: p ? 4 : "0.3em" }}>
+                {date.suffix}
+              </sup>
+            </div>
+
+            {/* Month + Year */}
+            <div style={{
+              fontSize: p ? 9.5 : "0.78em", fontWeight:700, color:"white",
+              lineHeight:1.4, marginBottom: p ? 10 : "3%",
+              borderLeft: `2px solid ${GOLD}`, paddingLeft: p ? 8 : "6%",
+            }}>
+              {date.month}<br/>{date.year}
             </div>
 
             {/* Divider */}
-            <div style={{ borderTop:`1px solid ${GOLD}`, width:"90%",
-              margin: p ? "10px 0" : "3% 0" }}/>
+            <div style={{ borderTop:`1px solid ${GOLD}`, width:"85%", marginBottom: p ? 10 : "3%" }}/>
 
             {/* Time */}
-            <div style={{ fontSize: p ? 10 : "0.82em", fontWeight:700,
-              color:"rgba(255,255,255,0.9)", marginBottom: p ? 4 : "2%" }}>
-              <div style={{ fontSize: p ? 8 : "0.66em", color:GOLD,
-                letterSpacing:"0.1em", marginBottom:3, fontWeight:700 }}>
+            <div style={{ marginBottom: p ? 10 : "3%" }}>
+              <div style={{ fontSize: p ? 7.5 : "0.62em", color:GOLD, fontWeight:700,
+                letterSpacing:"0.08em", marginBottom: p ? 2 : "1%" }}>
                 🕙 TIME
               </div>
-              {timeDisplay}
+              <div style={{ fontSize: p ? 9 : "0.74em", fontWeight:700,
+                color:"rgba(255,255,255,0.9)" }}>
+                {timeDisplay}
+              </div>
             </div>
 
             {/* Divider */}
-            <div style={{ borderTop:`1px solid ${GOLD}`, width:"90%",
-              margin: p ? "10px 0" : "3% 0" }}/>
+            <div style={{ borderTop:`1px solid ${GOLD}`, width:"85%", marginBottom: p ? 10 : "3%" }}/>
 
             {/* Venue */}
-            <div style={{ fontSize: p ? 9 : "0.75em", fontWeight:700,
-              color:"rgba(255,255,255,0.9)", lineHeight:1.5 }}>
-              <div style={{ fontSize: p ? 8 : "0.66em", color:GOLD,
-                letterSpacing:"0.1em", marginBottom:3, fontWeight:700 }}>
+            <div>
+              <div style={{ fontSize: p ? 7.5 : "0.62em", color:GOLD, fontWeight:700,
+                letterSpacing:"0.08em", marginBottom: p ? 2 : "1%" }}>
                 📍 VENUE
               </div>
-              {eventVenue.toUpperCase()}
+              <div style={{ fontSize: p ? 8.5 : "0.7em", fontWeight:700,
+                color:"rgba(255,255,255,0.9)", lineHeight:1.4 }}>
+                {eventVenue}
+              </div>
             </div>
           </div>
 
-          {/* ── MAIN CONTENT: title + theme + ticket type + footer ── */}
-          <div style={{ flex:1, display:"flex", flexDirection:"column",
-            justifyContent:"space-between" }}>
+          {/* ── MAIN CONTENT COL ── */}
+          <div style={{ flex:1, display:"flex", flexDirection:"column", justifyContent:"space-between" }}>
 
-            {/* Top group */}
+            {/* Top: GALA DINNER title */}
             <div>
-              <div style={{ fontFamily:"'Playfair Display', serif", fontWeight:900,
-                color:GOLD, lineHeight:1, fontSize: p ? 48 : "3.8em" }}>
+              <div style={{
+                fontFamily: "'Playfair Display', 'Georgia', serif",
+                fontWeight: 900, color:GOLD, lineHeight:0.95,
+                fontSize: p ? 52 : "4.1em",
+                letterSpacing: "0.02em",
+              }}>
                 GALA
               </div>
-              <div style={{ fontFamily:"'Playfair Display', serif", fontWeight:700,
-                color:"white", lineHeight:1, fontSize: p ? 38 : "3em",
-                marginBottom: p ? 7 : "1.5%" }}>
+              <div style={{
+                fontFamily: "'Playfair Display', 'Georgia', serif",
+                fontWeight: 700, color:"white", lineHeight:0.95,
+                fontSize: p ? 40 : "3.1em",
+                marginBottom: p ? 8 : "2%",
+              }}>
                 DINNER {date.year}
               </div>
-              <div style={{ color:GOLD, fontSize: p ? 9 : "0.72em", fontWeight:700,
-                letterSpacing:"0.13em", marginBottom: p ? 10 : "2%" }}>
+              <div style={{
+                color:GOLD, fontSize: p ? 8.5 : "0.7em", fontWeight:700,
+                letterSpacing:"0.14em", marginBottom: p ? 10 : "2.5%",
+              }}>
                 AWARDS &nbsp;•&nbsp; NETWORKING &nbsp;•&nbsp; ENTERTAINMENT
               </div>
 
               {/* Theme box */}
               <div style={{
-                border: `1px solid ${GOLD}`, borderRadius:6,
-                padding: p ? "9px 13px" : "1.8% 2.5%",
-                background:"rgba(10,17,40,0.6)",
-                fontSize: p ? 9 : "0.72em",
-                lineHeight:1.5,
-                color:"rgba(255,255,255,0.9)",
+                border:`1px solid ${GOLD}`, borderRadius:5,
+                padding: p ? "8px 12px" : "1.8% 2.5%",
+                background:"rgba(10,21,37,0.55)",
+                fontSize: p ? 8.5 : "0.7em",
+                lineHeight:1.55, color:"rgba(255,255,255,0.88)",
+                display:"-webkit-box",
+                WebkitLineClamp:"3",
+                WebkitBoxOrient:"vertical",
                 overflow:"hidden",
-                maxHeight: p ? 56 : "3.4em",
               }}>
                 <span style={{ color:GOLD, fontWeight:700 }}>THEME: </span>
                 {eventTheme}
               </div>
             </div>
 
-            {/* Ticket type banner */}
+            {/* Middle: ticket type banner */}
             <div>
-              <div style={{ color:GOLD, fontSize: p ? 9 : "0.72em", fontWeight:700,
-                letterSpacing:"0.08em", marginBottom: p ? 5 : "1%" }}>
+              <div style={{ color:GOLD, fontSize: p ? 8 : "0.65em", fontWeight:700,
+                letterSpacing:"0.1em", marginBottom: p ? 5 : "1%" }}>
                 TICKET TYPE
               </div>
               <div style={{
-                background:"#FFD700", color:DARK, borderRadius:4,
-                padding: p ? "9px 14px" : "2% 3%",
-                fontWeight:900, fontSize: p ? 15 : "1.2em",
-                textAlign:"center", letterSpacing:"0.1em",
-                display:"flex", alignItems:"center", justifyContent:"center", gap:12,
+                background:"#FFD700", color:DARK, borderRadius:5,
+                padding: p ? "10px 16px" : "2.2% 3%",
+                fontWeight:900, fontSize: p ? 16 : "1.25em",
+                textAlign:"center", letterSpacing:"0.15em",
+                display:"flex", alignItems:"center", justifyContent:"center", gap: p ? 14 : "3%",
               }}>
-                ★ {ticketType} ★
+                ★ &nbsp;{ticketType}&nbsp; ★
               </div>
             </div>
 
@@ -317,116 +350,121 @@ export default function TicketDesign({ ticket }: { ticket: TicketData }) {
               justifyContent:"space-between", gap: p ? 8 : "2%" }}>
               <div style={{
                 background:CREAM, color:DARK, borderRadius:4,
-                padding: p ? "6px 10px" : "1.5% 2%",
-                fontSize: p ? 9 : "0.7em", fontWeight:700, whiteSpace:"nowrap",
+                padding: p ? "5px 10px" : "1.2% 2%",
+                fontSize: p ? 8.5 : "0.68em", fontWeight:700, whiteSpace:"nowrap",
               }}>
                 TICKET NO. {ticketNo}
               </div>
-              <div style={{ fontFamily:"'Great Vibes', cursive", color:GOLD,
-                fontSize: p ? 15 : "1.15em" }}>
+              <div style={{
+                fontFamily:"'Great Vibes', 'Brush Script MT', cursive",
+                color:GOLD, fontSize: p ? 15 : "1.15em", textAlign:"right",
+              }}>
                 Pooling Construction Students Together!
               </div>
             </div>
           </div>
         </div>
 
-        {/* ══════════ RIGHT PANEL (32%) ══════════ */}
+        {/* ══════════ RIGHT PANEL ══════════ */}
         <div style={{
-          width: p ? Math.round(PX_W * 0.32) : "32%",
+          width: rightW,
           flexShrink: 0,
           background: CREAM,
           color: DARK,
-          // right padding leaves room for gold sidebar
-          padding: p ? "20px 44px 20px 20px" : "3% 11.5% 3% 3%",
-          position: "relative",
-          display: "flex",
-          flexDirection: "column",
-          boxSizing: "border-box",
+          padding: p ? `20px ${(p ? sidebarW as number : 0) + 16}px 20px 18px` : `3.5% ${sidebarW} 3.5% 3%`,
+          position:"relative",
+          display:"flex",
+          flexDirection:"column",
+          boxSizing:"border-box",
         }}>
 
           {/* Gold vertical sidebar */}
           <div style={{
             position:"absolute", right:0, top:0,
-            width: p ? 32 : "9%",
+            width: sidebarW,
             height:"100%",
-            background: GOLD,
+            background:GOLD,
             writingMode:"vertical-rl",
             textOrientation:"mixed",
+            transform:"rotate(180deg)",
             display:"flex", alignItems:"center", justifyContent:"center",
-            fontWeight:700, fontSize: p ? 10 : "0.7em",
-            color:DARK, letterSpacing:"0.1em", overflow:"hidden",
+            fontWeight:800, fontSize: p ? 10 : "0.72em",
+            color:DARK, letterSpacing:"0.12em",
+            overflow:"hidden", whiteSpace:"nowrap",
           }}>
             {eventTitle.toUpperCase()}
           </div>
 
           {/* ADMIT header */}
-          <div style={{ textAlign:"center", fontWeight:900,
-            fontSize: p ? 17 : "1.3em", letterSpacing:"0.12em",
-            color:DARK, marginBottom: p ? 6 : "1.5%" }}>
-            ★ ADMIT ★
+          <div style={{
+            textAlign:"center", fontWeight:900,
+            fontSize: p ? 18 : "1.35em", letterSpacing:"0.15em",
+            color:DARK, marginBottom: p ? 6 : "1.5%",
+          }}>
+            ★ &nbsp;ADMIT&nbsp; ★
           </div>
-          <div style={{ borderTop:`1.5px solid ${GOLD}`,
-            marginBottom: p ? 10 : "2%" }}/>
+          <div style={{ borderTop:`2px solid ${GOLD}`, marginBottom: p ? 10 : "2%" }}/>
 
-          {/* Detail rows — evenly spread */}
-          <div style={{ flex:1, display:"flex", flexDirection:"column",
-            justifyContent:"space-evenly" }}>
-            {details.map(({ icon, label, val }) => (
+          {/* Detail rows */}
+          <div style={{
+            flex:1, display:"flex", flexDirection:"column",
+            justifyContent:"space-evenly",
+          }}>
+            {details.map(({ label, val }) => (
               <div key={label} style={{
-                display:"flex", alignItems:"center", gap: p ? 7 : "3%",
-                borderBottom:`1px dotted rgba(212,175,55,0.55)`,
-                padding: p ? "4px 0" : "0.5% 0",
+                display:"flex", alignItems:"center",
+                borderBottom:`1px dotted rgba(180,150,40,0.45)`,
+                padding: p ? "4px 0" : "0.6% 0",
+                gap: p ? 7 : "2.5%",
               }}>
-                {/* Icon circle */}
                 <div style={{
-                  width: p ? 22 : "clamp(14px,6%,22px)",
-                  height: p ? 22 : "clamp(14px,6%,22px)",
-                  border: `1px solid ${GOLD}`,
-                  borderRadius:"50%",
-                  flexShrink:0,
-                  display:"flex", alignItems:"center", justifyContent:"center",
-                  fontSize: p ? 10 : "0.7em",
+                  width: p ? 20 : "clamp(13px,5.5%,20px)",
+                  height: p ? 20 : "clamp(13px,5.5%,20px)",
+                  border:`1.5px solid ${GOLD}`,
+                  borderRadius:"50%", flexShrink:0,
+                }}/>
+                <span style={{
+                  fontSize: p ? 7.5 : "0.61em", fontWeight:700,
+                  color:GOLD, letterSpacing:"0.05em", flexShrink:0,
+                  textTransform:"uppercase",
                 }}>
-                  {icon}
-                </div>
-                {/* Label */}
-                <span style={{ fontSize: p ? 8 : "0.65em", fontWeight:700,
-                  color:GOLD, letterSpacing:"0.04em", flexShrink:0 }}>
                   {label}
                 </span>
-                {/* Value */}
-                <span style={{ fontSize: p ? 9 : "0.7em", fontWeight:600,
-                  color:DARK, textAlign:"right", wordBreak:"break-word",
-                  maxWidth:"55%", marginLeft:"auto" }}>
+                <span style={{
+                  fontSize: p ? 8.5 : "0.69em", fontWeight:700,
+                  color:DARK, marginLeft:"auto", textAlign:"right",
+                  wordBreak:"break-word", maxWidth:"52%",
+                }}>
                   {val}
                 </span>
               </div>
             ))}
           </div>
 
-          {/* QR block */}
-          <div style={{ display:"flex", flexDirection:"column",
-            alignItems:"center", gap: p ? 4 : "1%",
-            marginTop: p ? 8 : "2%" }}>
+          {/* QR code */}
+          <div style={{
+            display:"flex", flexDirection:"column", alignItems:"center",
+            gap: p ? 4 : "1%", marginTop: p ? 8 : "2%",
+          }}>
             <div style={{
-              border:`3px solid ${GOLD}`, borderRadius:6, overflow:"hidden",
-              background:CREAM,
-              width: p ? 110 : "clamp(58px,30%,110px)",
-              height: p ? 110 : "clamp(58px,30%,110px)",
+              border:`3px solid ${GOLD}`, borderRadius:5,
+              overflow:"hidden", background:"#fff",
+              width: p ? 100 : "clamp(54px,27%,100px)",
+              height: p ? 100 : "clamp(54px,27%,100px)",
             }}>
               {qrUrl
-                ? <img src={qrUrl} alt="QR"
-                    style={{ width:"100%", height:"100%", objectFit:"cover", display:"block" }}/>
+                ? <img src={qrUrl} alt="QR" style={{ width:"100%", height:"100%", display:"block" }}/>
                 : <div style={{ width:"100%", height:"100%", display:"flex",
                     alignItems:"center", justifyContent:"center",
-                    fontSize: p ? 7 : "0.55em", fontWeight:700,
-                    color:DARK, textAlign:"center", padding:4 }}>
-                    Generating QR…
+                    fontSize: p ? 7 : "0.55em", color:DARK, textAlign:"center", padding:4 }}>
+                    Generating…
                   </div>
               }
             </div>
-            <div style={{ textAlign:"center", fontSize: p ? 7.5 : "0.6em",
-              fontWeight:700, color:DARK, lineHeight:1.5, letterSpacing:"0.06em" }}>
+            <div style={{
+              textAlign:"center", fontSize: p ? 7 : "0.58em",
+              fontWeight:700, color:DARK, lineHeight:1.5, letterSpacing:"0.06em",
+            }}>
               🔲 SCAN QR<br/>FOR ENTRY<br/>VERIFICATION
             </div>
           </div>
@@ -435,7 +473,7 @@ export default function TicketDesign({ ticket }: { ticket: TicketData }) {
     );
   }
 
-  // ── PDF download ──────────────────────────────────────────────────────────
+  // ── PDF download ─────────────────────────────────────────────────────────
   const handleDownload = async () => {
     if (downloading) return;
     setDownloading(true);
@@ -450,26 +488,19 @@ export default function TicketDesign({ ticket }: { ticket: TicketData }) {
       const jsPDF = (window as any).jspdf?.jsPDF ?? (window as any).jsPDF;
       if (!h2c || !jsPDF) throw new Error("Libraries not loaded");
 
-      await new Promise(r => setTimeout(r, 150));
-
+      await new Promise(r => setTimeout(r, 200));
       const el = renderRef.current;
       if (!el) throw new Error("Render element not found");
 
       const canvas = await h2c(el, {
-        scale: 1,
-        useCORS: true,
-        allowTaint: true,
+        scale: 1, useCORS: true, allowTaint: true,
         backgroundColor: DARK,
-        width: PX_W,
-        height: PX_H,
-        windowWidth: PX_W,
-        windowHeight: PX_H,
-        logging: false,
-        imageTimeout: 8000,
+        width: PX_W, height: PX_H,
+        windowWidth: PX_W, windowHeight: PX_H,
+        logging: false, imageTimeout: 10000,
       });
 
-      // 8.5 × 3.5 in → 612 × 252 pt
-      const PT_W = 612, PT_H = 252;
+      const PT_W = 612, PT_H = 252; // 8.5 × 3.5 in in points
       const pdf = new jsPDF({ orientation:"landscape", unit:"pt", format:[PT_H, PT_W] });
       pdf.addImage(canvas.toDataURL("image/jpeg", 0.98), "JPEG", 0, 0, PT_W, PT_H);
       pdf.save(`CSA-Ticket-${ticketNo || "download"}.pdf`);
@@ -481,22 +512,20 @@ export default function TicketDesign({ ticket }: { ticket: TicketData }) {
     }
   };
 
-  // ── Render ────────────────────────────────────────────────────────────────
   return (
     <>
-      <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@700;900&family=Montserrat:wght@400;600;700&family=Great+Vibes&display=swap" rel="stylesheet"/>
+      <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@700;900&family=Montserrat:wght@400;600;700;900&family=Great+Vibes&display=swap" rel="stylesheet"/>
 
-      {/* Hidden render target — exact pixel size for PDF capture */}
+      {/* Hidden PDF render target */}
       <div style={{ position:"fixed", top:"-9999px", left:"-9999px",
         width:PX_W, height:PX_H, overflow:"hidden", pointerEvents:"none", zIndex:-1 }}
         ref={renderRef}>
         <TicketMarkup forPdf/>
       </div>
 
-      {/* Visible preview — 8.5:3.5 aspect ratio maintained */}
+      {/* Visible preview */}
       <div style={{ width:"100%", overflowX:"auto" }}>
-        <div style={{ position:"relative", width:"100%",
-          paddingBottom:`${(IN_H / IN_W) * 100}%` }}>
+        <div style={{ position:"relative", width:"100%", paddingBottom:`${(3.5/8.5)*100}%` }}>
           <div style={{ position:"absolute", inset:0, borderRadius:10,
             overflow:"hidden", boxShadow:"0 12px 40px rgba(0,0,0,0.5)" }}>
             <TicketMarkup/>
@@ -504,7 +533,7 @@ export default function TicketDesign({ ticket }: { ticket: TicketData }) {
         </div>
       </div>
 
-      {/* PDF download button — only download option */}
+      {/* Download button */}
       <div style={{ display:"flex", justifyContent:"center", marginTop:20 }}>
         <button
           onClick={handleDownload}
@@ -515,9 +544,9 @@ export default function TicketDesign({ ticket }: { ticket: TicketData }) {
             background: (downloading || !qrUrl)
               ? "rgba(212,175,55,0.3)"
               : "linear-gradient(135deg,#E6C875,#D4AF37)",
-            color: DARK, border:"none", borderRadius:10,
+            color:DARK, border:"none", borderRadius:10,
             fontWeight:700, fontSize:15,
-            cursor: (downloading || !qrUrl) ? "not-allowed" : "pointer",
+            cursor:(downloading || !qrUrl) ? "not-allowed" : "pointer",
             fontFamily:"Montserrat,sans-serif",
             boxShadow:"0 4px 14px rgba(212,175,55,0.35)",
             transition:"opacity 0.2s",
@@ -529,7 +558,7 @@ export default function TicketDesign({ ticket }: { ticket: TicketData }) {
 
       <p style={{ textAlign:"center", marginTop:8, fontSize:11,
         color:"rgba(255,255,255,0.35)", fontFamily:"Montserrat,sans-serif" }}>
-        Standard size: 8.5″ × 3.5″ landscape &nbsp;|&nbsp; Button enables once QR code loads
+        8.5″ × 3.5″ landscape &nbsp;|&nbsp; Button enables once QR loads
       </p>
     </>
   );
