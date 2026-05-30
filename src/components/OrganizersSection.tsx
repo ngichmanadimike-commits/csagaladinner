@@ -9,6 +9,7 @@ interface OrganizerItem {
   title: string | null;
   body: string | null;
   image_url: string | null;
+  display_order: number | null;
 }
 
 /** Return up to 2 uppercase initials from a name string */
@@ -25,8 +26,8 @@ const OrganizersSection = () => {
   useEffect(() => {
     supabase
       .from("site_content")
-      .select("id, section_key, title, body, image_url")
-      .order("section_key")
+      .select("id, section_key, title, body, image_url, display_order")
+      .order("display_order", { ascending: true, nullsFirst: false })
       .then(({ data }) => setOrganizers((data as OrganizerItem[]) || []));
   }, []);
 
@@ -73,7 +74,6 @@ const OrganizersSection = () => {
                       alt={displayName}
                       className="w-full h-full object-cover"
                       onError={(e) => {
-                        // If image fails to load, hide it and show initials fallback
                         const target = e.currentTarget;
                         const parent = target.parentElement;
                         if (parent) {
