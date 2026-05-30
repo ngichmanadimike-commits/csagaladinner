@@ -1,9 +1,9 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import AdminLayout from "@/components/admin/AdminLayout";
 import { useAuth } from "@/hooks/useAuth";
 import { toast } from "sonner";
-import { Loader2, Save, Upload, Plus, Trash2 } from "lucide-react";
+import { Loader2, Save, Upload, Plus, Trash2, GripVertical } from "lucide-react";
 
 interface ContentItem {
   id: string;
@@ -12,6 +12,7 @@ interface ContentItem {
   body: string | null;
   image_url: string | null;
   updated_at: string;
+  display_order: number | null;
 }
 
 const AdminContent = () => {
@@ -21,9 +22,14 @@ const AdminContent = () => {
   const [saving, setSaving] = useState<string | null>(null);
   const [uploading, setUploading] = useState<string | null>(null);
   const [newKey, setNewKey] = useState("");
+  const dragItem = useRef<number | null>(null);
+  const dragOver = useRef<number | null>(null);
 
   const fetchContent = async () => {
-    const { data } = await supabase.from("site_content").select("*").order("section_key");
+    const { data } = await supabase
+      .from("site_content")
+      .select("*")
+      .order("display_order", { ascending: true, nullsFirst: false });
     setItems((data as ContentItem[]) || []);
     setLoading(false);
   };
@@ -38,8 +44,9 @@ const AdminContent = () => {
         title: item.title,
         body: item.body,
         image_url: item.image_url,
+        display_order: item.display_order,
         updated_by: user?.id,
-      })
+      } as any)
       .eq("id", item.id);
 
     setSaving(null);
@@ -49,9 +56,12 @@ const AdminContent = () => {
 
   const handleCreate = async () => {
     if (!newKey.trim()) return;
+    const nextOrder = items.length > 0
+      ? Math.max(...items.map((i) => i.display_order ?? 0)) + 1
+      : 0;
     const { data, error } = await supabase
       .from("site_content")
-      .insert({ section_key: newKey.trim() } as any)
+      .insert({ section_key: newKey.trim(), display_order: nextOrder } as any)
       .select()
       .single();
 
@@ -59,7 +69,7 @@ const AdminContent = () => {
     else {
       setItems([...(items), data as ContentItem]);
       setNewKey("");
-      toast.success("Section created");
+      toast.success("Organizer created");
     }
   };
 
@@ -96,16 +106,43 @@ const AdminContent = () => {
 
     await supabase
       .from("site_content")
-      .update({ image_url: urlData.publicUrl, updated_by: user?.id })
+      .update({ image_url: urlData.publicUrl, updated_by: user?.id } as any)
       .eq("id", item.id);
 
     setUploading(null);
     toast.success("Image uploaded");
   };
 
-  const updateItem = (id: string, field: string, value: string) => {
+  const updateItem = (id: string, field: string, value: any) => {
     setItems(items.map((i) => (i.id === id ? { ...i, [field]: value } : i)));
   };
+
+  // ── Drag-to-reorder ─────────────────────────────────────────────────────
+  const handleDragStart = (index: number) => {
+    dragItem.current = index;
+  };
+
+  const handleDragEnter = (index: number) => {
+    dragOver.current = index;
+    if (dragItem.current === null || dragItem.current === index) return;
+    const reordered = [...items];
+    const dragged = reordered.splice(dragItem.current, 1)[0];
+    reordered.splice(index, 0, dragged);
+    dragItem.current = index;
+    setItems(reordered.map((item, idx) => ({ ...item, display_order: idx })));
+  };
+
+  const handleDragEnd = async () => {
+    dragItem.current = null;
+    dragOver.current = null;
+    // Persist new order to DB
+    const updates = items.map((item, idx) =>
+      supabase.from("site_content").update({ display_order: idx } as any).eq("id", item.id)
+    );
+    await Promise.all(updates);
+    toast.success("Order saved");
+  };
+  // ────────────────────────────────────────────────────────────────────────
 
   return (
     <AdminLayout>
@@ -113,7 +150,7 @@ const AdminContent = () => {
         <div>
           <h1 className="font-display text-2xl font-bold text-foreground">Organizers</h1>
           <p className="text-sm text-muted-foreground mt-0.5">
-            Manage organizer profiles shown on the public site
+            Manage organizer profiles — drag the <span className="text-foreground font-semibold">⠿</span> handle to reorder
           </p>
         </div>
       </div>
@@ -151,12 +188,32 @@ const AdminContent = () => {
         </div>
       ) : (
         <div className="space-y-4">
-          {items.map((item) => (
-            <div key={item.id} className="glass rounded-xl p-5">
+          {items.map((item, index) => (
+            <div
+              key={item.id}
+              draggable
+              onDragStart={() => handleDragStart(index)}
+              onDragEnter={() => handleDragEnter(index)}
+              onDragEnd={handleDragEnd}
+              onDragOver={(e) => e.preventDefault()}
+              className="glass rounded-xl p-5 cursor-default"
+            >
               <div className="flex items-center justify-between mb-3">
-                <h3 className="font-display font-bold text-foreground text-sm uppercase tracking-wider">
-                  {item.section_key}
-                </h3>
+                <div className="flex items-center gap-2">
+                  {/* Drag handle */}
+                  <span
+                    className="cursor-grab active:cursor-grabbing text-muted-foreground hover:text-foreground transition-colors"
+                    title="Drag to reorder"
+                  >
+                    <GripVertical size={18} />
+                  </span>
+                  <h3 className="font-display font-bold text-foreground text-sm uppercase tracking-wider">
+                    {item.section_key}
+                  </h3>
+                  <span className="text-xs text-muted-foreground bg-muted px-2 py-0.5 rounded-full">
+                    #{index + 1}
+                  </span>
+                </div>
                 <button
                   onClick={() => handleDelete(item.id, item.section_key)}
                   className="p-1.5 rounded-lg text-muted-foreground hover:text-destructive hover:bg-destructive/10 transition-colors"
