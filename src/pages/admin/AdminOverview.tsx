@@ -192,7 +192,7 @@ const AdminOverview = () => {
     { label: "Sponsorships", value: stats.totalSponsorships, icon: GraduationCap, color: "text-primary" },
     { label: "Pending Sponsors", value: stats.pendingSponsorships, icon: Clock, color: "text-yellow-400" },
     { label: "New Inquiries", value: stats.newInquiries, icon: Mail, color: "text-primary" },
-    { label: "Partners", value: stats.totalPartners, icon: Handshake, color: "text-primary" },
+    { label: "Partners", value: stats.totalPartners, icon: Handshake, color: "text-primary", path: "/admin/partners" },
     { label: "Speakers", value: stats.totalSpeakers, icon: Mic, color: "text-primary" },
     { label: "Documents", value: stats.totalDocuments, icon: FileText, color: "text-muted-foreground" },
     { label: "Gallery Images", value: stats.totalGalleryImages, icon: Image, color: "text-primary" },
@@ -265,8 +265,12 @@ const AdminOverview = () => {
       </div>
 
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
-        {statCards.map((card) => (
-          <div key={card.label} className="glass rounded-xl p-4">
+        {statCards.map((card: any) => (
+          <div
+            key={card.label}
+            className={`glass rounded-xl p-4${card.path ? ' cursor-pointer hover:border-primary/40 transition-colors' : ''}`}
+            onClick={() => card.path && navigate(card.path)}
+          >
             <div className="flex items-center gap-2 mb-2">
               <card.icon size={18} className={card.color} />
               <span className="text-xs text-muted-foreground">{card.label}</span>
