@@ -15,6 +15,9 @@ import AdminLogin from "@/pages/admin/AdminLogin";
 const TicketPage = lazy(() => import("@/pages/TicketPage"));
 const Gallery = lazy(() => import("@/pages/Gallery"));
 const EventInsights = lazy(() => import("@/pages/EventInsights"));
+const Partners = lazy(() => import("@/pages/Partners"));
+const Organizers = lazy(() => import("@/pages/Organizers"));
+
 const AdminOverview = lazy(() => import("@/pages/admin/AdminOverview"));
 const AdminTickets = lazy(() => import("@/pages/admin/AdminTickets"));
 const AdminRegistrations = lazy(() => import("@/pages/admin/AdminRegistrations"));
@@ -66,6 +69,8 @@ function App() {
                 <Route path="/lookup" element={<Lookup />} />
                 <Route path="/gallery" element={<Gallery />} />
                 <Route path="/insights" element={<EventInsights />} />
+                <Route path="/partners" element={<Partners />} />
+                <Route path="/organizers" element={<Organizers />} />
                 <Route path="/ticket/:ticket_number" element={<TicketPage />} />
                 <Route path="/app/ticket/:ticket_number" element={<TicketPage />} />
                 <Route path="/login" element={<Login />} />
