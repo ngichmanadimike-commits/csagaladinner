@@ -147,26 +147,36 @@ const AdminTickets = () => {
 
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-4">
         <div className="glass rounded-xl p-3">
-          <p className="text-xs text-muted-foreground">Total Tickets</p>
-          <p className="text-xl font-bold">
+          <p className="text-xs text-muted-foreground">Total People</p>
+          <p className="text-xl font-bold text-yellow-400">
             {tickets.reduce((s, t) => s + t.quantity * seatsFor(t.package_type), 0)}
           </p>
           <p className="text-xs text-muted-foreground mt-0.5">{tickets.length} orders</p>
         </div>
         <div className="glass rounded-xl p-3">
-          <p className="text-xs text-muted-foreground">Fully Paid</p>
+          <p className="text-xs text-muted-foreground">Confirmed People</p>
           <p className="text-xl font-bold text-emerald-400">
-            {tickets.filter((t) => t.payment_status === "paid").length}
-          </p>
-        </div>
-        <div className="glass rounded-xl p-3">
-          <p className="text-xs text-muted-foreground flex items-center gap-1"><Users size={11}/> Total Attendees</p>
-          <p className="text-xl font-bold text-primary">
-            {tickets.reduce((s, t) => s + t.quantity * seatsFor(t.package_type), 0)}
+            {tickets.filter((t) => t.payment_status === "paid").reduce((s, t) => s + t.quantity * seatsFor(t.package_type), 0)}
           </p>
           <p className="text-xs text-muted-foreground mt-0.5">
-            {tickets.filter(t => t.payment_status === "paid").reduce((s,t) => s + t.quantity * seatsFor(t.package_type), 0)} confirmed
+            {tickets.filter((t) => t.payment_status === "paid").length} paid orders
           </p>
+        </div>
+        <div className="glass rounded-xl p-3 col-span-2 sm:col-span-1">
+          <p className="text-xs text-muted-foreground flex items-center gap-1 mb-1"><Users size={11}/> By Package</p>
+          {Object.entries(
+            tickets.reduce((acc, t) => {
+              const key = t.package_type || "unknown";
+              if (!acc[key]) acc[key] = 0;
+              acc[key] += t.quantity * seatsFor(t.package_type);
+              return acc;
+            }, {} as Record<string, number>)
+          ).slice(0, 4).map(([pkg, count]) => (
+            <div key={pkg} className="flex justify-between text-xs py-0.5">
+              <span className="capitalize text-muted-foreground">{pkg.replace(/-/g, " ")}</span>
+              <span className="font-bold text-foreground">{count} ppl</span>
+            </div>
+          ))}
         </div>
         <div className="glass rounded-xl p-3">
           <p className="text-xs text-muted-foreground">Total Revenue</p>
@@ -198,8 +208,8 @@ const AdminTickets = () => {
                   <th className="p-3">Name</th>
                   <th className="p-3">Email</th>
                   <th className="p-3">Package</th>
-                  <th className="p-3">Qty</th>
-                  <th className="p-3 text-center"><span className="flex items-center gap-1 justify-center"><Users size={12}/>Seats</span></th>
+                  <th className="p-3 text-center">Orders</th>
+                  <th className="p-3 text-center"><span className="flex items-center gap-1 justify-center"><Users size={12}/>People</span></th>
                   <th className="p-3">Total</th>
                   <th className="p-3">Paid</th>
                   <th className="p-3">Status</th>
@@ -225,8 +235,8 @@ const AdminTickets = () => {
                     <td className="p-3 capitalize text-foreground">{t.package_type}</td>
                     <td className="p-3 text-center text-foreground">{t.quantity}</td>
                     <td className="p-3 text-center">
-                      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-primary/10 text-primary text-xs font-semibold">
-                        <Users size={10}/>{t.quantity * seatsFor(t.package_type)}
+                      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-yellow-400/10 text-yellow-400 text-xs font-bold">
+                        <Users size={10}/>{t.quantity * seatsFor(t.package_type)} {t.quantity * seatsFor(t.package_type) > 1 ? "ppl" : "prs"}
                       </span>
                     </td>
                     <td className="p-3 font-semibold text-foreground">KES {Number(t.total_cost).toLocaleString()}</td>
