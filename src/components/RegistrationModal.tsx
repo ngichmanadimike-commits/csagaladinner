@@ -637,11 +637,19 @@ const RegistrationModal = ({
 
             <div className="bg-primary/10 rounded-xl py-4 px-5">
               <p className="text-xs text-muted-foreground uppercase tracking-wider mb-1">Your Booking Code</p>
-              <p className="font-mono font-extrabold text-2xl tracking-widest text-primary">{ticketCode}</p>
-              <button onClick={() => copyToClipboard(ticketCode, "Booking code")}
-                className="mt-2 flex items-center gap-1.5 mx-auto text-xs text-muted-foreground hover:text-foreground">
-                <Copy size={13} /> Copy booking code
-              </button>
+              {ticketCode ? (
+                <>
+                  <p className="font-mono font-extrabold text-2xl tracking-widest text-primary">{ticketCode}</p>
+                  <button onClick={() => copyToClipboard(ticketCode, "Booking code")}
+                    className="mt-2 flex items-center gap-1.5 mx-auto text-xs text-muted-foreground hover:text-foreground">
+                    <Copy size={13} /> Copy booking code
+                  </button>
+                </>
+              ) : (
+                <p className="text-sm text-muted-foreground mt-1">
+                  Your booking code will be available once the Treasurer verifies your payment (3–6 hrs). Use the <strong>Lookup</strong> page to check your status.
+                </p>
+              )}
             </div>
 
             <div className="glass rounded-xl p-4 text-left space-y-2 text-sm">
