@@ -1,7 +1,19 @@
 import { useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import AdminLayout from "@/components/admin/AdminLayout";
-import { Search, Trash2, Download, CheckCircle2, Clock } from "lucide-react";
+import { Search, Trash2, Download, CheckCircle2, Clock, Users } from "lucide-react";
+
+// FIX 6: seats per ticket unit — update slugs to match your actual package_type values
+const SEATS: Record<string, number> = {
+  individual: 1, single: 1, couple: 2, table: 10, "vip-table": 10, vip: 1,
+};
+function seatsFor(pkg: string): number {
+  const s = pkg.toLowerCase().replace(/\s+/g, "-");
+  if (SEATS[s] !== undefined) return SEATS[s];
+  if (s.includes("couple")) return 2;
+  if (s.includes("table")) return 10;
+  return 1;
+}
 import { toast } from "sonner";
 import { exportToXlsx } from "@/lib/exportXlsx";
 
@@ -133,7 +145,7 @@ const AdminTickets = () => {
         </div>
       )}
 
-      <div className="grid grid-cols-3 gap-3 mb-4">
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-4">
         <div className="glass rounded-xl p-3">
           <p className="text-xs text-muted-foreground">Total Tickets</p>
           <p className="text-xl font-bold">{tickets.length}</p>
@@ -142,6 +154,15 @@ const AdminTickets = () => {
           <p className="text-xs text-muted-foreground">Fully Paid</p>
           <p className="text-xl font-bold text-emerald-400">
             {tickets.filter((t) => t.payment_status === "paid").length}
+          </p>
+        </div>
+        <div className="glass rounded-xl p-3">
+          <p className="text-xs text-muted-foreground flex items-center gap-1"><Users size={11}/> Total Attendees</p>
+          <p className="text-xl font-bold text-primary">
+            {tickets.reduce((s, t) => s + t.quantity * seatsFor(t.package_type), 0)}
+          </p>
+          <p className="text-xs text-muted-foreground mt-0.5">
+            {tickets.filter(t => t.payment_status === "paid").reduce((s,t) => s + t.quantity * seatsFor(t.package_type), 0)} confirmed
           </p>
         </div>
         <div className="glass rounded-xl p-3">
@@ -175,6 +196,7 @@ const AdminTickets = () => {
                   <th className="p-3">Email</th>
                   <th className="p-3">Package</th>
                   <th className="p-3">Qty</th>
+                  <th className="p-3 text-center"><span className="flex items-center gap-1 justify-center"><Users size={12}/>Seats</span></th>
                   <th className="p-3">Total</th>
                   <th className="p-3">Paid</th>
                   <th className="p-3">Status</th>
@@ -199,6 +221,11 @@ const AdminTickets = () => {
                     <td className="p-3 text-muted-foreground text-xs">{t.email}</td>
                     <td className="p-3 capitalize text-foreground">{t.package_type}</td>
                     <td className="p-3 text-center text-foreground">{t.quantity}</td>
+                    <td className="p-3 text-center">
+                      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-primary/10 text-primary text-xs font-semibold">
+                        <Users size={10}/>{t.quantity * seatsFor(t.package_type)}
+                      </span>
+                    </td>
                     <td className="p-3 font-semibold text-foreground">KES {Number(t.total_cost).toLocaleString()}</td>
                     <td className="p-3 font-semibold text-emerald-400">KES {Number(t.total_paid).toLocaleString()}</td>
                     <td className="p-3">
