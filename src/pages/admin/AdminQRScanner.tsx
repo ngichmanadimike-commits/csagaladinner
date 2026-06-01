@@ -5,7 +5,7 @@ import { useAuth } from "@/hooks/useAuth";
 import { toast } from "sonner";
 import {
   QrCode, CheckCircle2, XCircle, AlertTriangle, RefreshCw,
-  Search, List, Clock, User, Ticket, Ban
+  Search, List, Clock, User, Ticket, Ban, Camera, CameraOff
 } from "lucide-react";
 
 interface ScanRecord {
@@ -80,6 +80,7 @@ const AdminQRScanner = () => {
   const rafRef = useRef<number | null>(null);
   const [cameraActive, setCameraActive] = useState(false);
   const [cameraError, setCameraError] = useState<string | null>(null);
+  const [cameraLoading, setCameraLoading] = useState(false);
   const lastScannedCode = useRef<string | null>(null);
   const [jsQRLoaded, setJsQRLoaded] = useState(false);
 
@@ -240,25 +241,45 @@ const AdminQRScanner = () => {
   }, [processCode]);
 
   const startCamera = async () => {
-    if (!jsQRLoaded) {
-      setCameraError("QR scanner is still loading. Please wait a moment then try again.");
-      return;
-    }
-    if (scanningRef.current) return;
+    if (!jsQRLoaded) { setCameraError("QR scanner is still loading. Please wait a moment then try again."); return; }
+    if (cameraLoading || cameraActive) return;
     setCameraError(null);
+    setCameraLoading(true);
     try {
-      const stream = await navigator.mediaDevices.getUserMedia({
-        video: { facingMode: "environment", width: { ideal: 1280 }, height: { ideal: 720 } },
-      });
+      let stream: MediaStream;
+      try {
+        stream = await navigator.mediaDevices.getUserMedia({
+          video: { facingMode: { ideal: "environment" }, width: { ideal: 1280 }, height: { ideal: 720 } },
+        });
+      } catch {
+        // fallback: any camera
+        stream = await navigator.mediaDevices.getUserMedia({ video: true });
+      }
       streamRef.current = stream;
       if (videoRef.current) {
         videoRef.current.srcObject = stream;
-        await videoRef.current.play();
+        // FIX 7: Wait until video can actually play before scanning
+        await new Promise<void>((resolve) => {
+          const v = videoRef.current!;
+          if (v.readyState >= v.HAVE_ENOUGH_DATA) { resolve(); return; }
+          v.oncanplay = () => resolve();
+          setTimeout(resolve, 3000); // safety timeout
+          v.play().catch(() => resolve());
+        });
       }
       setCameraActive(true);
+      setCameraLoading(false);
       rafRef.current = requestAnimationFrame(tick);
     } catch (e: any) {
-      setCameraError(e?.message ?? "Camera access denied. Please allow camera permissions and try again.");
+      setCameraLoading(false);
+      const msg = e?.message ?? "";
+      if (msg.includes("Permission") || msg.includes("NotAllowed") || msg.includes("denied")) {
+        setCameraError("Camera permission denied. Allow camera access in your browser settings, then try again.");
+      } else if (msg.includes("NotFound") || msg.includes("DevicesNotFound")) {
+        setCameraError("No camera found on this device. Use the manual code entry below.");
+      } else {
+        setCameraError(`Camera error: ${msg || "Unknown"}. Use the manual code entry below.`);
+      }
     }
   };
 
@@ -367,14 +388,16 @@ const AdminQRScanner = () => {
               </h2>
 
               {!cameraActive ? (
-                <button onClick={startCamera} disabled={!jsQRLoaded}
-                  className="w-full py-3 rounded-lg bg-primary text-primary-foreground font-semibold disabled:opacity-50">
-                  {jsQRLoaded ? "Start Camera" : "Loading Scanner..."}
+                <button onClick={startCamera} disabled={!jsQRLoaded || cameraLoading}
+                  className="w-full flex items-center justify-center gap-2 py-3 rounded-lg bg-primary text-primary-foreground font-semibold disabled:opacity-50">
+                  {cameraLoading
+                    ? <><span className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"/>Starting Camera...</>
+                    : <><Camera size={18}/>{jsQRLoaded ? "Start Camera" : "Loading Scanner..."}</>}
                 </button>
               ) : (
                 <button onClick={stopCamera}
-                  className="w-full py-3 rounded-lg bg-destructive text-destructive-foreground font-semibold">
-                  Stop Camera
+                  className="w-full flex items-center justify-center gap-2 py-3 rounded-lg bg-destructive text-destructive-foreground font-semibold">
+                  <CameraOff size={18}/> Stop Camera
                 </button>
               )}
 
