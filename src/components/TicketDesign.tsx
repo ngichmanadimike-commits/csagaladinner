@@ -121,11 +121,14 @@ export default function TicketDesign({ ticket }: { ticket: TicketData }) {
   // QR payload: plain ticket code so scanner can read it directly
   const qrPayload = ticketNo || bookingCode;
 
+  const isPaid = ["PAID", "CONFIRMED", "PARTIAL"].includes(status);
+
   const details = [
     { label: "NAME",         val: name },
-    { label: "BOOKING CODE", val: bookingCode },
+    // FIX 5+8: Booking code only appears on ticket once paid
+    ...(isPaid && bookingCode ? [{ label: "BOOKING CODE", val: bookingCode }] : []),
     { label: "TICKET TYPE",  val: ticketType },
-    { label: "STATUS",       val: status },
+    { label: "STATUS",       val: isPaid ? "✓ CONFIRMED" : status },
     { label: "AMOUNT",       val: `KSH ${amount.toLocaleString()}` },
   ];
 
