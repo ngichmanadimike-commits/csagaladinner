@@ -76,6 +76,18 @@ const PartnersSection = () => {
       throw inqError;
     }
 
+    // FIX 9: Also record in donations table so admin sees it in Donations section
+    await supabase.from("donations").insert({
+      donor_name: `${pkgContact.name} (${pkgContact.company})`,
+      donor_email: pkgContact.email || null,
+      donor_phone: pkgContact.phone || info.phone || null,
+      amount: selectedPkg.price,
+      mpesa_code: info.mpesaCode || null,
+      message: `Partnership Package: ${selectedPkg.name}`,
+      status: info.source === "stk" ? "paid" : "pending",
+      anonymous: false,
+    });
+
     setPkgInquiryId(inqData?.id ?? null);
     toast.success("Partnership payment recorded — thank you!");
   };
