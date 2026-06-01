@@ -1,9 +1,10 @@
 import { useEffect, useState } from "react";
 import { motion } from "framer-motion";
-import { Briefcase, ExternalLink, ChevronRight } from "lucide-react";
+import { Briefcase, ExternalLink, ChevronDown, ChevronUp } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import Navbar from "@/components/Navbar";
 import Footer from "@/components/Footer";
+import PartnersSection from "@/components/PartnersSection";
 
 interface Partner {
   id: string;
@@ -16,6 +17,7 @@ interface Partner {
 const Partners = () => {
   const [partners, setPartners] = useState<Partner[]>([]);
   const [loading, setLoading] = useState(true);
+  const [showPackages, setShowPackages] = useState(false);
 
   useEffect(() => {
     supabase
@@ -33,8 +35,8 @@ const Partners = () => {
     <div className="min-h-screen bg-background">
       <Navbar />
 
-      {/* Hero */}
-      <section className="pt-28 pb-16 text-center px-4">
+      {/* ── HERO ── */}
+      <section className="pt-28 pb-12 text-center px-4">
         <motion.div initial={{ opacity: 0, y: 30 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.6 }}>
           <div className="w-16 h-16 rounded-2xl bg-primary/10 flex items-center justify-center mx-auto mb-4">
             <Briefcase className="text-primary" size={32} />
@@ -48,8 +50,8 @@ const Partners = () => {
         </motion.div>
       </section>
 
-      {/* Partners grid */}
-      <section className="py-12 px-4">
+      {/* ── PARTNERS LOGO GRID (from admin dashboard) ── */}
+      <section className="pb-12 px-4">
         <div className="container mx-auto max-w-5xl">
           {loading ? (
             <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-6">
@@ -58,7 +60,7 @@ const Partners = () => {
               ))}
             </div>
           ) : partners.length === 0 ? (
-            <div className="text-center py-20 text-muted-foreground">
+            <div className="text-center py-16 text-muted-foreground">
               <Briefcase size={48} className="mx-auto mb-4 opacity-30" />
               <p className="text-lg">No partners listed yet.</p>
             </div>
@@ -73,7 +75,6 @@ const Partners = () => {
                   transition={{ delay: i * 0.08 }}
                   className="glass rounded-2xl p-6 flex flex-col items-center text-center hover:border-primary/40 transition-all duration-300 group"
                 >
-                  {/* Logo */}
                   <div className="w-24 h-24 rounded-xl border border-border bg-white flex items-center justify-center mb-4 overflow-hidden group-hover:border-primary/40 transition-colors">
                     {p.logo_url ? (
                       <img src={p.logo_url} alt={p.name} className="w-full h-full object-contain p-2" />
@@ -98,36 +99,38 @@ const Partners = () => {
               ))}
             </div>
           )}
+
+          {/* ── TOGGLE BUTTON ── */}
+          <div className="flex justify-center mt-12">
+            <button
+              onClick={() => {
+                setShowPackages((v) => !v);
+                if (!showPackages) {
+                  setTimeout(() => {
+                    document.getElementById("partner-packages")?.scrollIntoView({ behavior: "smooth" });
+                  }, 100);
+                }
+              }}
+              className="inline-flex items-center gap-2 px-8 py-3.5 rounded-xl bg-primary text-primary-foreground font-bold text-base hover:bg-primary/90 hover:scale-[1.02] transition-all duration-200 shadow-lg"
+            >
+              <Briefcase size={18} />
+              {showPackages ? "Hide Partner Packages" : "View Partner Packages"}
+              {showPackages ? <ChevronUp size={18} /> : <ChevronDown size={18} />}
+            </button>
+          </div>
         </div>
       </section>
 
-      {/* Become a partner CTA */}
-      <section className="py-20 px-4">
-        <div className="container mx-auto max-w-3xl">
-          <motion.div
-            initial={{ opacity: 0, y: 30 }}
-            whileInView={{ opacity: 1, y: 0 }}
-            viewport={{ once: true }}
-            className="glass rounded-3xl p-10 text-center border border-primary/20"
-          >
-            <div className="w-14 h-14 rounded-2xl bg-primary/10 flex items-center justify-center mx-auto mb-5">
-              <Briefcase className="text-primary" size={28} />
-            </div>
-            <h2 className="font-display text-3xl font-bold mb-3">
-              Become a <span className="text-gradient">Partner</span>
-            </h2>
-            <p className="text-muted-foreground mb-8 max-w-md mx-auto">
-              Get exclusive visibility at the CSA Gala Dinner 2026. Choose a package that works for you.
-            </p>
-            <a
-              href="/#partner-packages"
-              className="inline-flex items-center gap-2 px-8 py-3.5 rounded-xl bg-primary text-primary-foreground font-bold text-base hover:bg-primary/90 hover:scale-[1.02] transition-all duration-200 shadow-lg"
-            >
-              View Partnership Packages <ChevronRight size={18} />
-            </a>
-          </motion.div>
-        </div>
-      </section>
+      {/* ── PARTNER PACKAGES (shown on button click) ── */}
+      {showPackages && (
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.35 }}
+        >
+          <PartnersSection />
+        </motion.div>
+      )}
 
       <Footer />
     </div>
