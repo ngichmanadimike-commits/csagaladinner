@@ -9,8 +9,25 @@ import {
 } from "lucide-react";
 import { exportToXlsx } from "@/lib/exportXlsx";
 
+// seats per package slug
+const SEATS_MAP: Record<string, number> = {
+  couple: 2, "csa-couple": 2, group5: 5, "group-5": 5,
+  group10: 10, "group-10": 10, table: 10,
+};
+function seatsFor(pkg: string): number {
+  const s = (pkg || "").toLowerCase().replace(/\s+/g, "-");
+  if (SEATS_MAP[s] !== undefined) return SEATS_MAP[s];
+  if (s.includes("couple")) return 2;
+  if (s.includes("group10") || s.includes("group-10")) return 10;
+  if (s.includes("group5") || s.includes("group-5")) return 5;
+  if (s.includes("table")) return 10;
+  return 1;
+}
+
 interface Stats {
   totalRegistrations: number;
+  totalAttendees: number;
+  totalConfirmedAttendees: number;
   confirmedTicketRevenue: number;
   sponsorRevenue: number;
   combinedRevenue: number;
@@ -40,6 +57,8 @@ const AdminOverview = () => {
   const [loading, setLoading] = useState(true);
   const [stats, setStats] = useState<Stats>({
     totalRegistrations: 0,
+    totalAttendees: 0,
+    totalConfirmedAttendees: 0,
     confirmedTicketRevenue: 0,
     sponsorRevenue: 0,
     combinedRevenue: 0,
@@ -72,7 +91,7 @@ const AdminOverview = () => {
         regRes, payRes, recentRes, galleryRes, contentRes,
         eventsRes, adminsRes, sponRes, inqRes, partRes, spkRes, docRes,
       ] = await Promise.all([
-        supabase.from("registrations").select("id, total_cost, total_paid, payment_status, ticket_issued"),
+        supabase.from("registrations").select("id, total_cost, total_paid, payment_status, ticket_issued, quantity, package_type"),
         supabase.from("payments").select("id, amount, verified, created_at"),
         supabase
           .from("payments")
@@ -117,6 +136,8 @@ const AdminOverview = () => {
 
       setStats({
         totalRegistrations: regs.length,
+        totalAttendees: regs.reduce((s: number, r: any) => s + (r.quantity || 1) * seatsFor(r.package_type || ""), 0),
+        totalConfirmedAttendees: confirmedRegs.reduce((s: number, r: any) => s + (r.quantity || 1) * seatsFor(r.package_type || ""), 0),
         confirmedTicketRevenue,
         sponsorRevenue,
         combinedRevenue: confirmedTicketRevenue + sponsorRevenue + partialRevenue,
@@ -177,6 +198,7 @@ const AdminOverview = () => {
   }, []);
 
   const statCards = [
+    { label: "Total Attendees (People)", value: stats.totalAttendees, icon: Users, color: "text-yellow-400", sub: `${stats.totalConfirmedAttendees} confirmed paid` },
     { label: "Total Registrations", value: stats.totalRegistrations, icon: Users, color: "text-primary" },
     { label: "Combined Revenue", value: `KES ${stats.combinedRevenue.toLocaleString()}`, icon: TrendingUp, color: "text-emerald-400" },
     { label: "Ticket Revenue (Paid)", value: `KES ${stats.confirmedTicketRevenue.toLocaleString()}`, icon: CreditCard, color: "text-emerald-400" },
@@ -276,6 +298,7 @@ const AdminOverview = () => {
               <span className="text-xs text-muted-foreground">{card.label}</span>
             </div>
             <p className="text-2xl font-bold text-foreground">{card.value}</p>
+            {card.sub && <p className="text-xs text-muted-foreground mt-0.5">{card.sub}</p>}
           </div>
         ))}
       </div>
