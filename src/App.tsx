@@ -16,7 +16,7 @@ const TicketPage = lazy(() => import("@/pages/TicketPage"));
 const Gallery = lazy(() => import("@/pages/Gallery"));
 const EventInsights = lazy(() => import("@/pages/EventInsights"));
 const Partners = lazy(() => import("@/pages/Partners"));
-const Organizers = lazy(() => import("@/pages/Organisers"));
+const Organizers = lazy(() => import("@/pages/Organizers"));
 const AdminOverview = lazy(() => import("@/pages/admin/AdminOverview"));
 const AdminTickets = lazy(() => import("@/pages/admin/AdminTickets"));
 const AdminRegistrations = lazy(() => import("@/pages/admin/AdminRegistrations"));
@@ -33,6 +33,7 @@ const AdminSpeakers = lazy(() => import("@/pages/admin/AdminSpeakers"));
 const AdminDocuments = lazy(() => import("@/pages/admin/AdminDocuments"));
 const AdminEventConfig = lazy(() => import("@/pages/admin/AdminEventConfig"));
 const AdminContent = lazy(() => import("@/pages/admin/AdminContent"));
+const AdminOrganizers = lazy(() => import("@/pages/admin/AdminOrganizers"));
 const AdminGallery = lazy(() => import("@/pages/admin/AdminGallery"));
 const AdminSettings = lazy(() => import("@/pages/admin/AdminSettings"));
 const AdminUsers = lazy(() => import("@/pages/admin/AdminUsers"));
@@ -94,6 +95,7 @@ function App() {
                 <Route path="/admin/event" element={<ProtectedRoute><AdminEventConfig /></ProtectedRoute>} />
                 <Route path="/admin/event-config" element={<Navigate to="/admin/event" replace />} />
                 <Route path="/admin/content" element={<ProtectedRoute><AdminContent /></ProtectedRoute>} />
+                <Route path="/admin/organizers" element={<ProtectedRoute><AdminOrganizers /></ProtectedRoute>} />
                 <Route path="/admin/gallery" element={<ProtectedRoute><AdminGallery /></ProtectedRoute>} />
                 <Route path="/admin/settings" element={<ProtectedRoute><AdminSettings /></ProtectedRoute>} />
                 <Route path="/admin/users" element={<ProtectedRoute><AdminUsers /></ProtectedRoute>} />
