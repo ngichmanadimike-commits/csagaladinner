@@ -13,69 +13,92 @@ import { exportToXlsx } from "@/lib/exportXlsx";
 //
 //  Rule:  people_attending = registration.quantity × seatsFor(package_type)
 //
-//  Every slug stored in registrations.package_type must appear here so that
-//  no attendee is ever miscounted.  The slugs are the DB primary keys from
-//  ticket_packages.slug (confirmed in migrations).
+//  Slugs are typed manually by admins in AdminPackages, so variants like
+//  "couple-eb", "group10-eb", "group-of-10-eb" etc. can exist.
+//  The function below handles ALL of them with a 4-layer strategy.
 //
-//  Group of 5   → 5  people per ticket unit
-//  Group of 10  → 10 people per ticket unit
-//  Couple       → 2  people per ticket unit
-//  Individual   → 1  person  per ticket unit
-//  Corporate    → 1  person  per ticket unit  (premium seat, single occupant)
-//  Partners pkg → 1  person  per ticket unit  (partner + guest)
-//  VIP          → 1  person  per ticket unit
+//  Canonical seat counts:
+//    Any "group" slug containing "10"  → 10 people
+//    Any "group" slug containing "5"   →  5 people
+//    Any slug containing "couple"      →  2 people
+//    Any slug containing "partner"     →  1 person
+//    Everything else                   →  1 person
 // ─────────────────────────────────────────────────────────────────────────────
+
+/** Known exact slugs → seat count.  EB = early-bird (same seats, different price). */
 const SEATS_MAP: Record<string, number> = {
-  // ── Individual (1 person) ──────────────────────────────────────────────────
-  individual        : 1,
-  "individual-eb"   : 1,   // early-bird individual
-  single            : 1,
-  vip               : 1,
-  "csa-leaders"     : 1,
-  corporate         : 1,   // 1 premium seat per corporate ticket unit
+  // 1 person
+  individual          : 1,
+  "individual-eb"     : 1,
+  single              : 1,
+  vip                 : 1,
+  "csa-leaders"       : 1,
+  "csa-leader"        : 1,
+  corporate           : 1,
+  "corporate-eb"      : 1,
+  sponsored           : 1,
+  "sponsored-eb"      : 1,
 
-  // ── Couple (2 people) ──────────────────────────────────────────────────────
-  couple            : 2,
-  "csa-couple"      : 2,
+  // 2 people
+  couple              : 2,
+  "couple-eb"         : 2,
+  "csa-couple"        : 2,
+  "csa-couple-eb"     : 2,
 
-  // ── Group of 5 (5 people) ─────────────────────────────────────────────────
-  group5            : 5,
-  "group-5"         : 5,
+  // 5 people
+  group5              : 5,
+  "group-5"           : 5,
+  "group5-eb"         : 5,
+  "group-5-eb"        : 5,
+  "group-of-5"        : 5,
+  "group-of-5-eb"     : 5,
 
-  // ── Group of 10 / Table (10 people) ───────────────────────────────────────
-  group10           : 10,
-  "group-10"        : 10,
-  table             : 10,
-  "vip-table"       : 10,
+  // 10 people
+  group10             : 10,
+  "group-10"          : 10,
+  "group10-eb"        : 10,
+  "group-10-eb"       : 10,
+  "group-of-10"       : 10,
+  "group-of-10-eb"    : 10,
+  table               : 10,
+  "vip-table"         : 10,
+  "table-eb"          : 10,
 
-  // ── Partners package (1 person) ────────────────────────
-  partners          : 1,
-  partner           : 1,
-  "partners-package": 1,
+  // Partners (1 person per ticket)
+  partners            : 1,
+  partner             : 1,
+  "partners-package"  : 1,
+  "partners-eb"       : 1,
 };
 
 /**
- * Returns the number of PEOPLE represented by ONE ticket unit of this type.
- * Lookup order:
- *   1. Exact slug match in SEATS_MAP          (fastest, most reliable)
- *   2. Substring heuristics (most-specific first)
- *   3. Default → 1 (individual / unknown)
+ * seatsFor — returns how many PEOPLE attend per ONE ticket unit.
+ *
+ * Layer 1: Exact lowercase slug match in SEATS_MAP
+ * Layer 2: Number-aware group detection (handles any future groupN-* slug)
+ * Layer 3: Keyword substring matching
+ * Layer 4: Default 1
  */
 function seatsFor(pkg: string): number {
-  const s = (pkg || "").toLowerCase().replace(/\s+/g, "-").trim();
+  const s = (pkg || "").toLowerCase().replace(/\s+/g, "-").replace(/[.\s]+$/, "").trim();
 
-  // 1. Exact match
+  // Layer 1: exact map lookup
   if (SEATS_MAP[s] !== undefined) return SEATS_MAP[s];
 
-  // 2. Substring — ordered most-specific → least-specific to avoid false hits
-  if (s.includes("group-10") || s.includes("group10")) return 10;
-  if (s.includes("group-5")  || s.includes("group5"))  return 5;
-  if (s.includes("couple"))                             return 2;
-  if (s.includes("partners") || s.includes("partner")) return 1;
-  if (s.includes("vip-table") || (s.includes("vip") && s.includes("table"))) return 10;
-  if (s.includes("table"))                              return 10;
+  // Layer 2: number-aware group detection
+  // Catches: group10eb, group-of-10-eb, group10EB, group-of-10, etc.
+  if (s.includes("group")) {
+    if (/10/.test(s)) return 10;
+    if (/(?:^|[-_of])5(?:$|[-_eb])/.test(s) || s.includes("group5")) return 5;
+  }
 
-  // 3. Default: 1 person per unit
+  // Layer 3: keyword substring matching
+  if (s.includes("couple"))                                                     return 2;
+  if (s.includes("partners") || s.includes("partner"))                          return 1;
+  if (s.includes("vip-table") || (s.includes("vip") && s.includes("table")))   return 10;
+  if (s.includes("table"))                                                       return 10;
+
+  // Layer 4: default — individual / corporate / sponsored / unknown
   return 1;
 }
 
