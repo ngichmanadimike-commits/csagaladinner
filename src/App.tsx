@@ -16,7 +16,7 @@ const TicketPage = lazy(() => import("@/pages/TicketPage"));
 const Gallery = lazy(() => import("@/pages/Gallery"));
 const EventInsights = lazy(() => import("@/pages/EventInsights"));
 const Partners = lazy(() => import("@/pages/Partners"));
-const Organizers = lazy(() => import("@/pages/Organizers"));
+const Organizers = lazy(() => import("@/pages/Organisers"));
 const AdminOverview = lazy(() => import("@/pages/admin/AdminOverview"));
 const AdminTickets = lazy(() => import("@/pages/admin/AdminTickets"));
 const AdminRegistrations = lazy(() => import("@/pages/admin/AdminRegistrations"));
