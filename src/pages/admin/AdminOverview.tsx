@@ -9,25 +9,8 @@ import {
 } from "lucide-react";
 import { exportToXlsx } from "@/lib/exportXlsx";
 
-// seats per package slug
-const SEATS_MAP: Record<string, number> = {
-  couple: 2, "csa-couple": 2, group5: 5, "group-5": 5,
-  group10: 10, "group-10": 10, table: 10,
-};
-function seatsFor(pkg: string): number {
-  const s = (pkg || "").toLowerCase().replace(/\s+/g, "-");
-  if (SEATS_MAP[s] !== undefined) return SEATS_MAP[s];
-  if (s.includes("couple")) return 2;
-  if (s.includes("group10") || s.includes("group-10")) return 10;
-  if (s.includes("group5") || s.includes("group-5")) return 5;
-  if (s.includes("table")) return 10;
-  return 1;
-}
-
 interface Stats {
   totalRegistrations: number;
-  totalAttendees: number;
-  totalConfirmedAttendees: number;
   confirmedTicketRevenue: number;
   sponsorRevenue: number;
   combinedRevenue: number;
@@ -50,6 +33,28 @@ interface Stats {
   totalPartners: number;
   totalSpeakers: number;
   totalDocuments: number;
+  // FIX 8: True headcount (quantity × seats per package type)
+  totalPeople: number;
+  confirmedPeople: number;
+  pendingPeople: number;
+}
+
+// ── Seat-count map (must match AdminTickets.tsx) ─────────────────────────────
+const SEATS_MAP: Record<string,number> = {
+  individual:1,"individual-eb":1,single:1,vip:1,"csa-leaders":1,"csa-leader":1,
+  corporate:1,"corporate-eb":1,sponsored:1,"sponsored-eb":1,
+  couple:2,"couple-eb":2,"csa-couple":2,"csa-couple-eb":2,
+  group5:5,"group-5":5,"group5-eb":5,"group-5-eb":5,"group-of-5":5,"group-of-5-eb":5,
+  group10:10,"group-10":10,"group10-eb":10,"group-10-eb":10,
+  "group-of-10":10,"group-of-10-eb":10,table:10,"vip-table":10,"table-eb":10,
+  partners:1,partner:1,"partners-package":1,"partners-eb":1,
+};
+function seatsFor(pkg: string): number {
+  const s=(pkg||"").toLowerCase().replace(/\s+/g,"-").trim();
+  if(SEATS_MAP[s]!==undefined)return SEATS_MAP[s];
+  if(s.includes("group")){if(/10/.test(s))return 10;if(/(?:^|[-_of])5(?:$|[-_eb])/.test(s)||s.includes("group5"))return 5;}
+  if(s.includes("couple"))return 2;
+  return 1;
 }
 
 const AdminOverview = () => {
@@ -57,8 +62,6 @@ const AdminOverview = () => {
   const [loading, setLoading] = useState(true);
   const [stats, setStats] = useState<Stats>({
     totalRegistrations: 0,
-    totalAttendees: 0,
-    totalConfirmedAttendees: 0,
     confirmedTicketRevenue: 0,
     sponsorRevenue: 0,
     combinedRevenue: 0,
@@ -81,6 +84,9 @@ const AdminOverview = () => {
     totalPartners: 0,
     totalSpeakers: 0,
     totalDocuments: 0,
+    totalPeople: 0,
+    confirmedPeople: 0,
+    pendingPeople: 0,
   });
   const [recentPayments, setRecentPayments] = useState<any[]>([]);
   const [chartData, setChartData] = useState<{ day: string; confirmed: number; pending: number }[]>([]);
@@ -91,7 +97,7 @@ const AdminOverview = () => {
         regRes, payRes, recentRes, galleryRes, contentRes,
         eventsRes, adminsRes, sponRes, inqRes, partRes, spkRes, docRes,
       ] = await Promise.all([
-        supabase.from("registrations").select("id, total_cost, total_paid, payment_status, ticket_issued, quantity, package_type"),
+        supabase.from("registrations").select("id, total_cost, total_paid, payment_status, ticket_issued, package_type, quantity"),
         supabase.from("payments").select("id, amount, verified, created_at"),
         supabase
           .from("payments")
@@ -136,8 +142,6 @@ const AdminOverview = () => {
 
       setStats({
         totalRegistrations: regs.length,
-        totalAttendees: regs.reduce((s: number, r: any) => s + (r.quantity || 1) * seatsFor(r.package_type || ""), 0),
-        totalConfirmedAttendees: confirmedRegs.reduce((s: number, r: any) => s + (r.quantity || 1) * seatsFor(r.package_type || ""), 0),
         confirmedTicketRevenue,
         sponsorRevenue,
         combinedRevenue: confirmedTicketRevenue + sponsorRevenue + partialRevenue,
@@ -161,6 +165,11 @@ const AdminOverview = () => {
         totalPartners: partRes.count || 0,
         totalSpeakers: spkRes.count || 0,
         totalDocuments: docRes.count || 0,
+        totalPeople: regs.reduce((s:number,r:any)=>s+Number(r.quantity||1)*seatsFor(r.package_type||""),0),
+        confirmedPeople: regs.filter((r:any)=>r.payment_status==="paid"||r.payment_status==="confirmed")
+          .reduce((s:number,r:any)=>s+Number(r.quantity||1)*seatsFor(r.package_type||""),0),
+        pendingPeople: regs.filter((r:any)=>r.payment_status!=="paid"&&r.payment_status!=="confirmed")
+          .reduce((s:number,r:any)=>s+Number(r.quantity||1)*seatsFor(r.package_type||""),0),
       });
 
       setRecentPayments(recentRes.data || []);
@@ -198,8 +207,10 @@ const AdminOverview = () => {
   }, []);
 
   const statCards = [
-    { label: "Total Attendees (People)", value: stats.totalAttendees, icon: Users, color: "text-yellow-400", sub: `${stats.totalConfirmedAttendees} confirmed paid` },
     { label: "Total Registrations", value: stats.totalRegistrations, icon: Users, color: "text-primary" },
+    { label: "Total People Expected", value: stats.totalPeople, icon: Users, color: "text-yellow-400" },
+    { label: "Confirmed People (Paid)", value: stats.confirmedPeople, icon: CheckCircle2, color: "text-emerald-400" },
+    { label: "Pending People", value: stats.pendingPeople, icon: Clock, color: "text-orange-400" },
     { label: "Combined Revenue", value: `KES ${stats.combinedRevenue.toLocaleString()}`, icon: TrendingUp, color: "text-emerald-400" },
     { label: "Ticket Revenue (Paid)", value: `KES ${stats.confirmedTicketRevenue.toLocaleString()}`, icon: CreditCard, color: "text-emerald-400" },
     { label: "Sponsor Revenue", value: `KES ${stats.sponsorRevenue.toLocaleString()}`, icon: GraduationCap, color: "text-emerald-400" },
@@ -298,7 +309,6 @@ const AdminOverview = () => {
               <span className="text-xs text-muted-foreground">{card.label}</span>
             </div>
             <p className="text-2xl font-bold text-foreground">{card.value}</p>
-            {card.sub && <p className="text-xs text-muted-foreground mt-0.5">{card.sub}</p>}
           </div>
         ))}
       </div>
