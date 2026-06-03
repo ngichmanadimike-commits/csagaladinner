@@ -125,11 +125,12 @@ export default function TicketDesign({ ticket }: { ticket: TicketData }) {
 
   const details = [
     { label: "NAME",         val: name },
-    // FIX 5+8: Booking code only appears on ticket once paid
     ...(isPaid && bookingCode ? [{ label: "BOOKING CODE", val: bookingCode }] : []),
     { label: "TICKET TYPE",  val: ticketType },
-    { label: "STATUS",       val: isPaid ? "✓ CONFIRMED" : status },
+    { label: "STATUS",       val: isPaid ? "PAID" : status },
     { label: "AMOUNT",       val: `KSH ${amount.toLocaleString()}` },
+    ...(ticket.email ? [{ label: "EMAIL", val: ticket.email }] : []),
+    ...(ticket.phone ? [{ label: "PHONE", val: ticket.phone }] : []),
   ];
 
   useEffect(() => {
@@ -165,10 +166,10 @@ export default function TicketDesign({ ticket }: { ticket: TicketData }) {
     const p = forPdf;
 
     // Proportional sizes
-    const leftW   = p ? Math.round(PX_W * 0.655) : "65.5%";
-    const rightW  = p ? Math.round(PX_W * 0.345) : "34.5%";
+    const leftW   = p ? Math.round(PX_W * 0.635) : "63.5%";
+    const rightW  = p ? Math.round(PX_W * 0.365) : "36.5%";
     const sidebarW = p ? 34 : "9%";
-    const leftColW = p ? 138 : "20%";
+    const leftColW = p ? 130 : "19%";
 
     return (
       <div style={{
@@ -374,7 +375,7 @@ export default function TicketDesign({ ticket }: { ticket: TicketData }) {
           flexShrink: 0,
           background: CREAM,
           color: DARK,
-          padding: p ? `20px ${(p ? sidebarW as number : 0) + 16}px 20px 18px` : `3.5% ${sidebarW} 3.5% 3%`,
+          padding: p ? `18px ${(p ? sidebarW as number : 0) + 14}px 16px 16px` : `3% calc(${sidebarW} + 2%) 3% 3%`,
           position:"relative",
           display:"flex",
           flexDirection:"column",
@@ -417,26 +418,27 @@ export default function TicketDesign({ ticket }: { ticket: TicketData }) {
               <div key={label} style={{
                 display:"flex", alignItems:"center",
                 borderBottom:`1px dotted rgba(180,150,40,0.45)`,
-                padding: p ? "4px 0" : "0.6% 0",
-                gap: p ? 7 : "2.5%",
+                padding: p ? "3px 0" : "0.5% 0",
+                gap: p ? 6 : "2%",
               }}>
                 <div style={{
-                  width: p ? 20 : "clamp(13px,5.5%,20px)",
-                  height: p ? 20 : "clamp(13px,5.5%,20px)",
+                  width: p ? 18 : "clamp(11px,4.8%,18px)",
+                  height: p ? 18 : "clamp(11px,4.8%,18px)",
                   border:`1.5px solid ${GOLD}`,
                   borderRadius:"50%", flexShrink:0,
                 }}/>
                 <span style={{
-                  fontSize: p ? 7.5 : "0.61em", fontWeight:700,
-                  color:GOLD, letterSpacing:"0.05em", flexShrink:0,
+                  fontSize: p ? 7 : "0.58em", fontWeight:700,
+                  color:GOLD, letterSpacing:"0.04em", flexShrink:0,
                   textTransform:"uppercase",
+                  minWidth: p ? 72 : "auto",
                 }}>
                   {label}
                 </span>
                 <span style={{
-                  fontSize: p ? 8.5 : "0.69em", fontWeight:700,
+                  fontSize: p ? 7.5 : "0.62em", fontWeight:700,
                   color:DARK, marginLeft:"auto", textAlign:"right",
-                  wordBreak:"break-word", maxWidth:"52%",
+                  wordBreak:"break-all", maxWidth:"55%",
                 }}>
                   {val}
                 </span>
@@ -447,13 +449,13 @@ export default function TicketDesign({ ticket }: { ticket: TicketData }) {
           {/* QR code */}
           <div style={{
             display:"flex", flexDirection:"column", alignItems:"center",
-            gap: p ? 4 : "1%", marginTop: p ? 8 : "2%",
+            gap: p ? 3 : "0.8%", marginTop: p ? 6 : "1.5%",
           }}>
             <div style={{
               border:`3px solid ${GOLD}`, borderRadius:5,
               overflow:"hidden", background:"#fff",
-              width: p ? 100 : "clamp(54px,27%,100px)",
-              height: p ? 100 : "clamp(54px,27%,100px)",
+              width: p ? 90 : "clamp(50px,24%,90px)",
+              height: p ? 90 : "clamp(50px,24%,90px)",
             }}>
               {qrUrl
                 ? <img src={qrUrl} alt="QR" style={{ width:"100%", height:"100%", display:"block" }}/>
@@ -465,8 +467,8 @@ export default function TicketDesign({ ticket }: { ticket: TicketData }) {
               }
             </div>
             <div style={{
-              textAlign:"center", fontSize: p ? 7 : "0.58em",
-              fontWeight:700, color:DARK, lineHeight:1.5, letterSpacing:"0.06em",
+              textAlign:"center", fontSize: p ? 6.5 : "0.54em",
+              fontWeight:700, color:DARK, lineHeight:1.4, letterSpacing:"0.06em",
             }}>
               🔲 SCAN QR<br/>FOR ENTRY<br/>VERIFICATION
             </div>
