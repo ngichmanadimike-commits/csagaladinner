@@ -44,14 +44,18 @@ const empty = (): Partial<Promo> => ({
   is_active: true, eligible_users: "all", description: "",
 });
 
+const POPUP_SETTING_KEY = "promo_popup_enabled";
+
 const AdminPromotions = () => {
   const [rows, setRows]       = useState<Promo[]>([]);
   const [editing, setEditing] = useState<Partial<Promo> | null>(null);
   const [loading, setLoading] = useState(false);
-  // ── NEW: expanded rows show redemption detail ──
   const [expandedId, setExpandedId]       = useState<string | null>(null);
   const [redemptions, setRedemptions]     = useState<Record<string, Redemption[]>>({});
   const [loadingRed, setLoadingRed]       = useState<string | null>(null);
+  // ── popup toggle ──
+  const [popupEnabled, setPopupEnabled]   = useState(true);
+  const [popupToggling, setPopupToggling] = useState(false);
 
   const load = async () => {
     const { data } = await supabase
@@ -59,7 +63,28 @@ const AdminPromotions = () => {
     setRows((data as any) || []);
   };
 
-  useEffect(() => { load(); }, []);
+  const loadPopupSetting = async () => {
+    const { data } = await supabase
+      .from("site_settings")
+      .select("value")
+      .eq("key", POPUP_SETTING_KEY)
+      .maybeSingle();
+    setPopupEnabled(data ? data.value !== "false" : true);
+  };
+
+  const togglePopup = async () => {
+    setPopupToggling(true);
+    const newVal = !popupEnabled;
+    const { error } = await supabase
+      .from("site_settings")
+      .upsert({ key: POPUP_SETTING_KEY, value: String(newVal), updated_at: new Date().toISOString() });
+    if (error) { toast.error("Failed to update setting"); setPopupToggling(false); return; }
+    setPopupEnabled(newVal);
+    toast.success(newVal ? "Promo popup enabled on site" : "Promo popup hidden from site");
+    setPopupToggling(false);
+  };
+
+  useEffect(() => { load(); loadPopupSetting(); }, []);
 
   // ── Load redemptions for a specific promotion ──────────────────────────────
   const loadRedemptions = async (promoId: string, code: string) => {
@@ -170,9 +195,23 @@ const AdminPromotions = () => {
 
   return (
     <AdminLayout>
-      <div className="flex items-center justify-between mb-4">
+      <div className="flex items-center justify-between mb-4 flex-wrap gap-3">
         <h1 className="font-display text-2xl font-bold">Promotions</h1>
-        <div className="flex gap-2">
+        <div className="flex gap-2 flex-wrap">
+          {/* ── Popup visibility toggle ── */}
+          <button
+            onClick={togglePopup}
+            disabled={popupToggling}
+            className={`px-3 py-2 rounded-lg text-sm font-semibold flex items-center gap-2 border transition-colors ${
+              popupEnabled
+                ? "bg-primary/10 border-primary text-primary hover:bg-primary/20"
+                : "bg-muted border-border text-muted-foreground hover:border-primary hover:text-primary"
+            }`}
+            title={popupEnabled ? "Promo popup is showing on site — click to hide" : "Promo popup is hidden — click to show"}
+          >
+            <span className={`w-2 h-2 rounded-full ${popupEnabled ? "bg-primary" : "bg-muted-foreground"}`} />
+            {popupToggling ? "Saving…" : popupEnabled ? "Popup: ON" : "Popup: OFF"}
+          </button>
           <button onClick={exportRedemptions} className="px-3 py-2 rounded-lg border border-border text-sm flex items-center gap-2">
             <Users size={14} /> Export Users
           </button>
