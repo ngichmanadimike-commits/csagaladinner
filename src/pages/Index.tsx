@@ -4,7 +4,6 @@ import TicketsSection from "@/components/TicketsSection";
 import SponsorSection from "@/components/SponsorSection";
 import PartnersSection from "@/components/PartnersSection";
 import PartnerForm from "@/components/PartnerForm";
-import OrganizersSection from "@/components/OrganizersSection";
 import PaymentStatusLookup from "@/components/PaymentStatusLookup";
 import SocialSection from "@/components/SocialSection";
 import Footer from "@/components/Footer";
@@ -27,7 +26,6 @@ const Index = () => {
         <SponsorSection />        {/* id="sponsor" — nav /#sponsor links here */}
         <PartnersSection />       {/* id="partner-packages" — nav /#partner-packages links here */}
         <PartnerForm />
-        <OrganizersSection />
         <PaymentStatusLookup />
         <SocialSection />
       </main>
