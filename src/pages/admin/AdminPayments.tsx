@@ -25,6 +25,326 @@ import { toast } from "sonner";
 import { exportToXlsx } from "@/lib/exportXlsx";
 import { logAdminAction } from "@/lib/adminLog";
 
+// ── EmailJS — works with any Gmail, zero domain setup needed ──────────────────
+// Setup (5 min):
+//   1. https://emailjs.com → free account (200 emails/month)
+//   2. Email Services → Add Service → Gmail → connect your Gmail account
+//   3. Email Templates → Create Template → paste the template below, save
+//   4. Account → API Keys → copy Public Key
+//   5. Add to .env:
+//        VITE_EMAILJS_SERVICE_ID=service_xxxxxxx
+//        VITE_EMAILJS_TEMPLATE_ID=template_xxxxxxx
+//        VITE_EMAILJS_PUBLIC_KEY=xxxxxxxxxxxxxxx
+//
+// EmailJS Template (paste exactly in the template body on emailjs.com):
+// ┌─────────────────────────────────────────────────────┐
+// │ To:       {{to_email}}                              │
+// │ Subject:  {{subject}}                               │
+// │ Body:     {{html_body}}   (set to HTML in settings) │
+// └─────────────────────────────────────────────────────┘
+// In the template editor: set "Content-Type" to HTML, then use {{html_body}} as body.
+// ─────────────────────────────────────────────────────────────────────────────
+
+const EMAILJS_SERVICE_ID  = import.meta.env.VITE_EMAILJS_SERVICE_ID  ?? "service_viadd3e";
+const EMAILJS_TEMPLATE_ID = import.meta.env.VITE_EMAILJS_TEMPLATE_ID ?? "__ejs-test-mail-service__";
+const EMAILJS_PUBLIC_KEY  = import.meta.env.VITE_EMAILJS_PUBLIC_KEY  ?? "UcndsndAIds9STZVo";
+const APP_URL             = import.meta.env.VITE_APP_URL ?? "https://csagaladinner.co.ke";
+
+// Ticket dimensions (must match TicketDesign.tsx)
+const PX_W = 1275;
+const PX_H = 525;
+const GOLD  = "#D4AF37";
+const DARK  = "#0A1525";
+const CREAM = "#F5F1E8";
+const BG_IMG = "https://images.unsplash.com/photo-1414235077428-338989a2e8c0?q=80&w=1400&auto=format";
+
+function loadScript(src: string): Promise<void> {
+  return new Promise((res, rej) => {
+    if (document.querySelector(`script[src="${src}"]`)) { res(); return; }
+    const s = document.createElement("script");
+    s.src = src; s.onload = () => res(); s.onerror = () => rej(new Error(`Failed: ${src}`));
+    document.head.appendChild(s);
+  });
+}
+
+// Renders the ticket to an offscreen div, captures it as a PNG base64 string
+async function renderTicketToBase64(reg: {
+  name: string | null;
+  full_name?: string | null;
+  ticket_code: string | null;
+  package_type: string | null;
+  quantity: number | null;
+  total_paid: number | null;
+  total_cost: number | null;
+}): Promise<string> {
+  await loadScript("https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js");
+
+  const displayName = reg.name || reg.full_name || "Attendee";
+  const ticketCode  = reg.ticket_code ?? "";
+  const pkg         = (reg.package_type ?? "Standard").toUpperCase();
+  const qty         = Number(reg.quantity) || 1;
+  const paid        = Number(reg.total_paid) || 0;
+  const amount      = Number(reg.total_cost) || paid;
+
+  // QR as an img tag (no canvas needed — html2canvas can render this)
+  const qrUrl = `https://api.qrserver.com/v1/create-qr-code/?size=200x200&ecc=H&data=${encodeURIComponent(ticketCode)}`;
+
+  // Build the ticket HTML — mirrors TicketDesign.tsx layout
+  const ticketHTML = `
+    <div style="width:${PX_W}px;height:${PX_H}px;display:flex;font-family:'Arial',sans-serif;background:${DARK};overflow:hidden;">
+
+      <!-- LEFT PANEL -->
+      <div style="width:836px;flex-shrink:0;display:flex;flex-direction:row;
+        background-image:linear-gradient(rgba(10,21,37,0.83),rgba(10,21,37,0.83)),url('${BG_IMG}');
+        background-size:cover;background-position:center;
+        padding:22px 18px 18px 20px;position:relative;
+        border-right:2px dashed ${GOLD};box-sizing:border-box;gap:18px;">
+
+        <!-- Left col: logo + date -->
+        <div style="width:138px;flex-shrink:0;display:flex;flex-direction:column;align-items:flex-start;">
+          <div style="width:68px;height:68px;border-radius:50%;border:3px solid ${GOLD};background:white;overflow:hidden;margin-bottom:16px;">
+            <img src="https://i.postimg.cc/Y4nqnP2p/IMG-20260420-WA0002.jpg" style="width:85%;height:85%;object-fit:contain;margin:7.5%;display:block;" crossorigin="anonymous"/>
+          </div>
+          <div style="font-size:9.5px;font-weight:700;color:rgba(255,255,255,0.75);letter-spacing:0.05em;margin-bottom:2px;">FRIDAY</div>
+          <div style="display:flex;align-items:flex-start;line-height:1;margin-bottom:4px;">
+            <span style="font-size:44px;font-weight:900;color:${GOLD};line-height:0.9;">12</span>
+            <sup style="font-size:13px;font-weight:700;color:${GOLD};margin-top:4px;">TH</sup>
+          </div>
+          <div style="font-size:9.5px;font-weight:700;color:white;line-height:1.4;margin-bottom:10px;border-left:2px solid ${GOLD};padding-left:8px;">JUNE<br/>2026</div>
+          <div style="border-top:1px solid ${GOLD};width:85%;margin-bottom:10px;"></div>
+          <div style="margin-bottom:10px;">
+            <div style="font-size:7.5px;color:${GOLD};font-weight:700;letter-spacing:0.08em;margin-bottom:2px;">TIME</div>
+            <div style="font-size:9px;font-weight:700;color:rgba(255,255,255,0.9);">7:00 PM – 11:00 PM</div>
+          </div>
+          <div style="border-top:1px solid ${GOLD};width:85%;margin-bottom:10px;"></div>
+          <div>
+            <div style="font-size:7.5px;color:${GOLD};font-weight:700;letter-spacing:0.08em;margin-bottom:2px;">VENUE</div>
+            <div style="font-size:8.5px;font-weight:700;color:rgba(255,255,255,0.9);line-height:1.4;">UTALII HOUSE<br/>NAIROBI</div>
+          </div>
+        </div>
+
+        <!-- Main content col -->
+        <div style="flex:1;display:flex;flex-direction:column;justify-content:space-between;">
+          <div>
+            <div style="font-family:'Georgia',serif;font-weight:900;color:${GOLD};line-height:0.95;font-size:52px;letter-spacing:0.02em;">GALA</div>
+            <div style="font-family:'Georgia',serif;font-weight:700;color:white;line-height:0.95;font-size:40px;margin-bottom:8px;">DINNER 2026</div>
+            <div style="color:${GOLD};font-size:8.5px;font-weight:700;letter-spacing:0.14em;margin-bottom:10px;">AWARDS &nbsp;•&nbsp; NETWORKING &nbsp;•&nbsp; ENTERTAINMENT</div>
+            <div style="border:1px solid ${GOLD};border-radius:5px;padding:8px 12px;background:rgba(10,21,37,0.55);font-size:8.5px;line-height:1.55;color:rgba(255,255,255,0.88);">
+              <span style="color:${GOLD};font-weight:700;">THEME: </span>LAYING THE FIRST STONE: Honoring the Past, Empowering the Present and Inspiring the Future of Construction
+            </div>
+          </div>
+          <div>
+            <div style="color:${GOLD};font-size:8px;font-weight:700;letter-spacing:0.1em;margin-bottom:5px;">TICKET TYPE</div>
+            <div style="background:#FFD700;color:${DARK};border-radius:5px;padding:10px 16px;font-weight:900;font-size:16px;text-align:center;letter-spacing:0.15em;">
+              ★ &nbsp;${pkg}&nbsp; ★
+            </div>
+          </div>
+          <div style="display:flex;align-items:center;justify-content:space-between;gap:8px;">
+            <div style="background:${CREAM};color:${DARK};border-radius:4px;padding:5px 10px;font-size:8.5px;font-weight:700;white-space:nowrap;">
+              TICKET NO. ${ticketCode}
+            </div>
+            <div style="font-family:'Georgia',serif;color:${GOLD};font-size:14px;text-align:right;font-style:italic;">
+              Pooling Construction Students Together!
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- RIGHT PANEL -->
+      <div style="width:439px;flex-shrink:0;background:${CREAM};color:${DARK};padding:20px 50px 20px 18px;position:relative;display:flex;flex-direction:column;box-sizing:border-box;">
+        <!-- Gold sidebar -->
+        <div style="position:absolute;right:0;top:0;width:34px;height:100%;background:${GOLD};display:flex;align-items:center;justify-content:center;overflow:hidden;">
+          <div style="writing-mode:vertical-rl;transform:rotate(180deg);font-weight:800;font-size:10px;color:${DARK};letter-spacing:0.12em;white-space:nowrap;">
+            ANNUAL CSA GALA DINNER
+          </div>
+        </div>
+
+        <!-- ADMIT header -->
+        <div style="text-align:center;font-weight:900;font-size:18px;letter-spacing:0.15em;color:${DARK};margin-bottom:6px;">★ &nbsp;ADMIT&nbsp; ★</div>
+        <div style="border-top:2px solid ${GOLD};margin-bottom:10px;"></div>
+
+        <!-- Details -->
+        <div style="flex:1;display:flex;flex-direction:column;justify-content:space-evenly;">
+          ${[
+            { label: "NAME",         val: displayName },
+            { label: "BOOKING CODE", val: ticketCode },
+            { label: "TICKET TYPE",  val: pkg },
+            { label: "QTY",          val: `${qty} ticket${qty !== 1 ? "s" : ""}` },
+            { label: "STATUS",       val: "✓ CONFIRMED" },
+            { label: "AMOUNT",       val: `KSH ${amount.toLocaleString()}` },
+          ].map(({ label, val }) => `
+            <div style="display:flex;align-items:center;border-bottom:1px dotted rgba(180,150,40,0.45);padding:4px 0;gap:7px;">
+              <div style="width:20px;height:20px;border:1.5px solid ${GOLD};border-radius:50%;flex-shrink:0;"></div>
+              <span style="font-size:7.5px;font-weight:700;color:${GOLD};letter-spacing:0.05em;flex-shrink:0;text-transform:uppercase;">${label}</span>
+              <span style="font-size:8.5px;font-weight:700;color:${DARK};margin-left:auto;text-align:right;word-break:break-word;max-width:52%;">${val}</span>
+            </div>
+          `).join("")}
+        </div>
+
+        <!-- QR Code -->
+        <div style="display:flex;flex-direction:column;align-items:center;gap:4px;margin-top:8px;">
+          <div style="border:3px solid ${GOLD};border-radius:5px;overflow:hidden;background:#fff;width:90px;height:90px;">
+            <img src="${qrUrl}" width="90" height="90" style="display:block;" crossorigin="anonymous"/>
+          </div>
+          <div style="text-align:center;font-size:7px;font-weight:700;color:${DARK};line-height:1.5;letter-spacing:0.06em;">
+            SCAN QR FOR ENTRY VERIFICATION
+          </div>
+        </div>
+      </div>
+    </div>
+  `;
+
+  // Mount offscreen, capture, remove
+  const container = document.createElement("div");
+  container.style.cssText = `position:fixed;top:-9999px;left:-9999px;width:${PX_W}px;height:${PX_H}px;overflow:hidden;pointer-events:none;z-index:-1;`;
+  container.innerHTML = ticketHTML;
+  document.body.appendChild(container);
+
+  // Wait for images (QR + logo) to load
+  await Promise.all(
+    Array.from(container.querySelectorAll("img")).map(
+      img => new Promise<void>(r => {
+        if (img.complete) r();
+        else { img.onload = () => r(); img.onerror = () => r(); }
+      })
+    )
+  );
+  await new Promise(r => setTimeout(r, 300));
+
+  const h2c = (window as any).html2canvas;
+  const canvas = await h2c(container, {
+    scale: 1.5, useCORS: true, allowTaint: true,
+    backgroundColor: DARK,
+    width: PX_W, height: PX_H,
+    logging: false, imageTimeout: 12000,
+  });
+
+  document.body.removeChild(container);
+  return canvas.toDataURL("image/jpeg", 0.92); // base64 JPEG
+}
+
+async function sendTicketEmail(reg: {
+  name: string | null;
+  full_name?: string | null;
+  email: string;
+  ticket_code: string | null;
+  package_type: string | null;
+  quantity: number | null;
+  total_paid: number | null;
+  total_cost: number | null;
+}): Promise<void> {
+  const displayName = reg.name || reg.full_name || "Attendee";
+  const firstName   = displayName.split(" ")[0];
+  const ticketCode  = reg.ticket_code ?? "";
+  const ticketUrl   = `${APP_URL}/ticket/${ticketCode}`;
+  const paid        = Number(reg.total_paid) || 0;
+
+  // Render the actual ticket to a base64 image
+  let ticketImageBase64 = "";
+  try {
+    ticketImageBase64 = await renderTicketToBase64(reg);
+  } catch (e) {
+    console.warn("Ticket image render failed, sending without image:", e);
+  }
+
+  // The email body — ticket image embedded inline as <img src="data:...">
+  const html_body = `<!DOCTYPE html>
+<html lang="en">
+<head><meta charset="UTF-8"/><meta name="viewport" content="width=device-width,initial-scale=1.0"/></head>
+<body style="margin:0;padding:0;background:#0B0F1A;font-family:'Segoe UI',Arial,sans-serif;">
+<table width="100%" cellpadding="0" cellspacing="0" style="background:#0B0F1A;padding:32px 0;">
+<tr><td align="center">
+<table width="620" cellpadding="0" cellspacing="0" style="max-width:620px;width:100%;">
+
+  <!-- Header -->
+  <tr><td style="background:linear-gradient(135deg,#0A2342,#0e3060);border-radius:14px 14px 0 0;padding:36px 40px 28px;text-align:center;border-bottom:3px solid ${GOLD};">
+    <p style="margin:0 0 8px;font-size:11px;letter-spacing:5px;color:${GOLD};text-transform:uppercase;font-weight:700;">CSA Gala Dinner 2026</p>
+    <h1 style="margin:0;font-size:28px;font-weight:800;color:#fff;">Your Ticket is Ready! 🎟️</h1>
+    <p style="margin:12px 0 0;font-size:14px;color:rgba(255,255,255,0.55);">Payment verified — you're officially on the guest list.</p>
+  </td></tr>
+
+  <!-- Body -->
+  <tr><td style="background:#fff;padding:36px 40px;">
+    <p style="margin:0 0 20px;font-size:16px;font-weight:700;color:#0A2342;">Hi ${firstName},</p>
+    <p style="margin:0 0 24px;font-size:15px;color:#444;line-height:1.7;">
+      Your payment of <strong style="color:#0A2342;">KES ${paid.toLocaleString()}</strong> has been verified
+      by the Treasurer. Your ticket for the <strong>CSA Gala Dinner 2026</strong> is confirmed!
+    </p>
+
+    <!-- ══ TICKET IMAGE ══ -->
+    ${ticketImageBase64
+      ? `<div style="margin-bottom:24px;border-radius:10px;overflow:hidden;border:2px solid ${GOLD};">
+           <img src="${ticketImageBase64}" width="100%" style="display:block;max-width:100%;" alt="Your Ticket"/>
+         </div>`
+      : `<div style="background:linear-gradient(135deg,#0A2342,#0e3060);border-radius:10px;border:2px solid ${GOLD};padding:20px 24px;margin-bottom:24px;text-align:center;">
+           <p style="margin:0 0 4px;font-size:10px;letter-spacing:4px;color:${GOLD};text-transform:uppercase;font-weight:700;">Booking Code</p>
+           <p style="margin:0;font-size:28px;font-weight:800;color:#fff;letter-spacing:5px;font-family:monospace;">${ticketCode}</p>
+         </div>`
+    }
+
+    <!-- CTA -->
+    <table width="100%" cellpadding="0" cellspacing="0" style="margin-bottom:24px;">
+      <tr><td align="center">
+        <a href="${ticketUrl}" style="display:inline-block;padding:16px 40px;background:linear-gradient(135deg,${GOLD},#e8c050);color:#0A2342;font-size:15px;font-weight:800;text-decoration:none;border-radius:10px;">
+          View &amp; Download Your Ticket →
+        </a>
+      </td></tr>
+    </table>
+
+    <p style="margin:0 0 6px;font-size:12px;color:#888;text-align:center;">Or copy this link:</p>
+    <p style="margin:0 0 24px;font-size:11px;color:#0A2342;text-align:center;word-break:break-all;background:#f5f5f5;padding:10px;border-radius:6px;font-family:monospace;">${ticketUrl}</p>
+
+    <!-- Next steps -->
+    <table width="100%" cellpadding="0" cellspacing="0" style="background:#f0fdf4;border-radius:8px;border-left:4px solid #22c55e;margin-bottom:20px;">
+      <tr><td style="padding:16px 20px;">
+        <p style="margin:0 0 10px;font-size:13px;font-weight:700;color:#166534;">✅ What to do next</p>
+        <ul style="margin:0;padding-left:18px;font-size:13px;color:#555;line-height:2;">
+          <li>Your ticket image is shown above — save or screenshot it</li>
+          <li>Or click the button above to view &amp; download a PDF</li>
+          <li>Present your QR code at the entrance on the night</li>
+          <li>Booking code: <strong style="font-family:monospace;color:#0A2342;">${ticketCode}</strong></li>
+        </ul>
+      </td></tr>
+    </table>
+
+    <p style="margin:0;font-size:13px;color:#aaa;">Questions? Call/WhatsApp:
+      <a href="tel:0758647130" style="color:#0A2342;font-weight:600;text-decoration:none;">0758 647 130</a>
+    </p>
+  </td></tr>
+
+  <!-- Footer -->
+  <tr><td style="background:#0A2342;border-radius:0 0 14px 14px;padding:18px 40px;text-align:center;">
+    <p style="margin:0;font-size:11px;color:rgba(255,255,255,0.3);">CSA Gala Dinner 2026 · Computer Students Association · csagaladinner.co.ke</p>
+  </td></tr>
+
+</table>
+</td></tr>
+</table>
+</body></html>`;
+
+  const res = await fetch("https://api.emailjs.com/api/v1.0/email/send", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      service_id:  EMAILJS_SERVICE_ID,
+      template_id: EMAILJS_TEMPLATE_ID,
+      user_id:     EMAILJS_PUBLIC_KEY,
+      template_params: {
+        to_email:  reg.email,
+        to_name:   displayName,
+        subject:   `🎟️ Your CSA Gala Dinner 2026 Ticket is Ready! (${ticketCode})`,
+        html_body,
+      },
+    }),
+  });
+
+  if (!res.ok) {
+    const err = await res.text();
+    throw new Error(`EmailJS: ${err}`);
+  }
+}
+// ─────────────────────────────────────────────────────────────────────────────
+
 const AdminPayments = () => {
   const [payments, setPayments] = useState<any[]>([]);
   const [search, setSearch] = useState("");
@@ -178,7 +498,19 @@ const AdminPayments = () => {
       if (!error) {
         approved++;
         const p = payments.find(x => x.id === id);
-        if (p?.registration_id) await syncRegistrationStatus(p.registration_id, id, true);
+        if (p?.registration_id) {
+          const result = await syncRegistrationStatus(p.registration_id, id, true);
+          if (result?.newStatus === "paid") {
+            const { data: regRow } = await supabase
+              .from("registrations")
+              .select("name, full_name, email, ticket_code, package_type, quantity, total_paid, total_cost")
+              .eq("id", p.registration_id)
+              .single();
+            if (regRow?.email) {
+              sendTicketEmail(regRow).catch(() => {});
+            }
+          }
+        }
       }
     }
 
@@ -280,8 +612,20 @@ const AdminPayments = () => {
 
     if (target.registration_id) {
       const result = await syncRegistrationStatus(target.registration_id, paymentId, verified);
-      if (verified && result?.newStatus === "paid") toast.success("✅ Approved — ticket issued!");
-      else if (verified) toast.success(`✅ KES ${Number(target.amount).toLocaleString()} approved (partial)`);
+      if (verified && result?.newStatus === "paid") {
+        toast.success("✅ Approved — ticket issued! Sending email…");
+        // Fetch the full registration row so we have all fields for the email
+        const { data: regRow } = await supabase
+          .from("registrations")
+          .select("name, full_name, email, ticket_code, package_type, quantity, total_paid, total_cost")
+          .eq("id", target.registration_id)
+          .single();
+        if (regRow?.email) {
+          sendTicketEmail(regRow)
+            .then(() => toast.success(`📧 Ticket email sent to ${regRow.email}`))
+            .catch(err => toast.error(`Email failed: ${err.message}`));
+        }
+      } else if (verified) toast.success(`✅ KES ${Number(target.amount).toLocaleString()} approved (partial)`);
       else toast.success("Payment rejected");
     }
 
