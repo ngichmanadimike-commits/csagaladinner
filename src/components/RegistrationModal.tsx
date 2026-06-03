@@ -55,7 +55,7 @@ const RegistrationModal = ({
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [phone, setPhone] = useState("");
-  const [quantity, setQuantity] = useState(1);
+  const [quantity, setQuantity] = useState<number | "">(1);
   const [promoInput, setPromoInput] = useState("");
   const [promoCode, setPromoCode] = useState<any>(null);
   const [promoChecking, setPromoChecking] = useState(false);
@@ -81,7 +81,7 @@ const RegistrationModal = ({
   const [payAmount, setPayAmount] = useState("");
   const [paySubmitting, setPaySubmitting] = useState(false);
 
-  const totalCost = selectedPackage ? selectedPackage.price * quantity : 0;
+  const totalCost = selectedPackage ? selectedPackage.price * (Number(quantity) || 0) : 0;
   const discountAmount = promoCode
     ? promoCode.discount_type === "percentage"
       ? Math.round(totalCost * (promoCode.discount_value / 100))
@@ -225,7 +225,7 @@ const RegistrationModal = ({
           name, email, phone,
           event_id: eventData.id,
           package_type: selectedPackage.id,
-          quantity,
+          quantity: Number(quantity) || 1,
           total_cost: amount,
           total_paid: 0,
           original_price: totalCost,
@@ -424,7 +424,15 @@ const RegistrationModal = ({
             <div>
               <Label htmlFor="r-qty">Number of Tickets</Label>
               <Input id="r-qty" type="number" min="1" max={selectedPackage.max_tickets ?? 10}
-                value={quantity} onChange={e => setQuantity(parseInt(e.target.value) || 1)} required />
+                value={quantity}
+                onChange={e => {
+                  const val = e.target.value;
+                  setQuantity(val === "" ? "" : Math.max(1, parseInt(val) || 1));
+                }}
+                onBlur={() => {
+                  if (quantity === "" || Number(quantity) < 1) setQuantity(1);
+                }}
+                required />
             </div>
             <div>
               <Label htmlFor="r-promo">Promo Code (optional)</Label>
