@@ -1,19 +1,35 @@
 import { useState, useEffect } from "react";
 import { X, Tag } from "lucide-react";
 import { useActivePromotion, formatDiscount } from "@/hooks/useActivePromotion";
+import { supabase } from "@/integrations/supabase/client";
+
+const POPUP_SETTING_KEY = "promo_popup_enabled";
 
 export default function PromoPopup() {
   const { promo, loading } = useActivePromotion();
   const [isOpen, setIsOpen] = useState(false);
+  const [adminEnabled, setAdminEnabled] = useState<boolean | null>(null); // null = still loading
+
+  // Load admin setting first
+  useEffect(() => {
+    supabase
+      .from("site_settings")
+      .select("value")
+      .eq("key", POPUP_SETTING_KEY)
+      .maybeSingle()
+      .then(({ data }) => {
+        setAdminEnabled(data ? data.value !== "false" : true);
+      });
+  }, []);
 
   useEffect(() => {
-    if (loading || !promo) return;
+    if (loading || !promo || adminEnabled === null || !adminEnabled) return;
     const dismissed = sessionStorage.getItem("csaPromoPopupDismissed");
     if (!dismissed) {
       const t = setTimeout(() => setIsOpen(true), 1200);
       return () => clearTimeout(t);
     }
-  }, [promo, loading]);
+  }, [promo, loading, adminEnabled]);
 
   const closePopup = () => {
     setIsOpen(false);
@@ -85,4 +101,4 @@ export default function PromoPopup() {
       </div>
     </div>
   );
-                                         }
+}
