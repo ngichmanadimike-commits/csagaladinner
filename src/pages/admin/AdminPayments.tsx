@@ -25,28 +25,13 @@ import { toast } from "sonner";
 import { exportToXlsx } from "@/lib/exportXlsx";
 import { logAdminAction } from "@/lib/adminLog";
 
-// ── EmailJS — works with any Gmail, zero domain setup needed ──────────────────
-// Setup (5 min):
-//   1. https://emailjs.com → free account (200 emails/month)
-//   2. Email Services → Add Service → Gmail → connect your Gmail account
-//   3. Email Templates → Create Template → paste the template below, save
-//   4. Account → API Keys → copy Public Key
-//   5. Add to .env:
-//        VITE_EMAILJS_SERVICE_ID=service_xxxxxxx
-//        VITE_EMAILJS_TEMPLATE_ID=template_xxxxxxx
-//        VITE_EMAILJS_PUBLIC_KEY=xxxxxxxxxxxxxxx
-//
-// EmailJS Template (paste exactly in the template body on emailjs.com):
-// ┌─────────────────────────────────────────────────────┐
-// │ To:       {{to_email}}                              │
-// │ Subject:  {{subject}}                               │
-// │ Body:     {{html_body}}   (set to HTML in settings) │
-// └─────────────────────────────────────────────────────┘
-// In the template editor: set "Content-Type" to HTML, then use {{html_body}} as body.
+// ── Email config — Resend (already in your package.json) ─────────────────────
+// Add to your .env:  VITE_RESEND_API_KEY=re_xxxxxxxxxxxx
+// Get free API key at resend.com — no domain needed, sends from onboarding@resend.dev
 // ─────────────────────────────────────────────────────────────────────────────
 
 const EMAILJS_SERVICE_ID  = import.meta.env.VITE_EMAILJS_SERVICE_ID  ?? "service_viadd3e";
-const EMAILJS_TEMPLATE_ID = import.meta.env.VITE_EMAILJS_TEMPLATE_ID ?? "__ejs-test-mail-service__";
+const EMAILJS_TEMPLATE_ID = import.meta.env.VITE_EMAILJS_TEMPLATE_ID ?? "template_kqgv2sd";
 const EMAILJS_PUBLIC_KEY  = import.meta.env.VITE_EMAILJS_PUBLIC_KEY  ?? "UcndsndAIds9STZVo";
 const APP_URL             = import.meta.env.VITE_APP_URL ?? "https://csagaladinner.co.ke";
 
@@ -321,6 +306,11 @@ async function sendTicketEmail(reg: {
 </td></tr>
 </table>
 </body></html>`;
+
+  if (!EMAILJS_SERVICE_ID || !EMAILJS_TEMPLATE_ID || !EMAILJS_PUBLIC_KEY) {
+    console.warn("EmailJS keys not set — email skipped");
+    return;
+  }
 
   const res = await fetch("https://api.emailjs.com/api/v1.0/email/send", {
     method: "POST",
