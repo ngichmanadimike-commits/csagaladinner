@@ -231,6 +231,9 @@ const AdminPackages = () => {
                     value={p.perks.join("\n")}
                     rows={3}
                     onChange={(e) =>
+                      updateLocal(i, { perks: e.target.value.split("\n") })
+                    }
+                    onBlur={(e) =>
                       updateLocal(i, { perks: e.target.value.split("\n").filter(Boolean) })
                     }
                     className="w-full px-3 py-2 rounded-lg bg-muted border-border text-sm"
