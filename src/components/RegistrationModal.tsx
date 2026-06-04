@@ -55,7 +55,7 @@ const RegistrationModal = ({
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [phone, setPhone] = useState("");
-  const [quantity, setQuantity] = useState<number | "">(1);
+  const [quantity, setQuantity] = useState(1);
   const [promoInput, setPromoInput] = useState("");
   const [promoCode, setPromoCode] = useState<any>(null);
   const [promoChecking, setPromoChecking] = useState(false);
@@ -81,7 +81,7 @@ const RegistrationModal = ({
   const [payAmount, setPayAmount] = useState("");
   const [paySubmitting, setPaySubmitting] = useState(false);
 
-  const totalCost = selectedPackage ? selectedPackage.price * (Number(quantity) || 0) : 0;
+  const totalCost = selectedPackage ? selectedPackage.price * quantity : 0;
   const discountAmount = promoCode
     ? promoCode.discount_type === "percentage"
       ? Math.round(totalCost * (promoCode.discount_value / 100))
@@ -225,7 +225,7 @@ const RegistrationModal = ({
           name, email, phone,
           event_id: eventData.id,
           package_type: selectedPackage.id,
-          quantity: Number(quantity) || 1,
+          quantity,
           total_cost: amount,
           total_paid: 0,
           original_price: totalCost,
@@ -297,9 +297,39 @@ const RegistrationModal = ({
 
       // Update total_paid optimistically (admin will confirm)
       const currentPaid = Number(existingReg?.total_paid ?? 0);
+      const newTotalPaid = currentPaid + amountToPay;
+      const registrationTotalCost = Number(existingReg?.total_cost ?? finalAmount);
+
       await supabase.from("registrations")
-        .update({ total_paid: currentPaid + amountToPay })
+        .update({ total_paid: newTotalPaid })
         .eq("id", regId);
+
+      // ── If this payment completes the full amount, and the admin has
+      //    already set payment_status = 'paid', fire the ticket email now.
+      //    (The DB trigger also handles this — this is a belt-and-suspenders
+      //     call for cases where admin approves the last instalment.)
+      if (newTotalPaid >= registrationTotalCost) {
+        const { data: freshReg } = await supabase
+          .from("registrations")
+          .select("payment_status")
+          .eq("id", regId)
+          .single();
+
+        if (freshReg?.payment_status === "paid") {
+          // Best-effort — don't block the UX if this fails
+          fetch(
+            `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/send-ticket-email`,
+            {
+              method: "POST",
+              headers: {
+                "Content-Type": "application/json",
+                Authorization: `Bearer ${import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY}`,
+              },
+              body: JSON.stringify({ registration_id: regId }),
+            }
+          ).catch(() => {/* non-critical */});
+        }
+      }
 
       const revealCode = ticketCode || existingReg?.ticket_code || "";
       setTicketCode(revealCode);
@@ -424,15 +454,7 @@ const RegistrationModal = ({
             <div>
               <Label htmlFor="r-qty">Number of Tickets</Label>
               <Input id="r-qty" type="number" min="1" max={selectedPackage.max_tickets ?? 10}
-                value={quantity}
-                onChange={e => {
-                  const val = e.target.value;
-                  setQuantity(val === "" ? "" : Math.max(1, parseInt(val) || 1));
-                }}
-                onBlur={() => {
-                  if (quantity === "" || Number(quantity) < 1) setQuantity(1);
-                }}
-                required />
+                value={quantity} onChange={e => setQuantity(parseInt(e.target.value) || 1)} required />
             </div>
             <div>
               <Label htmlFor="r-promo">Promo Code (optional)</Label>
@@ -643,17 +665,35 @@ const RegistrationModal = ({
               </p>
             </div>
 
-            <div className="bg-primary/10 rounded-xl py-4 px-5">
-              <p className="text-xs text-muted-foreground uppercase tracking-wider mb-1">Your Booking Code</p>
-              {/* FIX 8: Booking code is only revealed AFTER the Treasurer approves payment.
-                  Showing it before verification lets unpaid registrations access ticket links. */}
-              <p className="text-sm text-muted-foreground mt-1">
-                Your booking code will be available once the Treasurer verifies your payment (3–6 hrs).
-                Use the <strong>Lookup</strong> page to check your status and get your code.
-              </p>
-              {ticketCode && (
-                <p className="text-xs text-muted-foreground/50 mt-2">
-                  Reference: <span className="font-mono">{ticketCode.slice(0,4)}***</span>
+            {/* Booking code — shown immediately so user can save it */}
+            <div className="bg-primary/10 rounded-xl py-4 px-5 space-y-2">
+              <p className="text-xs text-muted-foreground uppercase tracking-wider">Your Booking Code</p>
+              {ticketCode ? (
+                <>
+                  <p className="text-2xl font-mono font-bold tracking-widest text-primary">
+                    {ticketCode}
+                  </p>
+                  <button
+                    onClick={() => {
+                      navigator.clipboard.writeText(ticketCode);
+                      const el = document.getElementById("copy-confirm");
+                      if (el) { el.style.opacity = "1"; setTimeout(() => { el.style.opacity = "0"; }, 2000); }
+                    }}
+                    className="flex items-center gap-2 mx-auto text-xs font-semibold text-primary border border-primary/40 rounded-lg px-4 py-2 hover:bg-primary/10 transition-colors"
+                  >
+                    📋 Copy Booking Code
+                  </button>
+                  <p id="copy-confirm" style={{ opacity:0, transition:"opacity 0.3s" }}
+                    className="text-xs text-emerald-400">
+                    ✓ Copied!
+                  </p>
+                  <p className="text-xs text-muted-foreground">
+                    Save this code — you'll need it to check your payment status and access your ticket.
+                  </p>
+                </>
+              ) : (
+                <p className="text-sm text-muted-foreground mt-1">
+                  Use the <strong>Lookup</strong> page with your phone number to find your booking code.
                 </p>
               )}
             </div>
