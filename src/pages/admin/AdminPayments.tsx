@@ -223,81 +223,73 @@ async function sendTicketEmail(reg: {
   const ticketCode  = reg.ticket_code ?? "";
   const ticketUrl   = `${APP_URL}/ticket/${ticketCode}`;
   const paid        = Number(reg.total_paid) || 0;
+  const pkg         = reg.package_type ?? "Standard";
+  const qty         = Number(reg.quantity) || 1;
+  const qrUrl       = `https://api.qrserver.com/v1/create-qr-code/?size=200x200&ecc=H&data=${encodeURIComponent(ticketCode)}`;
 
-  // Render the actual ticket to a base64 image
-  let ticketImageBase64 = "";
-  try {
-    ticketImageBase64 = await renderTicketToBase64(reg);
-  } catch (e) {
-    console.warn("Ticket image render failed, sending without image:", e);
-  }
-
-  // The email body — ticket image embedded inline as <img src="data:...">
   const html_body = `<!DOCTYPE html>
 <html lang="en">
 <head><meta charset="UTF-8"/><meta name="viewport" content="width=device-width,initial-scale=1.0"/></head>
 <body style="margin:0;padding:0;background:#0B0F1A;font-family:'Segoe UI',Arial,sans-serif;">
 <table width="100%" cellpadding="0" cellspacing="0" style="background:#0B0F1A;padding:32px 0;">
 <tr><td align="center">
-<table width="620" cellpadding="0" cellspacing="0" style="max-width:620px;width:100%;">
+<table width="600" cellpadding="0" cellspacing="0" style="max-width:600px;width:100%;">
 
-  <!-- Header -->
-  <tr><td style="background:linear-gradient(135deg,#0A2342,#0e3060);border-radius:14px 14px 0 0;padding:36px 40px 28px;text-align:center;border-bottom:3px solid ${GOLD};">
-    <p style="margin:0 0 8px;font-size:11px;letter-spacing:5px;color:${GOLD};text-transform:uppercase;font-weight:700;">CSA Gala Dinner 2026</p>
-    <h1 style="margin:0;font-size:28px;font-weight:800;color:#fff;">Your Ticket is Ready! 🎟️</h1>
-    <p style="margin:12px 0 0;font-size:14px;color:rgba(255,255,255,0.55);">Payment verified — you're officially on the guest list.</p>
+  <tr><td style="background:linear-gradient(135deg,#0A2342,#0e3060);border-radius:14px 14px 0 0;padding:36px 40px 28px;text-align:center;border-bottom:3px solid #D4AF37;">
+    <p style="margin:0 0 8px;font-size:11px;letter-spacing:5px;color:#D4AF37;text-transform:uppercase;font-weight:700;">CSA Gala Dinner 2026</p>
+    <h1 style="margin:0;font-size:26px;font-weight:800;color:#fff;">Your Ticket is Ready! 🎟️</h1>
+    <p style="margin:12px 0 0;font-size:14px;color:rgba(255,255,255,0.6);">Payment verified — you're on the guest list!</p>
   </td></tr>
 
-  <!-- Body -->
   <tr><td style="background:#fff;padding:36px 40px;">
     <p style="margin:0 0 20px;font-size:16px;font-weight:700;color:#0A2342;">Hi ${firstName},</p>
     <p style="margin:0 0 24px;font-size:15px;color:#444;line-height:1.7;">
-      Your payment of <strong style="color:#0A2342;">KES ${paid.toLocaleString()}</strong> has been verified
-      by the Treasurer. Your ticket for the <strong>CSA Gala Dinner 2026</strong> is confirmed!
+      Your payment of <strong style="color:#0A2342;">KES ${paid.toLocaleString()}</strong> has been verified. Your ticket for the <strong>CSA Gala Dinner 2026</strong> is confirmed!
     </p>
 
-    <!-- ══ TICKET IMAGE ══ -->
-    ${ticketImageBase64
-      ? `<div style="margin-bottom:24px;border-radius:10px;overflow:hidden;border:2px solid ${GOLD};">
-           <img src="${ticketImageBase64}" width="100%" style="display:block;max-width:100%;" alt="Your Ticket"/>
-         </div>`
-      : `<div style="background:linear-gradient(135deg,#0A2342,#0e3060);border-radius:10px;border:2px solid ${GOLD};padding:20px 24px;margin-bottom:24px;text-align:center;">
-           <p style="margin:0 0 4px;font-size:10px;letter-spacing:4px;color:${GOLD};text-transform:uppercase;font-weight:700;">Booking Code</p>
-           <p style="margin:0;font-size:28px;font-weight:800;color:#fff;letter-spacing:5px;font-family:monospace;">${ticketCode}</p>
-         </div>`
-    }
+    <table width="100%" cellpadding="0" cellspacing="0" style="background:linear-gradient(135deg,#0A2342,#0e3060);border-radius:12px;border:2px solid #D4AF37;margin-bottom:28px;">
+      <tr><td style="padding:24px 28px;">
+        <p style="margin:0 0 4px;font-size:10px;letter-spacing:4px;color:#D4AF37;text-transform:uppercase;font-weight:700;">Booking Code</p>
+        <p style="margin:0 0 20px;font-size:26px;font-weight:800;color:#fff;letter-spacing:5px;font-family:monospace;">${ticketCode}</p>
+        <table width="100%"><tr>
+          <td width="33%"><p style="margin:0 0 2px;font-size:10px;color:rgba(255,255,255,0.4);text-transform:uppercase;">Package</p><p style="margin:0;color:#fff;font-weight:600;font-size:13px;">${pkg}</p></td>
+          <td width="33%"><p style="margin:0 0 2px;font-size:10px;color:rgba(255,255,255,0.4);text-transform:uppercase;">Tickets</p><p style="margin:0;color:#fff;font-weight:600;font-size:13px;">${qty}</p></td>
+          <td width="34%"><p style="margin:0 0 2px;font-size:10px;color:rgba(255,255,255,0.4);text-transform:uppercase;">Paid</p><p style="margin:0;color:#D4AF37;font-weight:700;font-size:15px;">KES ${paid.toLocaleString()}</p></td>
+        </tr></table>
+      </td></tr>
+    </table>
 
-    <!-- CTA -->
     <table width="100%" cellpadding="0" cellspacing="0" style="margin-bottom:24px;">
       <tr><td align="center">
-        <a href="${ticketUrl}" style="display:inline-block;padding:16px 40px;background:linear-gradient(135deg,${GOLD},#e8c050);color:#0A2342;font-size:15px;font-weight:800;text-decoration:none;border-radius:10px;">
+        <a href="${ticketUrl}" style="display:inline-block;padding:16px 40px;background:linear-gradient(135deg,#D4AF37,#e8c050);color:#0A2342;font-size:15px;font-weight:800;text-decoration:none;border-radius:10px;">
           View &amp; Download Your Ticket →
         </a>
       </td></tr>
     </table>
 
-    <p style="margin:0 0 6px;font-size:12px;color:#888;text-align:center;">Or copy this link:</p>
-    <p style="margin:0 0 24px;font-size:11px;color:#0A2342;text-align:center;word-break:break-all;background:#f5f5f5;padding:10px;border-radius:6px;font-family:monospace;">${ticketUrl}</p>
+    <table width="100%" cellpadding="0" cellspacing="0" style="margin-bottom:24px;">
+      <tr>
+        <td align="center">
+          <img src="${qrUrl}" width="150" height="150" style="display:block;border:3px solid #D4AF37;border-radius:8px;" alt="QR Code"/>
+          <p style="margin:8px 0 0;font-size:11px;color:#888;font-weight:700;">SCAN AT THE ENTRANCE</p>
+        </td>
+      </tr>
+    </table>
 
-    <!-- Next steps -->
     <table width="100%" cellpadding="0" cellspacing="0" style="background:#f0fdf4;border-radius:8px;border-left:4px solid #22c55e;margin-bottom:20px;">
       <tr><td style="padding:16px 20px;">
-        <p style="margin:0 0 10px;font-size:13px;font-weight:700;color:#166534;">✅ What to do next</p>
+        <p style="margin:0 0 10px;font-size:13px;font-weight:700;color:#166534;">What to do next</p>
         <ul style="margin:0;padding-left:18px;font-size:13px;color:#555;line-height:2;">
-          <li>Your ticket image is shown above — save or screenshot it</li>
-          <li>Or click the button above to view &amp; download a PDF</li>
-          <li>Present your QR code at the entrance on the night</li>
-          <li>Booking code: <strong style="font-family:monospace;color:#0A2342;">${ticketCode}</strong></li>
+          <li>Click the button above to view your full ticket</li>
+          <li>Download or screenshot it for entry</li>
+          <li>Show QR code above at the door</li>
         </ul>
       </td></tr>
     </table>
 
-    <p style="margin:0;font-size:13px;color:#aaa;">Questions? Call/WhatsApp:
-      <a href="tel:0758647130" style="color:#0A2342;font-weight:600;text-decoration:none;">0758 647 130</a>
-    </p>
+    <p style="margin:0;font-size:13px;color:#aaa;">Questions? Call/WhatsApp: <a href="tel:0758647130" style="color:#0A2342;font-weight:600;text-decoration:none;">0758 647 130</a></p>
   </td></tr>
 
-  <!-- Footer -->
   <tr><td style="background:#0A2342;border-radius:0 0 14px 14px;padding:18px 40px;text-align:center;">
     <p style="margin:0;font-size:11px;color:rgba(255,255,255,0.3);">CSA Gala Dinner 2026 · Computer Students Association · csagaladinner.co.ke</p>
   </td></tr>
