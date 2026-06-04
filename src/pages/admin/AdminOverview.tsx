@@ -96,6 +96,7 @@ const AdminOverview = () => {
       const [
         regRes, payRes, recentRes, galleryRes, contentRes,
         eventsRes, adminsRes, sponRes, inqRes, partRes, spkRes, docRes,
+        pkgRes,
       ] = await Promise.all([
         supabase.from("registrations").select("id, total_cost, total_paid, payment_status, ticket_issued, package_type, quantity"),
         supabase.from("payments").select("id, amount, verified, created_at"),
@@ -113,7 +114,25 @@ const AdminOverview = () => {
         supabase.from("partners").select("id", { count: "exact", head: true }),
         supabase.from("speakers").select("id", { count: "exact", head: true }),
         supabase.from("documents").select("id", { count: "exact", head: true }),
+        supabase.from("ticket_packages").select("slug, name, capacity"),
       ]);
+
+      // Build capacity map from real DB packages
+      // capacity = how many people one "unit" of this package admits
+      const pkgCapMap: Record<string, number> = {};
+      for (const pkg of (pkgRes.data || [])) {
+        const key = (pkg.slug || "").toLowerCase().trim();
+        // capacity in ticket_packages means total seats for the package price
+        // e.g. couple = 2, group of 5 = 5. Default 1 if not set.
+        pkgCapMap[key] = Number(pkg.capacity) || 1;
+      }
+
+      // seats per registration = quantity × package_capacity
+      const seatsForReg = (r: any) => {
+        const slug = (r.package_type || "").toLowerCase().replace(/\s+/g, "-").trim();
+        const cap  = pkgCapMap[slug] ?? seatsFor(slug); // fallback to hardcoded map
+        return Number(r.quantity || 1) * cap;
+      };
 
       const pays = payRes.data || [];
       const spons = sponRes.data || [];
@@ -165,11 +184,11 @@ const AdminOverview = () => {
         totalPartners: partRes.count || 0,
         totalSpeakers: spkRes.count || 0,
         totalDocuments: docRes.count || 0,
-        totalPeople: regs.reduce((s:number,r:any)=>s+Number(r.quantity||1)*seatsFor(r.package_type||""),0),
+        totalPeople: regs.reduce((s:number,r:any)=>s+seatsForReg(r),0),
         confirmedPeople: regs.filter((r:any)=>r.payment_status==="paid"||r.payment_status==="confirmed")
-          .reduce((s:number,r:any)=>s+Number(r.quantity||1)*seatsFor(r.package_type||""),0),
+          .reduce((s:number,r:any)=>s+seatsForReg(r),0),
         pendingPeople: regs.filter((r:any)=>r.payment_status!=="paid"&&r.payment_status!=="confirmed")
-          .reduce((s:number,r:any)=>s+Number(r.quantity||1)*seatsFor(r.package_type||""),0),
+          .reduce((s:number,r:any)=>s+seatsForReg(r),0),
       });
 
       setRecentPayments(recentRes.data || []);
