@@ -1,0 +1,1 @@
+GRANT SELECT ON public.ticket_packages TO anon, authenticated; GRANT ALL ON public.ticket_packages TO service_role;
