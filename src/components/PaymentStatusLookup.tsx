@@ -53,25 +53,19 @@ const PaymentStatusLookup = () => {
     setLoading(true);
     setSearched(true);
 
-    const [{ data, error }, sponsorRes] = await Promise.all([
-      supabase
-      .from("registrations")
-      .select("id, name, email, package_type, total_cost, total_paid, payment_status, ticket_issued, ticket_code, secure_ticket_token")
-      .or(`name.ilike.%${trimmed}%,email.ilike.%${trimmed}%,ticket_code.ilike.%${trimmed}%`),
-      supabase
-        .from("sponsorships")
-        .select("id, sponsor_name, sponsor_email, sponsor_phone, num_students, level, amount, verified, payment_status, sponsor_code")
-        .or(`sponsor_name.ilike.%${trimmed}%,sponsor_email.ilike.%${trimmed}%,sponsor_code.ilike.%${trimmed}%`),
+    const [regRes, sponsorRes] = await Promise.all([
+      supabase.rpc("lookup_registration_by_code", { _code: trimmed }),
+      supabase.rpc("lookup_sponsorship_by_code", { _code: trimmed }),
     ]);
 
     setLoading(false);
 
-    if (error) {
+    if (regRes.error && sponsorRes.error) {
       toast.error("Failed to search. Please try again.");
       return;
     }
 
-    setResults(data ?? []);
+    setResults((regRes.data as any) ?? []);
     setSponsorResults((sponsorRes.data as any) ?? []);
   };
 
@@ -83,7 +77,7 @@ const PaymentStatusLookup = () => {
             Check Payment Status
           </h2>
           <p className="text-muted-foreground">
-            Enter your name or email to view your registration &amp; payment details.
+            Enter your booking or sponsor code to view your payment details.
           </p>
         </div>
 
@@ -94,7 +88,7 @@ const PaymentStatusLookup = () => {
               type="text"
               value={query}
               onChange={(e) => setQuery(e.target.value)}
-              placeholder="Booking code, name, or email..."
+              placeholder="Booking code (e.g. CSA-XXXXXX) or sponsor code..."
               className="w-full pl-10 pr-4 py-3 rounded-xl bg-muted border border-border text-foreground text-sm focus:outline-none focus:ring-2 focus:ring-primary/50"
             />
           </div>
