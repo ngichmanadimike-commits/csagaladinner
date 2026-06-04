@@ -34,7 +34,7 @@ export function useActivePromotion() {
             id: row.id,
             title: row.title,
             code: row.code,
-            discount_type: row.discount_type,
+            discount_type: row.discount_type as "fixed" | "percentage",
             discount_value: Number(row.discount_value),
             start_at: row.start_at,
             expires_at: row.expires_at,
