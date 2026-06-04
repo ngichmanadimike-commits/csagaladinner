@@ -420,19 +420,48 @@ export default function TicketDesign({ ticket }: { ticket: TicketData }) {
       const h2c   = (window as any).html2canvas;
       const jsPDF = (window as any).jspdf?.jsPDF ?? (window as any).jsPDF;
       if (!h2c || !jsPDF) throw new Error("Libraries not loaded");
-      await new Promise(r => setTimeout(r, 300));
+
       const el = renderRef.current;
       if (!el) throw new Error("Render target missing");
+
+      // Wait for all images inside the hidden render target to fully load
+      await Promise.all(
+        Array.from(el.querySelectorAll("img")).map(
+          (img) =>
+            new Promise<void>((resolve) => {
+              if (img.complete && img.naturalWidth > 0) { resolve(); return; }
+              img.onload = () => resolve();
+              img.onerror = () => resolve();
+            })
+        )
+      );
+      // Extra paint buffer for fonts/backgrounds
+      await new Promise(r => setTimeout(r, 600));
+
       const canvas = await h2c(el, {
-        scale:1, useCORS:true, allowTaint:true,
-        backgroundColor:DARK, width:PX_W, height:PX_H,
-        windowWidth:PX_W, windowHeight:PX_H,
-        logging:false, imageTimeout:12000,
+        scale: 2,                   // high-res: prevents blurry output
+        useCORS: true,
+        allowTaint: false,          // false + useCORS avoids tainting canvas with cross-origin images
+        backgroundColor: DARK,
+        width: PX_W,
+        height: PX_H,
+        logging: false,
+        imageTimeout: 15000,
+        onclone: (_doc: Document, clonedEl: HTMLElement) => {
+          // Ensure the cloned element is fully visible to html2canvas
+          clonedEl.style.position = "absolute";
+          clonedEl.style.top = "0";
+          clonedEl.style.left = "0";
+          clonedEl.style.visibility = "visible";
+          clonedEl.style.opacity = "1";
+        },
       });
+
+      // PDF dimensions: 8.5 × 3.5 inches at 72pt/inch
       const PT_W = 612, PT_H = 252;
-      const pdf = new jsPDF({ orientation:"landscape", unit:"pt", format:[PT_H, PT_W] });
-      pdf.addImage(canvas.toDataURL("image/jpeg",0.98),"JPEG",0,0,PT_W,PT_H);
-      pdf.save(`CSA-Ticket-${ticketNo||"download"}.pdf`);
+      const pdf = new jsPDF({ orientation: "landscape", unit: "pt", format: [PT_H, PT_W] });
+      pdf.addImage(canvas.toDataURL("image/jpeg", 0.97), "JPEG", 0, 0, PT_W, PT_H);
+      pdf.save(`CSA-Ticket-${ticketNo || "download"}.pdf`);
     } catch(err) {
       console.error("PDF error:", err);
       alert("PDF generation failed. Please try again.");
@@ -445,9 +474,10 @@ export default function TicketDesign({ ticket }: { ticket: TicketData }) {
     <>
       <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@700;900&family=Montserrat:wght@400;600;700;900&family=Great+Vibes&display=swap" rel="stylesheet"/>
 
-      {/* Hidden PDF render target — fixed size */}
-      <div style={{ position:"fixed", top:"-9999px", left:"-9999px",
-        width:PX_W, height:PX_H, overflow:"hidden", pointerEvents:"none", zIndex:-1 }}
+      {/* Hidden PDF render target — fixed size, off-screen but visible to html2canvas */}
+      <div style={{ position:"absolute", top:0, left:"-9999px",
+        width:PX_W, height:PX_H, pointerEvents:"none", zIndex:-1,
+        visibility:"visible", opacity:1 }}
         ref={renderRef}>
         <TicketMarkup forPdf/>
       </div>
