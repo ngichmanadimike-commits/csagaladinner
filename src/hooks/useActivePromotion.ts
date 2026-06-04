@@ -27,17 +27,20 @@ export function useActivePromotion() {
         setLoading(false);
         return;
       }
-      const { data } = await supabase
-        .from("promotions")
-        .select("id,title,code,discount_type,discount_value,start_at,expires_at,description")
-        .eq("is_active", true)
-        .is("deleted_at", null)
-        .lte("start_at", new Date().toISOString())
-        .gte("expires_at", new Date().toISOString())
-        .order("discount_value", { ascending: false })
-        .limit(1)
-        .maybeSingle();
-      const p = (data as any) || null;
+      const { data } = await supabase.rpc("get_active_promotion");
+      const row = Array.isArray(data) ? data[0] : null;
+      const p = row
+        ? {
+            id: row.id,
+            title: row.title,
+            code: row.code,
+            discount_type: row.discount_type as "fixed" | "percentage",
+            discount_value: Number(row.discount_value),
+            start_at: row.start_at,
+            expires_at: row.expires_at,
+            description: row.description,
+          }
+        : null;
       cache = { promo: p, ts: Date.now() };
       if (active) {
         setPromo(p);

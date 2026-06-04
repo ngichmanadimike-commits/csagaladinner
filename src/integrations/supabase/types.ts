@@ -900,6 +900,36 @@ export type Database = {
         }
         Returns: boolean
       }
+      lookup_registration_by_code: {
+        Args: { _code: string }
+        Returns: {
+          email: string
+          id: string
+          name: string
+          package_type: string
+          payment_status: string
+          secure_ticket_token: string
+          ticket_code: string
+          ticket_issued: boolean
+          total_cost: number
+          total_paid: number
+        }[]
+      }
+      lookup_sponsorship_by_code: {
+        Args: { _code: string }
+        Returns: {
+          amount: number
+          id: string
+          level: string
+          num_students: number
+          payment_status: string
+          sponsor_code: string
+          sponsor_email: string
+          sponsor_name: string
+          sponsor_phone: string
+          verified: boolean
+        }[]
+      }
       validate_promo_code:
         | { Args: { _code: string; _email?: string }; Returns: Json }
         | {

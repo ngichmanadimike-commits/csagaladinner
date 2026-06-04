@@ -56,11 +56,8 @@ const RegistrationModal = ({ pkg, onClose }: { pkg: Pkg; onClose: () => void }) 
     const code = existingCodeInput.trim().toUpperCase();
     if (!code) return;
     setLookupLoading(true);
-    const { data, error } = await supabase
-      .from("registrations")
-      .select("id, name, email, phone, institution, total_cost, total_paid, package_type, quantity, ticket_code, secure_ticket_token")
-      .eq("ticket_code", code)
-      .maybeSingle();
+    const { data: rows, error } = await supabase.rpc("lookup_registration_by_code", { _code: code });
+    const data: any = Array.isArray(rows) ? rows[0] : null;
     setLookupLoading(false);
     if (error || !data) {
       toast.error("Booking code not found");
@@ -70,8 +67,7 @@ const RegistrationModal = ({ pkg, onClose }: { pkg: Pkg; onClose: () => void }) 
     setRegistrationId(data.id);
     setTicketCode(data.ticket_code);
     setSecureToken((data as any).secure_ticket_token);
-    setForm({ name: data.name, email: data.email, phone: data.phone, institution: data.institution || "" });
-    setQuantity(data.quantity || 1);
+    setForm({ name: data.name, email: data.email, phone: "", institution: "" });
     setStep("payment-choice");
     toast.success("Code verified — payments will cumulate to this booking");
   };
