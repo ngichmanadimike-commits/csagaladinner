@@ -30,7 +30,7 @@ import { logAdminAction } from "@/lib/adminLog";
 // Get free API key at resend.com — no domain needed, sends from onboarding@resend.dev
 // ─────────────────────────────────────────────────────────────────────────────
 
-const EMAILJS_SERVICE_ID  = import.meta.env.VITE_EMAILJS_SERVICE_ID  ?? "service_viadd3e";
+const EMAILJS_SERVICE_ID  = import.meta.env.VITE_EMAILJS_SERVICE_ID  ?? "service_0r5lcfi";
 const EMAILJS_TEMPLATE_ID = import.meta.env.VITE_EMAILJS_TEMPLATE_ID ?? "template_kqgv2sd";
 const EMAILJS_PUBLIC_KEY  = import.meta.env.VITE_EMAILJS_PUBLIC_KEY  ?? "UcndsndAIds9STZVo";
 const APP_URL             = import.meta.env.VITE_APP_URL ?? "https://csagaladinner.co.ke";
