@@ -367,12 +367,12 @@ font-family:'Montserrat',Arial,sans-serif;position:relative;box-sizing:border-bo
       // Wait for fonts already loaded in document
       await (document.fonts?.ready ?? Promise.resolve());
 
-      // Pre-warm both fonts so they're guaranteed in the browser font cache
+      // Pre-warm fonts in the browser cache before capture
       const fontWarm = document.createElement("div");
       fontWarm.style.cssText =
         "position:fixed;top:-9999px;left:-9999px;opacity:0;pointer-events:none;" +
         `font-family:'Playfair Display',Georgia,serif;font-weight:900;font-size:80px;`;
-      fontWarm.textContent = "GALA DINNER 2026 Pooling Construction Students Together!";
+      fontWarm.textContent = "GALA DINNER 2026";
       const fontWarm2 = document.createElement("div");
       fontWarm2.style.cssText =
         "position:fixed;top:-9999px;left:-9999px;opacity:0;pointer-events:none;" +
@@ -380,40 +380,52 @@ font-family:'Montserrat',Arial,sans-serif;position:relative;box-sizing:border-bo
       fontWarm2.textContent = "AWARDS NETWORKING ENTERTAINMENT ADMIT NAME TICKET";
       document.body.appendChild(fontWarm);
       document.body.appendChild(fontWarm2);
-      await new Promise(r => setTimeout(r, 600));
+      await new Promise(r => setTimeout(r, 800));
       document.body.removeChild(fontWarm);
       document.body.removeChild(fontWarm2);
 
-      // Build capture wrapper with font link re-injected
+      // ── KEY FIX: render off-screen with position:absolute (not fixed),
+      //    well outside the viewport so it doesn't flash, but NOT clipped by
+      //    the viewport width — html2canvas clips fixed elements on small screens.
       wrap = document.createElement("div");
       wrap.style.cssText =
-        `position:fixed;top:0;left:0;width:${TW}px;height:${TH}px;` +
-        `z-index:2147483647;overflow:hidden;pointer-events:none;`;
+        `position:absolute;` +
+        `top:${window.scrollY + 99999}px;` +   // far below visible area
+        `left:0;` +
+        `width:${TW}px;height:${TH}px;` +
+        `z-index:0;overflow:visible;pointer-events:none;`;
       wrap.innerHTML =
         `<link href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,700;0,900;1,900&family=Montserrat:wght@400;600;700;900&display=swap" rel="stylesheet"/>` +
         buildHTML(qrUrl);
       document.body.appendChild(wrap);
 
+      // Target the ticket div (second child after the <link>)
       const inner = wrap.children[1] as HTMLElement;
+
+      // Wait for all images (background + logo + QR) to load
       await waitImgs(inner);
       await (document.fonts?.ready ?? Promise.resolve());
-      await new Promise(r => setTimeout(r, 1800)); // extra wait for font render
+      // Extra settle time for background image and font rendering
+      await new Promise(r => setTimeout(r, 2200));
 
       const canvas = await h2c(inner, {
-        scale: 3,
+        scale: 2,             // 2× is sharper than 1× but avoids memory issues
         useCORS: true,
         allowTaint: false,
         backgroundColor: DARK,
         width: TW,
         height: TH,
+        windowWidth: TW,      // ── KEY: tell h2c the "window" is ticket-wide
+        windowHeight: TH,     //    so media queries / viewport units resolve correctly
+        scrollX: 0,
+        scrollY: 0,
         logging: false,
-        imageTimeout: 25000,
+        imageTimeout: 30000,
       });
 
       document.body.removeChild(wrap); wrap = null;
 
-      // PDF: exactly 8.5 × 3.5 inches = 612 × 252 pt at 72dpi
-      // TW/TH ratio = 1275/525 = 2.4286 — same as 612/252 ✓
+      // PDF: 8.5 × 3.5 inches @ 72pt = 612 × 252 pt  (matches TW/TH ratio exactly)
       const PW = 612, PH = 252;
       const pdf = new jsPDF({ orientation:"landscape", unit:"pt", format:[PW, PH] });
       pdf.addImage(canvas.toDataURL("image/jpeg", 0.97), "JPEG", 0, 0, PW, PH);
