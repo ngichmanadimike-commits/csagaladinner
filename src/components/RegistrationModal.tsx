@@ -252,7 +252,7 @@ const RegistrationModal = ({
       setRegistrationId(regData.id);
       setFinalAmount(amount);
       setPayerPhone(phone);
-      setPayAmount(String(amount));
+      setPayAmount("");
       setStep("payment");
     } catch { toast.error("Unexpected error. Please try again."); }
     finally { setSubmitting(false); }
