@@ -40,9 +40,15 @@ function parseDate(s: string | null | undefined) {
   const MONTHS = ["JANUARY","FEBRUARY","MARCH","APRIL","MAY","JUNE",
                   "JULY","AUGUST","SEPTEMBER","OCTOBER","NOVEMBER","DECEMBER"];
   if (!s) return { dayName:"FRIDAY", day:"12", suf:"TH", month:"JUNE", year:"2026", h:19, mi:0 };
-  const d = new Date(s);
-  return { dayName:DAYS[d.getDay()], day:String(d.getDate()), suf:ordSuffix(d.getDate()),
-           month:MONTHS[d.getMonth()], year:String(d.getFullYear()), h:d.getHours(), mi:d.getMinutes() };
+  // Parse date part using UTC to avoid timezone shifting the calendar date
+  const datePart = s.slice(0, 10); // "YYYY-MM-DD"
+  const d = new Date(datePart + "T00:00:00Z");
+  // Parse time directly from the string — never use d.getHours() which shifts by local timezone
+  // event_date is stored as "YYYY-MM-DDTHH:MM:SS" or "YYYY-MM-DDTHH:MM:SS+00:00"
+  const timePart = s.length >= 16 ? s.slice(11, 16) : "19:00"; // "HH:MM"
+  const [h, mi] = timePart.split(":").map(Number);
+  return { dayName:DAYS[d.getUTCDay()], day:String(d.getUTCDate()), suf:ordSuffix(d.getUTCDate()),
+           month:MONTHS[d.getUTCMonth()], year:String(d.getUTCFullYear()), h, mi };
 }
 function to12(h: number, mi: number) {
   return `${h%12||12}:${mi.toString().padStart(2,"0")} ${h>=12?"PM":"AM"}`;
