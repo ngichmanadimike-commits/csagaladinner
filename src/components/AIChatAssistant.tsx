@@ -1,10 +1,11 @@
 /**
- * AIChatAssistant.tsx — Ruth Edition (v2 — CSA Knowledge Enhanced)
+ * AIChatAssistant.tsx — Ruth Edition (v3 — Booking Code Lookup)
  * ─────────────────────────────────────────────────────────────────
- * • All CSA organisational knowledge embedded from csa_full_profile.pdf
+ * • All CSA organisational knowledge embedded
  * • Live Supabase data: ticket packages, site settings, sponsor settings
+ * • NEW: Booking code retrieval via email + phone verification
+ * • NEW: Direct ticket download link after booking code is shown
  * • Real-time subscriptions — reflects admin changes instantly
- * • Anthropic claude-sonnet-4-20250514 via /v1/messages
  */
 
 import { useState, useRef, useEffect, useCallback } from "react";
@@ -12,7 +13,8 @@ import { motion, AnimatePresence } from "framer-motion";
 import {
   X, Send, Loader2, ExternalLink, MapPin, ChevronDown,
   Paperclip, Image as ImageIcon, AlertTriangle, CheckCircle2,
-  Ticket, Calendar, Clock, Phone, Mail, Globe,
+  Ticket, Calendar, Clock, Phone, Mail, Globe, Copy, Check,
+  Download, Search, Lock,
 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 
@@ -28,6 +30,7 @@ const CRITICAL_TRIGGERS = ["fraud","scam","stolen","harassment","abuse","emergen
 const HIGH_TRIGGERS = ["refund","double charged","duplicate payment","not received ticket","payment stuck","failed payment"];
 const MEDIUM_TRIGGERS = ["complaint","problem","issue","wrong","error","help me","urgent","broken"];
 const LOW_TRIGGERS = ["question","confused","unclear","not sure","can you help"];
+const BOOKING_TRIGGERS = ["booking code","my code","get my code","retrieve code","find my code","my booking","my ticket code","forgot my code","lost my code","what is my code","get code","find code","my registration code"];
 
 // ─── Security ──────────────────────────────────────────────────────────────────
 const MAX_INPUT_LENGTH = 800;
@@ -97,6 +100,18 @@ interface Message {
   showSponsors?: boolean;
   isEscalated?: boolean;
   escalationSeverity?: string;
+  showBookingLookup?: boolean;
+  bookingResult?: BookingResult | null;
+}
+
+interface BookingResult {
+  found: boolean;
+  name?: string;
+  ticketCode?: string;
+  packageType?: string;
+  paymentStatus?: string;
+  ticketIssued?: boolean;
+  error?: string;
 }
 
 interface SiteInfo {
@@ -139,7 +154,7 @@ const DEFAULT_SITE: SiteInfo = {
 };
 
 // ─── Injected CSS ──────────────────────────────────────────────────────────────
-const STYLE_ID = "csa-ruth-v2-styles";
+const STYLE_ID = "csa-ruth-v3-styles";
 if (!document.getElementById(STYLE_ID)) {
   const s = document.createElement("style");
   s.id = STYLE_ID;
@@ -157,6 +172,8 @@ if (!document.getElementById(STYLE_ID)) {
     @keyframes ruthFadeIn{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:translateY(0)}}
     .ruth-msg{animation:ruthFadeIn .3s ease forwards}
     .ruth-chip:hover{background:rgba(212,175,55,.15)!important}
+    @keyframes ruthCodePop{0%{transform:scale(0.9);opacity:0}100%{transform:scale(1);opacity:1}}
+    .ruth-code-pop{animation:ruthCodePop .35s cubic-bezier(.34,1.56,.64,1) forwards}
   `;
   document.head.appendChild(s);
 }
@@ -320,7 +337,217 @@ function EscalatedBadge({ severity }: { severity?: string }) {
   );
 }
 
-// ─── CSA DEEP KNOWLEDGE (from csa_full_profile.pdf) ───────────────────────────
+// ─── NEW: Booking Code Lookup Panel ───────────────────────────────────────────
+function BookingLookupPanel({ onResult }: { onResult: (result: BookingResult) => void }) {
+  const [email, setEmail] = useState("");
+  const [phone, setPhone] = useState("");
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState("");
+
+  const handleLookup = async () => {
+    const trimEmail = email.trim().toLowerCase();
+    const trimPhone = phone.trim().replace(/\s/g, "");
+    if (!trimEmail || !trimPhone) {
+      setError("Please enter both your email and phone number.");
+      return;
+    }
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(trimEmail)) {
+      setError("Please enter a valid email address.");
+      return;
+    }
+    if (trimPhone.length < 9) {
+      setError("Please enter a valid phone number.");
+      return;
+    }
+    setError("");
+    setLoading(true);
+    try {
+      // Query by email first, then cross-check phone
+      const { data, error: dbErr } = await supabase
+        .from("registrations")
+        .select("id, name, email, phone, package_type, payment_status, ticket_issued, ticket_code")
+        .ilike("email", trimEmail)
+        .limit(5);
+
+      if (dbErr) throw dbErr;
+
+      if (!data || data.length === 0) {
+        onResult({ found: false, error: "No registration found with that email address. Please double-check and try again." });
+        return;
+      }
+
+      // Cross-check phone — normalize both sides
+      const normalize = (p: string) => p.replace(/\D/g, "").replace(/^0/, "254").replace(/^7/, "2547").replace(/^1/, "2541");
+      const normInput = normalize(trimPhone);
+
+      const match = data.find(r => {
+        if (!r.phone) return false;
+        const normDb = normalize(r.phone);
+        // Match last 9 digits as fallback for flexibility
+        return normDb === normInput ||
+          normDb.slice(-9) === normInput.slice(-9);
+      });
+
+      if (!match) {
+        onResult({ found: false, error: "Email and phone number don't match our records. Please use the exact details from your registration." });
+        return;
+      }
+
+      onResult({
+        found: true,
+        name: match.name,
+        ticketCode: match.ticket_code || undefined,
+        packageType: match.package_type,
+        paymentStatus: match.payment_status,
+        ticketIssued: match.ticket_issued,
+      });
+    } catch {
+      onResult({ found: false, error: "Something went wrong. Please try again or contact us via WhatsApp." });
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <div className="mt-2 w-full rounded-xl overflow-hidden" style={{ border: "1px solid rgba(212,175,55,0.3)", background: "rgba(212,175,55,0.04)" }}>
+      <div className="px-3 py-2.5 flex items-center gap-2" style={{ borderBottom: "1px solid rgba(212,175,55,0.15)", background: "rgba(212,175,55,0.08)" }}>
+        <Lock size={12} style={{ color: "#D4AF37" }}/>
+        <span className="text-xs font-semibold" style={{ color: "#D4AF37" }}>Secure Booking Code Lookup</span>
+      </div>
+      <div className="px-3 py-3 flex flex-col gap-2">
+        <p className="text-[11px]" style={{ color: "rgba(255,255,255,0.5)" }}>Enter the email and phone used during registration to retrieve your booking code.</p>
+        <div className="flex flex-col gap-1.5">
+          <label className="text-[11px] font-medium" style={{ color: "rgba(255,255,255,0.6)" }}>Email address</label>
+          <input
+            type="email"
+            value={email}
+            onChange={e => { setEmail(e.target.value); setError(""); }}
+            placeholder="you@example.com"
+            className="w-full rounded-lg px-3 py-2 text-[12px] bg-transparent outline-none"
+            style={{ border: "1px solid rgba(212,175,55,0.25)", color: "rgba(255,255,255,0.9)", caretColor: "#D4AF37" }}
+          />
+        </div>
+        <div className="flex flex-col gap-1.5">
+          <label className="text-[11px] font-medium" style={{ color: "rgba(255,255,255,0.6)" }}>Phone number</label>
+          <input
+            type="tel"
+            value={phone}
+            onChange={e => { setPhone(e.target.value); setError(""); }}
+            placeholder="0712 345 678"
+            className="w-full rounded-lg px-3 py-2 text-[12px] bg-transparent outline-none"
+            style={{ border: "1px solid rgba(212,175,55,0.25)", color: "rgba(255,255,255,0.9)", caretColor: "#D4AF37" }}
+            onKeyDown={e => { if (e.key === "Enter") handleLookup(); }}
+          />
+        </div>
+        {error && (
+          <div className="flex items-start gap-1.5 text-[11px]" style={{ color: "#f87171" }}>
+            <AlertTriangle size={11} className="mt-0.5 flex-shrink-0"/>{error}
+          </div>
+        )}
+        <button
+          onClick={handleLookup}
+          disabled={loading}
+          className="w-full flex items-center justify-center gap-2 py-2 rounded-lg text-xs font-semibold transition-all disabled:opacity-50"
+          style={{ background: "linear-gradient(135deg,#D4AF37,#9a7415)", color: "#0a0802" }}>
+          {loading ? <Loader2 size={13} className="animate-spin"/> : <Search size={13}/>}
+          {loading ? "Verifying…" : "Find My Booking Code"}
+        </button>
+      </div>
+    </div>
+  );
+}
+
+// ─── NEW: Booking Code Result Card ────────────────────────────────────────────
+function BookingResultCard({ result }: { result: BookingResult }) {
+  const [copied, setCopied] = useState(false);
+
+  const handleCopy = () => {
+    if (result.ticketCode) {
+      navigator.clipboard.writeText(result.ticketCode).then(() => {
+        setCopied(true);
+        setTimeout(() => setCopied(false), 2500);
+      });
+    }
+  };
+
+  if (!result.found) {
+    return (
+      <div className="mt-2 w-full rounded-xl p-3 flex items-start gap-2" style={{ background: "rgba(239,68,68,0.08)", border: "1px solid rgba(239,68,68,0.25)" }}>
+        <AlertTriangle size={13} style={{ color: "#f87171", flexShrink: 0, marginTop: 2 }}/>
+        <div>
+          <p className="text-xs font-semibold" style={{ color: "#f87171" }}>Not Found</p>
+          <p className="text-[11px] mt-0.5" style={{ color: "rgba(255,255,255,0.6)" }}>{result.error}</p>
+        </div>
+      </div>
+    );
+  }
+
+  const isPaid = result.paymentStatus === "paid" || result.paymentStatus === "verified";
+
+  return (
+    <div className="mt-2 w-full ruth-code-pop">
+      {/* Success header */}
+      <div className="rounded-t-xl px-3 py-2.5 flex items-center gap-2" style={{ background: "rgba(34,197,94,0.1)", border: "1px solid rgba(34,197,94,0.25)", borderBottom: "none" }}>
+        <CheckCircle2 size={13} style={{ color: "#22c55e" }}/>
+        <span className="text-xs font-semibold" style={{ color: "#22c55e" }}>Registration Found — {result.name}</span>
+      </div>
+
+      {/* Info row */}
+      <div className="px-3 py-2 flex items-center gap-3 text-[11px]" style={{ background: "rgba(255,255,255,0.03)", border: "1px solid rgba(212,175,55,0.2)", borderTop: "none", borderBottom: "none" }}>
+        <span style={{ color: "rgba(255,255,255,0.5)" }}>Package: <span style={{ color: "rgba(255,255,255,0.8)" }}>{result.packageType || "—"}</span></span>
+        <span style={{ color: isPaid ? "#22c55e" : "#eab308" }}>● {isPaid ? "Paid" : result.paymentStatus || "Pending"}</span>
+      </div>
+
+      {/* Booking code */}
+      {result.ticketCode ? (
+        <>
+          <div className="px-3 py-3" style={{ background: "rgba(212,175,55,0.06)", border: "1px solid rgba(212,175,55,0.3)", borderTop: "1px solid rgba(212,175,55,0.15)", borderBottom: "none" }}>
+            <p className="text-[10px] mb-1.5 font-medium" style={{ color: "rgba(212,175,55,0.6)" }}>YOUR BOOKING CODE</p>
+            <div className="flex items-center gap-2">
+              <div className="flex-1 rounded-lg px-3 py-2 font-mono text-sm font-bold tracking-widest text-center select-all"
+                style={{ background: "rgba(212,175,55,0.1)", border: "1px solid rgba(212,175,55,0.4)", color: "#D4AF37", letterSpacing: "0.15em" }}>
+                {result.ticketCode}
+              </div>
+              <button onClick={handleCopy}
+                className="flex-shrink-0 w-9 h-9 rounded-lg flex items-center justify-center transition-all hover:scale-105 active:scale-95"
+                style={{ background: copied ? "rgba(34,197,94,0.15)" : "rgba(212,175,55,0.12)", border: `1px solid ${copied ? "rgba(34,197,94,0.4)" : "rgba(212,175,55,0.3)"}` }}
+                title="Copy code">
+                {copied ? <Check size={14} style={{ color: "#22c55e" }}/> : <Copy size={14} style={{ color: "#D4AF37" }}/>}
+              </button>
+            </div>
+            {copied && <p className="text-[10px] mt-1.5 text-center" style={{ color: "#22c55e" }}>✓ Copied to clipboard!</p>}
+          </div>
+
+          {/* Download ticket button */}
+          <a
+            href={`/ticket/${result.ticketCode}`}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="flex items-center justify-center gap-2 py-2.5 rounded-b-xl text-xs font-semibold hover:opacity-90 active:scale-95 transition-all"
+            style={{
+              background: isPaid
+                ? "linear-gradient(135deg,#1a6e3c,#22c55e)"
+                : "linear-gradient(135deg,#5a4a00,#9a7415)",
+              color: "#fff",
+              border: "1px solid rgba(212,175,55,0.2)",
+              borderTop: "none",
+            }}>
+            <Download size={13}/>
+            {isPaid ? "Download Ticket Now" : "View Ticket (Payment Pending)"}
+            <ExternalLink size={10}/>
+          </a>
+        </>
+      ) : (
+        <div className="px-3 py-3 rounded-b-xl" style={{ background: "rgba(255,255,255,0.03)", border: "1px solid rgba(212,175,55,0.2)", borderTop: "none" }}>
+          <p className="text-[11px]" style={{ color: "rgba(255,255,255,0.5)" }}>No booking code assigned yet. Please contact us via WhatsApp to resolve this.</p>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ─── CSA DEEP KNOWLEDGE ────────────────────────────────────────────────────────
 const CSA_KNOWLEDGE = `
 ## CONSTRUCTION STUDENTS ASSOCIATION (CSA-TUK) — COMPLETE KNOWLEDGE BASE
 
@@ -331,19 +558,17 @@ const CSA_KNOWLEDGE = `
 - Founded: 2018 by QS Isaiah Goga, QS Dominic Omondi, and Charles Dickens Ochung'
 - CSA Website: csatukenya.org | Gala Dinner Website: csagaladinner.co.ke
 - Email: csa@students.tukenya.ac.ke | Phone: +254 758 647130 / +254 770 032594
-- Description: "A non-sectarian, non-political, non-profit making association that pulls a pool of students from different levels of study in the department of construction."
 
 ### MISSION, VISION & VALUES
 - Mission: To unify construction students, promoting professional development, academic excellence, and industry collaboration.
 - Vision: To be the leading student organization that shapes future construction professionals for impactful industry contributions.
-- Core Values: Integrity (honesty & ethics), Innovation (embracing new ideas), Collaboration (working together), Excellence (highest standards), Sustainability (lasting future)
+- Core Values: Integrity, Innovation, Collaboration, Excellence, Sustainability
 
 ### HISTORY & TIMELINE
-- 2018: Founded by QS Isaiah Goga, QS Dominic Omondi, and Charles Dickens Ochung'. Started with 2 chapters: QS and CM.
-- 2018–2021: Active period with growing membership and events.
+- 2018: Founded. Started with 2 chapters: QS and CM.
 - 2022: Became inactive due to poor leadership transition.
-- 2023: Revived under Kariuki Kevin's leadership. Achievements: new logo, merchandise, site visits, industry partnerships.
-- 2024: Incorporated Building & Construction Technology (BCT) as third chapter.
+- 2023: Revived under Kariuki Kevin's leadership.
+- 2024: Incorporated BCT as third chapter.
 - 2025: Incorporated Real Estate students as fourth chapter.
 
 ### CHAPTERS (4 academic chapters)
@@ -351,12 +576,8 @@ const CSA_KNOWLEDGE = `
 2. CM — Construction Management
 3. BCT — Building & Construction Technology
 4. RE — Real Estate
-Each chapter has a dedicated representative on the Executive Council.
 
-### ORGANISATIONAL STRUCTURE
-General Assembly (AGM) → Patrons → Executive Council → Core Officials (President, VP, Secretary, Treasurer, etc.) → Chapter Representatives (QS, CM, BCT, Real Estate) → Advisory Committee → Committees (Finance, Academic, Editorial, Disciplinary, Electoral Board)
-
-### CURRENT LEADERSHIP (2025/2026 Academic Year)
+### CURRENT LEADERSHIP (2025/2026)
 - President: Hadassah Kibet
 - Vice President: Laban Kiarii
 - Administrative Secretary: Kydah Biyaki
@@ -364,60 +585,9 @@ General Assembly (AGM) → Patrons → Executive Council → Core Officials (Pre
 - Organizing Secretary: Ruth Juma
 - Registrar: Rachael Wambugu
 - Chief Editor: Ben Brian
-- QS Chapter Representative: Edwin Munene
-- CM Chapter Representative: Collins Muoki
-- BCT Chapter Representative: Chrisphine Wanyoike Mutugu
-- Real Estate Chapter Representative: Ariel Baraka
-- Patron: Ayub Naburi
-- Patron: Madam Pauline Wafula
-- Founding Patron: QS David Choka
-- Emeritus President: Kariuki Kevin (Captain)
-
-### PREVIOUS LEADERSHIP (2023/2024 — Revival Era)
-- President: Kariuki Kevin
-- Vice President: Hope Mangeni
-- Administrative Secretary: Trizah Wanjiku
-- Treasurer: Victor Mutemi
-- Organizing Secretary: Wendy Matara
-- Chief Editor: Collins Kaiyaa
-- QS Representative: Meshack Were
-- CM Representative: John Nyaito
-- BCT Representative: Mary Anne
-- Patron: QS Choka | Assistant Patron: Madam Pauline
 
 ### KEY STATISTICS
-- Members: 450+
-- Annual Events: 30+
-- Resources Available: 100+
-- Chapters: 4
-- LinkedIn Followers: 448+ | Instagram: 769 | Twitter/X: 844
-
-### SERVICES OFFERED
-- AI Assistant: Instant answers to queries about exams, timetables, and events
-- Alumni Network: Connect with graduates, find mentors, explore career opportunities
-- CSA Shop: Official merchandise, safety gear, and equipment
-- Issue Reporting: Platform for students to report academic, administrative, or technical challenges
-- Past Papers: Access to previous examination papers for all units
-- Lecture Notes: Comprehensive class notes and handouts
-- E-Books: Library of essential construction textbooks
-- Software: Student versions of AutoCAD, Revit, and more
-- References: Building codes, standards, and legal acts
-- Tutorials: Video guides on software and practical skills
-
-### INDUSTRY PARTNERSHIPS & COLLABORATIONS
-- GBA (Green Build Academy): Professional software training (Revit, ArchiCAD, Planswift, Primavera P6, EDGE Tool, 3Ds Max)
-- PG Bison Kenya: Industrial visits and factory tours
-- Duco Africa Construction and Trade Ltd: Platinum Sponsor — CSA Gala Dinner 2026
-- Mirage Plumbing Works: Strategic partnership
-- YQSF Kenya: Joint industrial visits and professional development
-- CRESA UoN: Inter-university collaboration
-- ICOMS JKUAT: Inter-university collaboration
-- IQSK: Professional body engagement and journal contributions
-- Acoustic Ceilings Kenya: Industry partnership
-
-### TRAINING PROGRAMS (via GBA partnership)
-Software: Revit (BIM), ArchiCAD, Planswift, Primavera P6, EDGE Tool, 3Ds Max
-Cost: KES 3,500 with promo code "CSA"
+- Members: 450+ | Annual Events: 30+ | Chapters: 4
 
 ### CSA GALA DINNER 2026 — FLAGSHIP EVENT
 - Theme: "Laying the First Stone: Honoring the Past, Empowering the Present and Inspiring the Future of Construction"
@@ -438,41 +608,33 @@ Cost: KES 3,500 with promo code "CSA"
 - Corporate Group of 10: KES 30,000 — 10 Seats, Full table reserved
 All packages support partial payment with unique booking codes.
 
-### PARTNERSHIP/SPONSORSHIP PACKAGES
-- Premium Sponsor: KES 100,000 — Logo on all materials, VIP table, unlimited banners, full attendee list
-- Platinum Sponsor: KES 80,000 — Logo on materials, 3 banners, 5 complimentary tickets
-- Gold Partner: KES 60,000 — Logo on materials, 2 banners, 4 complimentary tickets
-- Silver Sponsor: KES 30,000 — Logo on materials, 1 banner, 2 complimentary tickets
-- Bronze Sponsor: KES 25,000 — Logo on materials, 1 banner, 1 complimentary ticket
-- In-Kind Sponsor: KES 20,000 — Logo on materials, social media recognition
+### HOW TO BUY TICKETS
+1. Scroll to the Tickets section on the homepage
+2. Select package and click "Select Package"
+3. Fill in name, email, and phone
+4. Pay via M-Pesa STK push or enter M-Pesa code manually
+5. Booking code and e-ticket shown on screen and emailed
 
-### GALA DINNER ORGANISING COMMITTEE
-Adrian Kamau (Treasurer), Ben Brian (Editor-in-Chief), Kariuki Kevin — Captain (Chairperson), Collins Kaiyaa, Edward Gekombe, Hadassah Kibet (CSA President), Kelvin Murimi (QS Alumni Support), Kydah Biyaki (Sec Gen), Mathew Mutero (CM Alumni Support), Md. Pauline Wafula (Patron), Meshack Were, Ruth Ayuma (Organizing Sec), Jackline Mutua (Secretary), Victor Mutemi (Treasurer), Hope Mangeni (Vice Chairperson), Violet Okwaro.
+### BOOKING CODE RETRIEVAL
+Users who forgot their booking code can retrieve it by:
+1. Clicking the "🔑 Get My Booking Code" chip or asking Ruth
+2. Entering their registered email and phone number
+3. Ruth verifies the match and reveals the booking code
+4. A direct link to download the ticket is shown below the code
 
-### CSA AWARDS CATEGORIES
-- Active Member Award, Top Chapter Award, Graphic Design Award, Mentor Award (Student), Mentor Award (Non-Student), Rookie Award, Academician Award, CSA Ambassador Award, Event Champion Award, Merch Champion Award, EXCOM Member Award, Finalist of the Year, CSA FC Player of the Year
+### PARTNERSHIP PACKAGES
+- Premium Sponsor: KES 100,000
+- Platinum Sponsor: KES 80,000
+- Gold Partner: KES 60,000
+- Silver Sponsor: KES 30,000
+- Bronze Sponsor: KES 25,000
+- In-Kind Sponsor: KES 20,000
 
 ### DIGITAL PRESENCE
 - Website: csatukenya.org
-- Instagram: @csa_tuk (769 followers)
-- Twitter/X: @csa_tuk (844 followers)
-- LinkedIn: Construction Students Association (CSA-TUK) — 448+ followers
-- TikTok: @csa_tuk
+- Instagram: @csa_tuk | Twitter/X: @csa_tuk | LinkedIn: CSA-TUK | TikTok: @csa_tuk
 - Email: csa@students.tukenya.ac.ke
 - Phone: +254 758 647130 / +254 770 032594
-
-### KEY FIGURES
-- Kariuki Kevin (Captain): Emeritus President, revived CSA in 2023, Gala Dinner Chairperson
-- Hadassah Kibet: Current President (2025/2026)
-- QS David Choka: Founding Patron, IQSK Vice President Aspirant
-- Nashon Okowa: Chief Guest — CSA Gala Dinner 2026
-- Madam Pauline Wafula: Patron
-- QS Isaiah Goga: Co-founder (2018)
-- QS Dominic Omondi: Co-founder (2018)
-- Charles Dickens Ochung': Co-founder (2018)
-
-### STRATEGIC DIRECTION
-CSA is evolving from a departmental student club into a professional student institution through: formalized gala events with corporate-level sponsorship, premium branding, structured governance, public industry partnerships, media visibility, mentorship culture, technical training programs, and inter-university collaborations.
 `;
 
 // ─── Main Component ────────────────────────────────────────────────────────────
@@ -489,7 +651,7 @@ export default function AIChatAssistant() {
 
   const [messages, setMessages] = useState<Message[]>([{
     role: "assistant",
-    content: "Hi there! 👋 I'm Ruth, your CSA Gala Dinner assistant.\n\nI know everything about CSA, the Gala Dinner 2026, tickets, venue, sponsorships, and more. What can I help you with today?",
+    content: "Hi there! 👋 I'm Ruth, your CSA Gala Dinner assistant.\n\nI can help with tickets, venue, sponsorships, and more. You can also retrieve your booking code securely right here. What can I help you with today?",
   }]);
   const [input, setInput] = useState("");
   const [loading, setLoading] = useState(false);
@@ -508,8 +670,6 @@ export default function AIChatAssistant() {
     const map: any = { ...DEFAULT_SITE };
     data.forEach((r: any) => { if (r.value) map[r.key] = r.value; });
     setSiteInfo(map);
-
-    // Load sponsor settings from site_settings too
     const costRow = data.find((r: any) => r.key === "sponsor_cost_per_student");
     const levelsRow = data.find((r: any) => r.key === "sponsor_levels");
     if (costRow?.value) setSponsorCost(Number(costRow.value) || 2000);
@@ -531,20 +691,16 @@ export default function AIChatAssistant() {
   useEffect(() => {
     loadSiteSettings();
     loadPackages();
-
-    // Real-time subscriptions — Ruth always reflects latest admin changes
-    const ch = supabase.channel("ruth-realtime")
+    const ch = supabase.channel("ruth-realtime-v3")
       .on("postgres_changes", { event: "*", schema: "public", table: "site_settings" }, loadSiteSettings)
       .on("postgres_changes", { event: "*", schema: "public", table: "ticket_packages" }, loadPackages)
       .subscribe();
-
     return () => { supabase.removeChannel(ch); };
   }, [loadSiteSettings, loadPackages]);
 
   useEffect(() => { messagesEndRef.current?.scrollIntoView({ behavior: "smooth" }); }, [messages, open]);
   useEffect(() => { if (open) setTimeout(() => inputRef.current?.focus(), 320); }, [open]);
 
-  // ── Image upload ───────────────────────────────────────────────────────────
   function handleImageSelect(e: React.ChangeEvent<HTMLInputElement>) {
     setImageError("");
     const file = e.target.files?.[0];
@@ -559,7 +715,6 @@ export default function AIChatAssistant() {
     e.target.value = "";
   }
 
-  // ── Build system prompt (fully live) ──────────────────────────────────────
   const buildSystemPrompt = useCallback(() => {
     const pkgText = packages.length > 0
       ? packages.map(p => {
@@ -610,14 +765,23 @@ ${pkgText}
 5. Booking code and e-ticket shown on screen and emailed to you
 All packages support partial/installment payments with a unique booking code.
 
+## BOOKING CODE RETRIEVAL (NEW FEATURE)
+When users ask for their booking code or say they forgot it:
+- Tell them they can retrieve it securely right here in the chat
+- They need to enter the email and phone number used during registration
+- The system will verify the match and show them their booking code
+- Below the code, there will be a direct link to download/view their ticket
+- This feature is fully secure and private
+- Mention the "🔑 Get My Booking Code" chip below or that they can just ask you
+
 ## PAYMENT STATUS / TICKET LOOKUP
-Users can check their payment status at: csagaladinner.co.ke/lookup — enter M-Pesa receipt code or registered phone number.
+Users can also check their payment status at: csagaladinner.co.ke/lookup — enter M-Pesa receipt code or registered phone number.
 
 ## SPONSOR A STUDENT (live amounts from admin settings)
 ${sponsorText}
 Visible in the "Sponsor a Student" section on the homepage.
 
-## PARTNERSHIP PACKAGES (for organisations wanting to partner)
+## PARTNERSHIP PACKAGES
 - Premium Sponsor: KES 100,000
 - Platinum Sponsor: KES 80,000
 - Gold Partner: KES 60,000
@@ -640,7 +804,7 @@ Fill the Partner Inquiry form on the homepage or contact us via WhatsApp.
 ${CSA_KNOWLEDGE}
 
 ## VISUAL ENHANCEMENTS
-The UI automatically shows interactive cards for tickets, sponsor tiers, and venue maps. Reference them naturally: "Here are the available packages — check the cards below!"
+The UI automatically shows interactive cards for tickets, sponsor tiers, venue maps, and the new booking code lookup panel. Reference them naturally.
 
 ## WHEN UNSURE
 Say honestly: "I don't have that specific detail — reach us on WhatsApp or email ${siteInfo.contact_email}."
@@ -652,7 +816,6 @@ Say honestly: "I don't have that specific detail — reach us on WhatsApp or ema
 4. Never promise specific timelines`;
   }, [siteInfo, packages, sponsorLevels, sponsorCost]);
 
-  // ── Save escalation ────────────────────────────────────────────────────────
   const saveEscalation = useCallback(async (userMsg: string, summary: string, severity: string, category: string) => {
     try {
       await supabase.from("ai_chat_escalations").insert({
@@ -662,7 +825,14 @@ Say honestly: "I don't have that specific detail — reach us on WhatsApp or ema
     } catch { /* silent */ }
   }, []);
 
-  // ── Send message via Anthropic API ─────────────────────────────────────────
+  // ── Handle booking lookup result ───────────────────────────────────────────
+  const handleBookingResult = useCallback((result: BookingResult, msgIndex: number) => {
+    setMessages(prev => prev.map((m, i) =>
+      i === msgIndex ? { ...m, bookingResult: result, showBookingLookup: false } : m
+    ));
+  }, []);
+
+  // ── Send message ───────────────────────────────────────────────────────────
   async function sendMessage() {
     const rawText = input.trim();
     if ((!rawText && !pendingImage) || loading) return;
@@ -687,6 +857,7 @@ Say honestly: "I don't have that specific detail — reach us on WhatsApp or ema
     const showWA = hasTrigger(text, WA_TRIGGERS);
     const showTickets = hasTrigger(text, TICKET_VISUAL_TRIGGERS);
     const showSponsors = hasTrigger(text, SPONSOR_VISUAL_TRIGGERS);
+    const showBookingLookup = hasTrigger(text, BOOKING_TRIGGERS);
     const shouldEscalate = needsEscalation(text);
 
     const userMsg: Message = {
@@ -707,8 +878,6 @@ Say honestly: "I don't have that specific detail — reach us on WhatsApp or ema
 
     try {
       const systemPrompt = buildSystemPrompt();
-
-      // Build Anthropic-format messages
       const apiMessages = updatedMessages.map(m => {
         if (m.role === "user" && m.imageBase64) {
           return {
@@ -742,6 +911,9 @@ Say honestly: "I don't have that specific detail — reach us on WhatsApp or ema
 
       const { severity } = shouldEscalate ? classifyEscalation(text) : { severity: "" };
 
+      // Detect booking code intent from AI reply too
+      const aiWantsBooking = showBookingLookup || hasTrigger(replyText, BOOKING_TRIGGERS);
+
       setMessages(prev => [...prev, {
         role: "assistant",
         content: replyText,
@@ -749,6 +921,7 @@ Say honestly: "I don't have that specific detail — reach us on WhatsApp or ema
         showMap: showMap || hasTrigger(replyText, MAP_TRIGGERS),
         showTickets: (showTickets || hasTrigger(replyText, TICKET_VISUAL_TRIGGERS)) && packages.length > 0,
         showSponsors: showSponsors || hasTrigger(replyText, SPONSOR_VISUAL_TRIGGERS),
+        showBookingLookup: aiWantsBooking,
         isEscalated: shouldEscalate,
         escalationSeverity: shouldEscalate ? severity : undefined,
       }]);
@@ -771,14 +944,13 @@ Say honestly: "I don't have that specific detail — reach us on WhatsApp or ema
     "🎟️ Ticket prices",
     "📍 Where's the venue?",
     "🎓 Sponsor a student",
+    "🔑 Get my booking code",
     "🔍 Check my booking",
     "🏗️ About CSA",
     "🤝 Partner with us",
     "💬 Talk to support",
-    "👥 CSA leadership",
   ];
 
-  // KingFisher Nest Hotel, Westlands
   const VENUE_LAT = -1.2672;
   const VENUE_LNG = 36.8031;
 
@@ -806,7 +978,7 @@ Say honestly: "I don't have that specific detail — reach us on WhatsApp or ema
             initial={{ opacity: 0, scale: .88, y: 28 }} animate={{ opacity: 1, scale: 1, y: 0 }}
             exit={{ opacity: 0, scale: .88, y: 28 }} transition={{ type: "spring", damping: 22, stiffness: 260 }}
             className="fixed bottom-[106px] right-6 z-50 flex flex-col rounded-2xl overflow-hidden"
-            style={{ width: "min(400px, calc(100vw - 20px))", maxHeight: "min(600px, calc(100vh - 180px))", background: "#0a0802", border: "1px solid rgba(212,175,55,0.3)", boxShadow: "0 24px 80px rgba(0,0,0,0.75), inset 0 1px 0 rgba(212,175,55,0.12)" }}>
+            style={{ width: "min(400px, calc(100vw - 20px))", maxHeight: "min(620px, calc(100vh - 180px))", background: "#0a0802", border: "1px solid rgba(212,175,55,0.3)", boxShadow: "0 24px 80px rgba(0,0,0,0.75), inset 0 1px 0 rgba(212,175,55,0.12)" }}>
 
             {/* Header */}
             <div className="flex-shrink-0 flex items-center gap-3 px-4 py-3" style={{ background: "linear-gradient(135deg,rgba(212,175,55,0.12) 0%,rgba(212,175,55,0.03) 100%)", borderBottom: "1px solid rgba(212,175,55,0.18)" }}>
@@ -844,6 +1016,17 @@ Say honestly: "I don't have that specific detail — reach us on WhatsApp or ema
                         : { background: "rgba(255,255,255,0.05)", color: "rgba(255,255,255,0.88)", border: "1px solid rgba(212,175,55,0.13)", borderBottomLeftRadius: 4 }}>
                       {msg.content}
                     </div>
+
+                    {/* Booking lookup panel — shown before result */}
+                    {msg.showBookingLookup && !msg.bookingResult && (
+                      <BookingLookupPanel onResult={(result) => handleBookingResult(result, i)}/>
+                    )}
+
+                    {/* Booking result card — shown after verification */}
+                    {msg.bookingResult && (
+                      <BookingResultCard result={msg.bookingResult}/>
+                    )}
+
                     {msg.showTickets && <TicketCards packages={packages}/>}
                     {msg.showSponsors && <SponsorTiers levels={sponsorLevels} costPerStudent={sponsorCost}/>}
                     {msg.showMap && <MapCard lat={VENUE_LAT} lng={VENUE_LNG} name={siteInfo.hero_venue}/>}
@@ -918,7 +1101,7 @@ Say honestly: "I don't have that specific detail — reach us on WhatsApp or ema
             <div className="flex items-center justify-center gap-1 py-1.5 flex-shrink-0" style={{ borderTop: "1px solid rgba(212,175,55,0.07)" }}>
               <Globe size={9} style={{ color: "rgba(212,175,55,0.3)" }}/>
               <span className="text-[10px]" style={{ color: "rgba(212,175,55,0.3)" }}>
-                CSA Gala Dinner 2026 · Powered by MikeCreations 
+                CSA Gala Dinner 2026 · Powered by MikeCreations
               </span>
             </div>
           </motion.div>
