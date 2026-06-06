@@ -3,9 +3,15 @@
  * ─────────────────────────────────────────────────────────────────
  * • All CSA organisational knowledge embedded
  * • Live Supabase data: ticket packages, site settings, sponsor settings
- * • NEW: Booking code retrieval via email + phone verification
- * • NEW: Direct ticket download link after booking code is shown
+ * • Booking code retrieval via email + phone verification
+ * • Direct ticket download link after booking code is shown
  * • Real-time subscriptions — reflects admin changes instantly
+ *
+ * FIXES vs previous version:
+ * - CSS injection moved from module scope into useEffect (no more
+ *   top-level `document` access that can break the Vite/esbuild build)
+ * - Removed unused imports: Calendar, Clock, Phone, Mail
+ * - Removed unused LOW_TRIGGERS constant
  */
 
 import { useState, useRef, useEffect, useCallback } from "react";
@@ -13,8 +19,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import {
   X, Send, Loader2, ExternalLink, MapPin, ChevronDown,
   Paperclip, Image as ImageIcon, AlertTriangle, CheckCircle2,
-  Ticket, Calendar, Clock, Phone, Mail, Globe, Copy, Check,
-  Download, Search, Lock,
+  Ticket, Globe, Copy, Check, Download, Search, Lock,
 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 
@@ -22,19 +27,18 @@ import { supabase } from "@/integrations/supabase/client";
 const WA_LINK = "https://wa.me/254758647130?text=Hello,%20I%20need%20help%20with%20the%20CSA%20Gala%20Dinner";
 
 // ─── Trigger banks ─────────────────────────────────────────────────────────────
-const WA_TRIGGERS = ["human","agent","live support","customer care","speak to someone","talk to","real person","contact you","call me","whatsapp","connect me","representative"];
-const MAP_TRIGGERS = ["where","location","venue","westlands","kingfisher","directions","map","how do i get","address","navigate","get there"];
-const TICKET_VISUAL_TRIGGERS = ["ticket","package","price","pricing","cost","buy ticket","book","packages","how much","what does it cost"];
+const WA_TRIGGERS      = ["human","agent","live support","customer care","speak to someone","talk to","real person","contact you","call me","whatsapp","connect me","representative"];
+const MAP_TRIGGERS     = ["where","location","venue","westlands","kingfisher","directions","map","how do i get","address","navigate","get there"];
+const TICKET_VISUAL_TRIGGERS  = ["ticket","package","price","pricing","cost","buy ticket","book","packages","how much","what does it cost"];
 const SPONSOR_VISUAL_TRIGGERS = ["sponsor a student","help a student","fund a student","sponsor student","student sponsorship"];
 const CRITICAL_TRIGGERS = ["fraud","scam","stolen","harassment","abuse","emergency","threat"];
-const HIGH_TRIGGERS = ["refund","double charged","duplicate payment","not received ticket","payment stuck","failed payment"];
-const MEDIUM_TRIGGERS = ["complaint","problem","issue","wrong","error","help me","urgent","broken"];
-const LOW_TRIGGERS = ["question","confused","unclear","not sure","can you help"];
-const BOOKING_TRIGGERS = ["booking code","my code","get my code","retrieve code","find my code","my booking","my ticket code","forgot my code","lost my code","what is my code","get code","find code","my registration code"];
+const HIGH_TRIGGERS     = ["refund","double charged","duplicate payment","not received ticket","payment stuck","failed payment"];
+const MEDIUM_TRIGGERS   = ["complaint","problem","issue","wrong","error","help me","urgent","broken"];
+const BOOKING_TRIGGERS  = ["booking code","my code","get my code","retrieve code","find my code","my booking","my ticket code","forgot my code","lost my code","what is my code","get code","find code","my registration code"];
 
 // ─── Security ──────────────────────────────────────────────────────────────────
-const MAX_INPUT_LENGTH = 800;
-const RATE_LIMIT_WINDOW_MS = 60_000;
+const MAX_INPUT_LENGTH      = 800;
+const RATE_LIMIT_WINDOW_MS  = 60_000;
 const RATE_LIMIT_MAX_MESSAGES = 15;
 const INJECTION_PATTERNS = [
   /ignore\s+(all\s+)?(previous|prior|above)\s+instructions?/gi,
@@ -88,6 +92,26 @@ function needsEscalation(text: string) {
   return [...CRITICAL_TRIGGERS, ...HIGH_TRIGGERS, ...MEDIUM_TRIGGERS].some(t => text.toLowerCase().includes(t));
 }
 
+// ─── CSS string (injected safely inside useEffect, never at module scope) ──────
+const RUTH_CSS = `
+  @keyframes ruthShimmer{0%{background-position:-200% center}100%{background-position:200% center}}
+  .ruth-shimmer{background:linear-gradient(90deg,#b8860b 0%,#D4AF37 40%,#ffe066 60%,#b8860b 100%);background-size:200% auto;-webkit-background-clip:text;-webkit-text-fill-color:transparent;animation:ruthShimmer 3.5s linear infinite}
+  @keyframes ruthPulse{0%,100%{box-shadow:0 0 0 0 rgba(212,175,55,.6)}50%{box-shadow:0 0 0 12px rgba(212,175,55,0)}}
+  .ruth-fab-pulse{animation:ruthPulse 2.4s ease-in-out infinite}
+  .ruth-scroll::-webkit-scrollbar{width:4px}
+  .ruth-scroll::-webkit-scrollbar-thumb{background:rgba(212,175,55,.2);border-radius:4px}
+  @keyframes ruthDot{0%,80%,100%{transform:scale(1);opacity:.4}40%{transform:scale(1.3);opacity:1}}
+  .ruth-dot{animation:ruthDot 1.2s ease-in-out infinite}
+  .ruth-dot:nth-child(2){animation-delay:.2s}
+  .ruth-dot:nth-child(3){animation-delay:.4s}
+  @keyframes ruthFadeIn{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:translateY(0)}}
+  .ruth-msg{animation:ruthFadeIn .3s ease forwards}
+  .ruth-chip:hover{background:rgba(212,175,55,.15)!important}
+  @keyframes ruthCodePop{0%{transform:scale(0.9);opacity:0}100%{transform:scale(1);opacity:1}}
+  .ruth-code-pop{animation:ruthCodePop .35s cubic-bezier(.34,1.56,.64,1) forwards}
+`;
+const RUTH_STYLE_ID = "csa-ruth-v3-styles";
+
 // ─── Types ─────────────────────────────────────────────────────────────────────
 interface Message {
   role: "user" | "assistant";
@@ -140,43 +164,18 @@ interface TicketPkg {
 interface SponsorLevel { label: string; multiplier: number; }
 
 const DEFAULT_SITE: SiteInfo = {
-  hero_title: "CSA Gala Dinner 2026",
-  hero_date: "Friday, 12th June 2026",
-  hero_time: "6:30 PM – 11:00 PM",
-  hero_venue: "KingFisher Nest Hotel, Westlands, Nairobi",
-  hero_subtitle: "Laying the First Stone: Honoring the Past, Empowering the Present and Inspiring the Future of Construction",
-  contact_email: "csa@students.tukenya.ac.ke",
-  contact_phone: "0758647130",
-  social_x: "https://x.com/csa_tuk",
+  hero_title:     "CSA Gala Dinner 2026",
+  hero_date:      "Friday, 12th June 2026",
+  hero_time:      "6:30 PM – 11:00 PM",
+  hero_venue:     "KingFisher Nest Hotel, Westlands, Nairobi",
+  hero_subtitle:  "Laying the First Stone: Honoring the Past, Empowering the Present and Inspiring the Future of Construction",
+  contact_email:  "csa@students.tukenya.ac.ke",
+  contact_phone:  "0758647130",
+  social_x:         "https://x.com/csa_tuk",
   social_instagram: "https://www.instagram.com/csa_tuk",
-  social_linkedin: "https://www.linkedin.com/company/csatuk/",
-  social_tiktok: "https://www.tiktok.com/@csa_tuk",
+  social_linkedin:  "https://www.linkedin.com/company/csatuk/",
+  social_tiktok:    "https://www.tiktok.com/@csa_tuk",
 };
-
-// ─── Injected CSS ──────────────────────────────────────────────────────────────
-const STYLE_ID = "csa-ruth-v3-styles";
-if (!document.getElementById(STYLE_ID)) {
-  const s = document.createElement("style");
-  s.id = STYLE_ID;
-  s.textContent = `
-    @keyframes ruthShimmer{0%{background-position:-200% center}100%{background-position:200% center}}
-    .ruth-shimmer{background:linear-gradient(90deg,#b8860b 0%,#D4AF37 40%,#ffe066 60%,#b8860b 100%);background-size:200% auto;-webkit-background-clip:text;-webkit-text-fill-color:transparent;animation:ruthShimmer 3.5s linear infinite}
-    @keyframes ruthPulse{0%,100%{box-shadow:0 0 0 0 rgba(212,175,55,.6)}50%{box-shadow:0 0 0 12px rgba(212,175,55,0)}}
-    .ruth-fab-pulse{animation:ruthPulse 2.4s ease-in-out infinite}
-    .ruth-scroll::-webkit-scrollbar{width:4px}
-    .ruth-scroll::-webkit-scrollbar-thumb{background:rgba(212,175,55,.2);border-radius:4px}
-    @keyframes ruthDot{0%,80%,100%{transform:scale(1);opacity:.4}40%{transform:scale(1.3);opacity:1}}
-    .ruth-dot{animation:ruthDot 1.2s ease-in-out infinite}
-    .ruth-dot:nth-child(2){animation-delay:.2s}
-    .ruth-dot:nth-child(3){animation-delay:.4s}
-    @keyframes ruthFadeIn{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:translateY(0)}}
-    .ruth-msg{animation:ruthFadeIn .3s ease forwards}
-    .ruth-chip:hover{background:rgba(212,175,55,.15)!important}
-    @keyframes ruthCodePop{0%{transform:scale(0.9);opacity:0}100%{transform:scale(1);opacity:1}}
-    .ruth-code-pop{animation:ruthCodePop .35s cubic-bezier(.34,1.56,.64,1) forwards}
-  `;
-  document.head.appendChild(s);
-}
 
 // ─── Sub-components ────────────────────────────────────────────────────────────
 function RuthAvatar({ size = 40, glow = false }: { size?: number; glow?: boolean }) {
@@ -261,7 +260,7 @@ function WAButton({ phone }: { phone?: string }) {
 function TicketCards({ packages }: { packages: TicketPkg[] }) {
   if (!packages.length) return null;
   const colors = [
-    { bg: "rgba(212,175,55,0.1)", border: "rgba(212,175,55,0.4)", accent: "#D4AF37" },
+    { bg: "rgba(212,175,55,0.1)",  border: "rgba(212,175,55,0.4)",  accent: "#D4AF37" },
     { bg: "rgba(180,140,255,0.1)", border: "rgba(180,140,255,0.35)", accent: "#b48cff" },
     { bg: "rgba(100,200,255,0.1)", border: "rgba(100,200,255,0.35)", accent: "#64c8ff" },
     { bg: "rgba(255,150,100,0.1)", border: "rgba(255,150,100,0.35)", accent: "#ff9664" },
@@ -303,7 +302,7 @@ function TicketCards({ packages }: { packages: TicketPkg[] }) {
 
 function SponsorTiers({ levels, costPerStudent }: { levels: SponsorLevel[]; costPerStudent: number }) {
   const colors = ["#D4AF37", "#b48cff", "#64c8ff", "#ff9664"];
-  const icons = ["🤝", "💜", "🌟", "🏆"];
+  const icons  = ["🤝", "💜", "🌟", "🏆"];
   return (
     <div className="mt-2 w-full">
       <p className="text-[11px] mb-2" style={{ color: "rgba(212,175,55,0.6)" }}>Sponsor a Student — Help a future builder attend!</p>
@@ -337,33 +336,23 @@ function EscalatedBadge({ severity }: { severity?: string }) {
   );
 }
 
-// ─── NEW: Booking Code Lookup Panel ───────────────────────────────────────────
+// ─── Booking Code Lookup Panel ────────────────────────────────────────────────
 function BookingLookupPanel({ onResult }: { onResult: (result: BookingResult) => void }) {
-  const [email, setEmail] = useState("");
-  const [phone, setPhone] = useState("");
+  const [email,   setEmail]   = useState("");
+  const [phone,   setPhone]   = useState("");
   const [loading, setLoading] = useState(false);
-  const [error, setError] = useState("");
+  const [error,   setError]   = useState("");
 
   const handleLookup = async () => {
     const trimEmail = email.trim().toLowerCase();
     const trimPhone = phone.trim().replace(/\s/g, "");
-    if (!trimEmail || !trimPhone) {
-      setError("Please enter both your email and phone number.");
-      return;
-    }
+    if (!trimEmail || !trimPhone) { setError("Please enter both your email and phone number."); return; }
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-    if (!emailRegex.test(trimEmail)) {
-      setError("Please enter a valid email address.");
-      return;
-    }
-    if (trimPhone.length < 9) {
-      setError("Please enter a valid phone number.");
-      return;
-    }
+    if (!emailRegex.test(trimEmail)) { setError("Please enter a valid email address."); return; }
+    if (trimPhone.length < 9)         { setError("Please enter a valid phone number."); return; }
     setError("");
     setLoading(true);
     try {
-      // Query by email first, then cross-check phone
       const { data, error: dbErr } = await supabase
         .from("registrations")
         .select("id, name, email, phone, package_type, payment_status, ticket_issued, ticket_code")
@@ -377,16 +366,14 @@ function BookingLookupPanel({ onResult }: { onResult: (result: BookingResult) =>
         return;
       }
 
-      // Cross-check phone — normalize both sides
-      const normalize = (p: string) => p.replace(/\D/g, "").replace(/^0/, "254").replace(/^7/, "2547").replace(/^1/, "2541");
+      const normalize = (p: string) =>
+        p.replace(/\D/g, "").replace(/^0/, "254").replace(/^7/, "2547").replace(/^1/, "2541");
       const normInput = normalize(trimPhone);
 
       const match = data.find(r => {
         if (!r.phone) return false;
         const normDb = normalize(r.phone);
-        // Match last 9 digits as fallback for flexibility
-        return normDb === normInput ||
-          normDb.slice(-9) === normInput.slice(-9);
+        return normDb === normInput || normDb.slice(-9) === normInput.slice(-9);
       });
 
       if (!match) {
@@ -396,11 +383,11 @@ function BookingLookupPanel({ onResult }: { onResult: (result: BookingResult) =>
 
       onResult({
         found: true,
-        name: match.name,
-        ticketCode: match.ticket_code || undefined,
-        packageType: match.package_type,
+        name:          match.name,
+        ticketCode:    match.ticket_code || undefined,
+        packageType:   match.package_type,
         paymentStatus: match.payment_status,
-        ticketIssued: match.ticket_issued,
+        ticketIssued:  match.ticket_issued,
       });
     } catch {
       onResult({ found: false, error: "Something went wrong. Please try again or contact us via WhatsApp." });
@@ -419,35 +406,25 @@ function BookingLookupPanel({ onResult }: { onResult: (result: BookingResult) =>
         <p className="text-[11px]" style={{ color: "rgba(255,255,255,0.5)" }}>Enter the email and phone used during registration to retrieve your booking code.</p>
         <div className="flex flex-col gap-1.5">
           <label className="text-[11px] font-medium" style={{ color: "rgba(255,255,255,0.6)" }}>Email address</label>
-          <input
-            type="email"
-            value={email}
-            onChange={e => { setEmail(e.target.value); setError(""); }}
+          <input type="email" value={email} onChange={e => { setEmail(e.target.value); setError(""); }}
             placeholder="you@example.com"
             className="w-full rounded-lg px-3 py-2 text-[12px] bg-transparent outline-none"
-            style={{ border: "1px solid rgba(212,175,55,0.25)", color: "rgba(255,255,255,0.9)", caretColor: "#D4AF37" }}
-          />
+            style={{ border: "1px solid rgba(212,175,55,0.25)", color: "rgba(255,255,255,0.9)", caretColor: "#D4AF37" }}/>
         </div>
         <div className="flex flex-col gap-1.5">
           <label className="text-[11px] font-medium" style={{ color: "rgba(255,255,255,0.6)" }}>Phone number</label>
-          <input
-            type="tel"
-            value={phone}
-            onChange={e => { setPhone(e.target.value); setError(""); }}
+          <input type="tel" value={phone} onChange={e => { setPhone(e.target.value); setError(""); }}
             placeholder="0712 345 678"
             className="w-full rounded-lg px-3 py-2 text-[12px] bg-transparent outline-none"
             style={{ border: "1px solid rgba(212,175,55,0.25)", color: "rgba(255,255,255,0.9)", caretColor: "#D4AF37" }}
-            onKeyDown={e => { if (e.key === "Enter") handleLookup(); }}
-          />
+            onKeyDown={e => { if (e.key === "Enter") handleLookup(); }}/>
         </div>
         {error && (
           <div className="flex items-start gap-1.5 text-[11px]" style={{ color: "#f87171" }}>
             <AlertTriangle size={11} className="mt-0.5 flex-shrink-0"/>{error}
           </div>
         )}
-        <button
-          onClick={handleLookup}
-          disabled={loading}
+        <button onClick={handleLookup} disabled={loading}
           className="w-full flex items-center justify-center gap-2 py-2 rounded-lg text-xs font-semibold transition-all disabled:opacity-50"
           style={{ background: "linear-gradient(135deg,#D4AF37,#9a7415)", color: "#0a0802" }}>
           {loading ? <Loader2 size={13} className="animate-spin"/> : <Search size={13}/>}
@@ -458,7 +435,7 @@ function BookingLookupPanel({ onResult }: { onResult: (result: BookingResult) =>
   );
 }
 
-// ─── NEW: Booking Code Result Card ────────────────────────────────────────────
+// ─── Booking Code Result Card ─────────────────────────────────────────────────
 function BookingResultCard({ result }: { result: BookingResult }) {
   const [copied, setCopied] = useState(false);
 
@@ -488,21 +465,23 @@ function BookingResultCard({ result }: { result: BookingResult }) {
   return (
     <div className="mt-2 w-full ruth-code-pop">
       {/* Success header */}
-      <div className="rounded-t-xl px-3 py-2.5 flex items-center gap-2" style={{ background: "rgba(34,197,94,0.1)", border: "1px solid rgba(34,197,94,0.25)", borderBottom: "none" }}>
+      <div className="rounded-t-xl px-3 py-2.5 flex items-center gap-2"
+        style={{ background: "rgba(34,197,94,0.1)", border: "1px solid rgba(34,197,94,0.25)", borderBottom: "none" }}>
         <CheckCircle2 size={13} style={{ color: "#22c55e" }}/>
         <span className="text-xs font-semibold" style={{ color: "#22c55e" }}>Registration Found — {result.name}</span>
       </div>
 
       {/* Info row */}
-      <div className="px-3 py-2 flex items-center gap-3 text-[11px]" style={{ background: "rgba(255,255,255,0.03)", border: "1px solid rgba(212,175,55,0.2)", borderTop: "none", borderBottom: "none" }}>
+      <div className="px-3 py-2 flex items-center gap-3 text-[11px]"
+        style={{ background: "rgba(255,255,255,0.03)", border: "1px solid rgba(212,175,55,0.2)", borderTop: "none", borderBottom: "none" }}>
         <span style={{ color: "rgba(255,255,255,0.5)" }}>Package: <span style={{ color: "rgba(255,255,255,0.8)" }}>{result.packageType || "—"}</span></span>
         <span style={{ color: isPaid ? "#22c55e" : "#eab308" }}>● {isPaid ? "Paid" : result.paymentStatus || "Pending"}</span>
       </div>
 
-      {/* Booking code */}
       {result.ticketCode ? (
         <>
-          <div className="px-3 py-3" style={{ background: "rgba(212,175,55,0.06)", border: "1px solid rgba(212,175,55,0.3)", borderTop: "1px solid rgba(212,175,55,0.15)", borderBottom: "none" }}>
+          <div className="px-3 py-3"
+            style={{ background: "rgba(212,175,55,0.06)", border: "1px solid rgba(212,175,55,0.3)", borderTop: "1px solid rgba(212,175,55,0.15)", borderBottom: "none" }}>
             <p className="text-[10px] mb-1.5 font-medium" style={{ color: "rgba(212,175,55,0.6)" }}>YOUR BOOKING CODE</p>
             <div className="flex items-center gap-2">
               <div className="flex-1 rounded-lg px-3 py-2 font-mono text-sm font-bold tracking-widest text-center select-all"
@@ -518,17 +497,10 @@ function BookingResultCard({ result }: { result: BookingResult }) {
             </div>
             {copied && <p className="text-[10px] mt-1.5 text-center" style={{ color: "#22c55e" }}>✓ Copied to clipboard!</p>}
           </div>
-
-          {/* Download ticket button */}
-          <a
-            href={`/ticket/${result.ticketCode}`}
-            target="_blank"
-            rel="noopener noreferrer"
+          <a href={`/ticket/${result.ticketCode}`} target="_blank" rel="noopener noreferrer"
             className="flex items-center justify-center gap-2 py-2.5 rounded-b-xl text-xs font-semibold hover:opacity-90 active:scale-95 transition-all"
             style={{
-              background: isPaid
-                ? "linear-gradient(135deg,#1a6e3c,#22c55e)"
-                : "linear-gradient(135deg,#5a4a00,#9a7415)",
+              background: isPaid ? "linear-gradient(135deg,#1a6e3c,#22c55e)" : "linear-gradient(135deg,#5a4a00,#9a7415)",
               color: "#fff",
               border: "1px solid rgba(212,175,55,0.2)",
               borderTop: "none",
@@ -640,12 +612,12 @@ Users who forgot their booking code can retrieve it by:
 // ─── Main Component ────────────────────────────────────────────────────────────
 export default function AIChatAssistant() {
   const [open, setOpen] = useState(false);
-  const [siteInfo, setSiteInfo] = useState<SiteInfo>(DEFAULT_SITE);
-  const [packages, setPackages] = useState<TicketPkg[]>([]);
+  const [siteInfo, setSiteInfo]       = useState<SiteInfo>(DEFAULT_SITE);
+  const [packages, setPackages]       = useState<TicketPkg[]>([]);
   const [sponsorLevels, setSponsorLevels] = useState<SponsorLevel[]>([
-    { label: "Half Sponsorship", multiplier: 0.5 },
-    { label: "Three-Quarter Sponsorship", multiplier: 0.75 },
-    { label: "Full Sponsorship", multiplier: 1 },
+    { label: "Half Sponsorship",           multiplier: 0.5 },
+    { label: "Three-Quarter Sponsorship",  multiplier: 0.75 },
+    { label: "Full Sponsorship",           multiplier: 1 },
   ]);
   const [sponsorCost, setSponsorCost] = useState(2000);
 
@@ -653,25 +625,34 @@ export default function AIChatAssistant() {
     role: "assistant",
     content: "Hi there! 👋 I'm Ruth, your CSA Gala Dinner assistant.\n\nI can help with tickets, venue, sponsorships, and more. You can also retrieve your booking code securely right here. What can I help you with today?",
   }]);
-  const [input, setInput] = useState("");
-  const [loading, setLoading] = useState(false);
+  const [input, setInput]             = useState("");
+  const [loading, setLoading]         = useState(false);
   const [pendingImage, setPendingImage] = useState<{ base64: string; type: string; name: string } | null>(null);
-  const [imageError, setImageError] = useState("");
+  const [imageError, setImageError]   = useState("");
 
-  const rateLimitRef = useRef<{ timestamps: number[] }>({ timestamps: [] });
+  const rateLimitRef   = useRef<{ timestamps: number[] }>({ timestamps: [] });
   const messagesEndRef = useRef<HTMLDivElement>(null);
-  const inputRef = useRef<HTMLInputElement>(null);
-  const fileInputRef = useRef<HTMLInputElement>(null);
+  const inputRef       = useRef<HTMLInputElement>(null);
+  const fileInputRef   = useRef<HTMLInputElement>(null);
 
-  // ── Load & subscribe to Supabase data ─────────────────────────────────────
+  // ── Inject CSS safely inside useEffect (never at module scope) ─────────────
+  useEffect(() => {
+    if (document.getElementById(RUTH_STYLE_ID)) return;
+    const s = document.createElement("style");
+    s.id = RUTH_STYLE_ID;
+    s.textContent = RUTH_CSS;
+    document.head.appendChild(s);
+  }, []);
+
+  // ── Load & subscribe to Supabase data ──────────────────────────────────────
   const loadSiteSettings = useCallback(async () => {
     const { data } = await supabase.from("site_settings").select("key, value");
     if (!data) return;
-    const map: any = { ...DEFAULT_SITE };
-    data.forEach((r: any) => { if (r.value) map[r.key] = r.value; });
-    setSiteInfo(map);
-    const costRow = data.find((r: any) => r.key === "sponsor_cost_per_student");
-    const levelsRow = data.find((r: any) => r.key === "sponsor_levels");
+    const map: Record<string, string> = { ...DEFAULT_SITE };
+    data.forEach((r: { key: string; value: string }) => { if (r.value) map[r.key] = r.value; });
+    setSiteInfo(map as SiteInfo);
+    const costRow   = data.find((r: { key: string }) => r.key === "sponsor_cost_per_student");
+    const levelsRow = data.find((r: { key: string }) => r.key === "sponsor_levels");
     if (costRow?.value) setSponsorCost(Number(costRow.value) || 2000);
     if (levelsRow?.value) {
       try {
@@ -682,9 +663,11 @@ export default function AIChatAssistant() {
   }, []);
 
   const loadPackages = useCallback(async () => {
-    const { data } = await supabase.from("ticket_packages")
+    const { data } = await supabase
+      .from("ticket_packages")
       .select("name, price, perks, partial_allowed, slug")
-      .eq("active", true).order("display_order");
+      .eq("active", true)
+      .order("display_order");
     if (data) setPackages(data);
   }, []);
 
@@ -692,7 +675,7 @@ export default function AIChatAssistant() {
     loadSiteSettings();
     loadPackages();
     const ch = supabase.channel("ruth-realtime-v3")
-      .on("postgres_changes", { event: "*", schema: "public", table: "site_settings" }, loadSiteSettings)
+      .on("postgres_changes", { event: "*", schema: "public", table: "site_settings" },  loadSiteSettings)
       .on("postgres_changes", { event: "*", schema: "public", table: "ticket_packages" }, loadPackages)
       .subscribe();
     return () => { supabase.removeChannel(ch); };
@@ -765,7 +748,7 @@ ${pkgText}
 5. Booking code and e-ticket shown on screen and emailed to you
 All packages support partial/installment payments with a unique booking code.
 
-## BOOKING CODE RETRIEVAL (NEW FEATURE)
+## BOOKING CODE RETRIEVAL (FEATURE)
 When users ask for their booking code or say they forgot it:
 - Tell them they can retrieve it securely right here in the chat
 - They need to enter the email and phone number used during registration
@@ -804,7 +787,7 @@ Fill the Partner Inquiry form on the homepage or contact us via WhatsApp.
 ${CSA_KNOWLEDGE}
 
 ## VISUAL ENHANCEMENTS
-The UI automatically shows interactive cards for tickets, sponsor tiers, venue maps, and the new booking code lookup panel. Reference them naturally.
+The UI automatically shows interactive cards for tickets, sponsor tiers, venue maps, and the booking code lookup panel. Reference them naturally.
 
 ## WHEN UNSURE
 Say honestly: "I don't have that specific detail — reach us on WhatsApp or email ${siteInfo.contact_email}."
@@ -825,20 +808,18 @@ Say honestly: "I don't have that specific detail — reach us on WhatsApp or ema
     } catch { /* silent */ }
   }, []);
 
-  // ── Handle booking lookup result ───────────────────────────────────────────
   const handleBookingResult = useCallback((result: BookingResult, msgIndex: number) => {
     setMessages(prev => prev.map((m, i) =>
       i === msgIndex ? { ...m, bookingResult: result, showBookingLookup: false } : m
     ));
   }, []);
 
-  // ── Send message ───────────────────────────────────────────────────────────
   async function sendMessage() {
     const rawText = input.trim();
     if ((!rawText && !pendingImage) || loading) return;
 
     const now = Date.now();
-    const rl = rateLimitRef.current;
+    const rl  = rateLimitRef.current;
     rl.timestamps = rl.timestamps.filter(t => now - t < RATE_LIMIT_WINDOW_MS);
     if (rl.timestamps.length >= RATE_LIMIT_MAX_MESSAGES) {
       setMessages(prev => [...prev, { role: "assistant", content: "You're sending messages quite fast! Give it a moment, then I'm happy to continue. 😊" }]);
@@ -853,18 +834,18 @@ Say honestly: "I don't have that specific detail — reach us on WhatsApp or ema
     }
     const text = cleaned;
 
-    const showMap = hasTrigger(text, MAP_TRIGGERS);
-    const showWA = hasTrigger(text, WA_TRIGGERS);
-    const showTickets = hasTrigger(text, TICKET_VISUAL_TRIGGERS);
-    const showSponsors = hasTrigger(text, SPONSOR_VISUAL_TRIGGERS);
+    const showMap          = hasTrigger(text, MAP_TRIGGERS);
+    const showWA           = hasTrigger(text, WA_TRIGGERS);
+    const showTickets      = hasTrigger(text, TICKET_VISUAL_TRIGGERS);
+    const showSponsors     = hasTrigger(text, SPONSOR_VISUAL_TRIGGERS);
     const showBookingLookup = hasTrigger(text, BOOKING_TRIGGERS);
-    const shouldEscalate = needsEscalation(text);
+    const shouldEscalate   = needsEscalation(text);
 
     const userMsg: Message = {
       role: "user",
       content: text || (pendingImage ? `[Attached image: ${pendingImage.name}]` : ""),
       imageBase64: pendingImage?.base64,
-      imageType: pendingImage?.type,
+      imageType:   pendingImage?.type,
     };
     const updatedMessages = [...messages, userMsg];
     setMessages(updatedMessages);
@@ -910,19 +891,17 @@ Say honestly: "I don't have that specific detail — reach us on WhatsApp or ema
         || "I'm sorry, I had a hiccup there. Please try again or reach out via WhatsApp!";
 
       const { severity } = shouldEscalate ? classifyEscalation(text) : { severity: "" };
-
-      // Detect booking code intent from AI reply too
       const aiWantsBooking = showBookingLookup || hasTrigger(replyText, BOOKING_TRIGGERS);
 
       setMessages(prev => [...prev, {
         role: "assistant",
         content: replyText,
-        showWA: showWA || hasTrigger(replyText, WA_TRIGGERS),
-        showMap: showMap || hasTrigger(replyText, MAP_TRIGGERS),
-        showTickets: (showTickets || hasTrigger(replyText, TICKET_VISUAL_TRIGGERS)) && packages.length > 0,
-        showSponsors: showSponsors || hasTrigger(replyText, SPONSOR_VISUAL_TRIGGERS),
+        showWA:           showWA || hasTrigger(replyText, WA_TRIGGERS),
+        showMap:          showMap || hasTrigger(replyText, MAP_TRIGGERS),
+        showTickets:      (showTickets || hasTrigger(replyText, TICKET_VISUAL_TRIGGERS)) && packages.length > 0,
+        showSponsors:     showSponsors || hasTrigger(replyText, SPONSOR_VISUAL_TRIGGERS),
         showBookingLookup: aiWantsBooking,
-        isEscalated: shouldEscalate,
+        isEscalated:       shouldEscalate,
         escalationSeverity: shouldEscalate ? severity : undefined,
       }]);
     } catch {
@@ -981,7 +960,8 @@ Say honestly: "I don't have that specific detail — reach us on WhatsApp or ema
             style={{ width: "min(400px, calc(100vw - 20px))", maxHeight: "min(620px, calc(100vh - 180px))", background: "#0a0802", border: "1px solid rgba(212,175,55,0.3)", boxShadow: "0 24px 80px rgba(0,0,0,0.75), inset 0 1px 0 rgba(212,175,55,0.12)" }}>
 
             {/* Header */}
-            <div className="flex-shrink-0 flex items-center gap-3 px-4 py-3" style={{ background: "linear-gradient(135deg,rgba(212,175,55,0.12) 0%,rgba(212,175,55,0.03) 100%)", borderBottom: "1px solid rgba(212,175,55,0.18)" }}>
+            <div className="flex-shrink-0 flex items-center gap-3 px-4 py-3"
+              style={{ background: "linear-gradient(135deg,rgba(212,175,55,0.12) 0%,rgba(212,175,55,0.03) 100%)", borderBottom: "1px solid rgba(212,175,55,0.18)" }}>
               <div className="relative flex-shrink-0">
                 <RuthAvatar size={42} glow/>
                 <span className="absolute -bottom-0.5 -right-0.5 w-3 h-3 rounded-full border-2 border-black" style={{ background: "#22c55e" }}/>
@@ -1008,7 +988,9 @@ Say honestly: "I don't have that specific detail — reach us on WhatsApp or ema
                   {msg.role === "assistant" && <div className="flex-shrink-0 mt-0.5"><RuthAvatar size={28}/></div>}
                   <div className={`max-w-[84%] flex flex-col gap-1 ${msg.role === "user" ? "items-end" : "items-start"}`}>
                     {msg.role === "user" && msg.imageBase64 && (
-                      <img src={`data:${msg.imageType || "image/jpeg"};base64,${msg.imageBase64}`} alt="Attached" className="rounded-xl max-w-[180px] max-h-[140px] object-cover" style={{ border: "1px solid rgba(212,175,55,0.3)" }}/>
+                      <img src={`data:${msg.imageType || "image/jpeg"};base64,${msg.imageBase64}`} alt="Attached"
+                        className="rounded-xl max-w-[180px] max-h-[140px] object-cover"
+                        style={{ border: "1px solid rgba(212,175,55,0.3)" }}/>
                     )}
                     <div className="px-3.5 py-2.5 rounded-2xl text-sm leading-relaxed whitespace-pre-wrap"
                       style={msg.role === "user"
@@ -1017,24 +999,21 @@ Say honestly: "I don't have that specific detail — reach us on WhatsApp or ema
                       {msg.content}
                     </div>
 
-                    {/* Booking lookup panel — shown before result */}
                     {msg.showBookingLookup && !msg.bookingResult && (
                       <BookingLookupPanel onResult={(result) => handleBookingResult(result, i)}/>
                     )}
-
-                    {/* Booking result card — shown after verification */}
                     {msg.bookingResult && (
                       <BookingResultCard result={msg.bookingResult}/>
                     )}
-
-                    {msg.showTickets && <TicketCards packages={packages}/>}
+                    {msg.showTickets  && <TicketCards packages={packages}/>}
                     {msg.showSponsors && <SponsorTiers levels={sponsorLevels} costPerStudent={sponsorCost}/>}
-                    {msg.showMap && <MapCard lat={VENUE_LAT} lng={VENUE_LNG} name={siteInfo.hero_venue}/>}
-                    {msg.showWA && <WAButton phone={siteInfo.contact_phone}/>}
-                    {msg.isEscalated && <EscalatedBadge severity={msg.escalationSeverity}/>}
+                    {msg.showMap      && <MapCard lat={VENUE_LAT} lng={VENUE_LNG} name={siteInfo.hero_venue}/>}
+                    {msg.showWA       && <WAButton phone={siteInfo.contact_phone}/>}
+                    {msg.isEscalated  && <EscalatedBadge severity={msg.escalationSeverity}/>}
                   </div>
                   {msg.role === "user" && (
-                    <div className="w-7 h-7 rounded-full flex items-center justify-center flex-shrink-0 mt-0.5 text-xs font-bold" style={{ background: "rgba(212,175,55,0.15)", border: "1px solid rgba(212,175,55,0.2)", color: "#D4AF37" }}>U</div>
+                    <div className="w-7 h-7 rounded-full flex items-center justify-center flex-shrink-0 mt-0.5 text-xs font-bold"
+                      style={{ background: "rgba(212,175,55,0.15)", border: "1px solid rgba(212,175,55,0.2)", color: "#D4AF37" }}>U</div>
                   )}
                 </div>
               ))}
@@ -1042,7 +1021,8 @@ Say honestly: "I don't have that specific detail — reach us on WhatsApp or ema
               {loading && (
                 <div className="flex gap-2 items-end">
                   <RuthAvatar size={28}/>
-                  <div className="px-4 py-3 rounded-2xl flex gap-1.5" style={{ background: "rgba(255,255,255,0.05)", border: "1px solid rgba(212,175,55,0.13)", borderBottomLeftRadius: 4 }}>
+                  <div className="px-4 py-3 rounded-2xl flex gap-1.5"
+                    style={{ background: "rgba(255,255,255,0.05)", border: "1px solid rgba(212,175,55,0.13)", borderBottomLeftRadius: 4 }}>
                     {[0,1,2].map(i => <span key={i} className="ruth-dot w-2 h-2 rounded-full block" style={{ background: "#D4AF37" }}/>)}
                   </div>
                 </div>
@@ -1050,11 +1030,12 @@ Say honestly: "I don't have that specific detail — reach us on WhatsApp or ema
               <div ref={messagesEndRef}/>
             </div>
 
-            {/* Quick chips */}
+            {/* Quick chips — shown only on first message */}
             {messages.length <= 1 && (
               <div className="px-4 pb-2 flex flex-wrap gap-1.5 flex-shrink-0">
                 {chips.map(chip => (
-                  <button key={chip} className="ruth-chip text-[11px] px-2.5 py-1.5 rounded-full transition-colors"
+                  <button key={chip}
+                    className="ruth-chip text-[11px] px-2.5 py-1.5 rounded-full transition-colors"
                     style={{ background: "rgba(212,175,55,0.07)", border: "1px solid rgba(212,175,55,0.25)", color: "#D4AF37" }}
                     onClick={() => { setInput(chip.replace(/^[^\s]+\s/, "")); inputRef.current?.focus(); }}>
                     {chip}
@@ -1063,10 +1044,11 @@ Say honestly: "I don't have that specific detail — reach us on WhatsApp or ema
               </div>
             )}
 
-            {/* Pending image */}
+            {/* Pending image preview */}
             {pendingImage && (
               <div className="px-4 pb-1 flex-shrink-0">
-                <div className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-[11px]" style={{ background: "rgba(212,175,55,0.1)", border: "1px solid rgba(212,175,55,0.25)", color: "#D4AF37" }}>
+                <div className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-[11px]"
+                  style={{ background: "rgba(212,175,55,0.1)", border: "1px solid rgba(212,175,55,0.25)", color: "#D4AF37" }}>
                   <ImageIcon size={11}/><span className="truncate max-w-[150px]">{pendingImage.name}</span>
                   <button onClick={() => setPendingImage(null)} className="ml-1 hover:opacity-70"><X size={10}/></button>
                 </div>
@@ -1078,11 +1060,13 @@ Say honestly: "I don't have that specific detail — reach us on WhatsApp or ema
               </div>
             )}
 
-            {/* Input */}
+            {/* Input bar */}
             <div className="flex items-center gap-2 px-3 py-3 flex-shrink-0" style={{ borderTop: "1px solid rgba(212,175,55,0.13)" }}>
-              <motion.button onClick={() => fileInputRef.current?.click()} whileHover={{ scale: 1.1 }} whileTap={{ scale: .9 }} disabled={loading}
+              <motion.button onClick={() => fileInputRef.current?.click()}
+                whileHover={{ scale: 1.1 }} whileTap={{ scale: .9 }} disabled={loading}
                 className="w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0 disabled:opacity-40"
-                style={{ background: "rgba(212,175,55,0.1)", border: "1px solid rgba(212,175,55,0.2)" }} aria-label="Attach image">
+                style={{ background: "rgba(212,175,55,0.1)", border: "1px solid rgba(212,175,55,0.2)" }}
+                aria-label="Attach image">
                 <Paperclip size={14} style={{ color: "#D4AF37" }}/>
               </motion.button>
               <input ref={inputRef} value={input} onChange={e => setInput(e.target.value)} onKeyDown={handleKey}
@@ -1092,13 +1076,15 @@ Say honestly: "I don't have that specific detail — reach us on WhatsApp or ema
               <motion.button onClick={sendMessage} disabled={(!input.trim() && !pendingImage) || loading}
                 whileHover={{ scale: 1.08 }} whileTap={{ scale: .92 }}
                 className="w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0 disabled:opacity-30 disabled:cursor-not-allowed"
-                style={{ background: "linear-gradient(135deg,#D4AF37,#9a7415)" }} aria-label="Send">
+                style={{ background: "linear-gradient(135deg,#D4AF37,#9a7415)" }}
+                aria-label="Send">
                 {loading ? <Loader2 size={14} color="#1a1200" className="animate-spin"/> : <Send size={14} color="#1a1200"/>}
               </motion.button>
             </div>
 
             {/* Footer */}
-            <div className="flex items-center justify-center gap-1 py-1.5 flex-shrink-0" style={{ borderTop: "1px solid rgba(212,175,55,0.07)" }}>
+            <div className="flex items-center justify-center gap-1 py-1.5 flex-shrink-0"
+              style={{ borderTop: "1px solid rgba(212,175,55,0.07)" }}>
               <Globe size={9} style={{ color: "rgba(212,175,55,0.3)" }}/>
               <span className="text-[10px]" style={{ color: "rgba(212,175,55,0.3)" }}>
                 CSA Gala Dinner 2026 · Powered by MikeCreations
