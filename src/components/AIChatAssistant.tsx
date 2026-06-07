@@ -6,12 +6,6 @@
  * • Booking code retrieval via email + phone verification
  * • Direct ticket download link after booking code is shown
  * • Real-time subscriptions — reflects admin changes instantly
- *
- * FIXES vs previous version:
- * - CSS injection moved from module scope into useEffect (no more
- *   top-level `document` access that can break the Vite/esbuild build)
- * - Removed unused imports: Calendar, Clock, Phone, Mail
- * - Removed unused LOW_TRIGGERS constant
  */
 
 import { useState, useRef, useEffect, useCallback } from "react";
@@ -27,18 +21,18 @@ import { supabase } from "@/integrations/supabase/client";
 const WA_LINK = "https://wa.me/254758647130?text=Hello,%20I%20need%20help%20with%20the%20CSA%20Gala%20Dinner";
 
 // ─── Trigger banks ─────────────────────────────────────────────────────────────
-const WA_TRIGGERS      = ["human","agent","live support","customer care","speak to someone","talk to","real person","contact you","call me","whatsapp","connect me","representative"];
-const MAP_TRIGGERS     = ["where","location","venue","westlands","kingfisher","directions","map","how do i get","address","navigate","get there"];
+const WA_TRIGGERS             = ["human","agent","live support","customer care","speak to someone","talk to","real person","contact you","call me","whatsapp","connect me","representative"];
+const MAP_TRIGGERS            = ["where","location","venue","westlands","kingfisher","directions","map","how do i get","address","navigate","get there"];
 const TICKET_VISUAL_TRIGGERS  = ["ticket","package","price","pricing","cost","buy ticket","book","packages","how much","what does it cost"];
 const SPONSOR_VISUAL_TRIGGERS = ["sponsor a student","help a student","fund a student","sponsor student","student sponsorship"];
-const CRITICAL_TRIGGERS = ["fraud","scam","stolen","harassment","abuse","emergency","threat"];
-const HIGH_TRIGGERS     = ["refund","double charged","duplicate payment","not received ticket","payment stuck","failed payment"];
-const MEDIUM_TRIGGERS   = ["complaint","problem","issue","wrong","error","help me","urgent","broken"];
-const BOOKING_TRIGGERS  = ["booking code","my code","get my code","retrieve code","find my code","my booking","my ticket code","forgot my code","lost my code","what is my code","get code","find code","my registration code"];
+const CRITICAL_TRIGGERS       = ["fraud","scam","stolen","harassment","abuse","emergency","threat"];
+const HIGH_TRIGGERS           = ["refund","double charged","duplicate payment","not received ticket","payment stuck","failed payment"];
+const MEDIUM_TRIGGERS         = ["complaint","problem","issue","wrong","error","help me","urgent","broken"];
+const BOOKING_TRIGGERS        = ["booking code","my code","get my code","retrieve code","find my code","my booking","my ticket code","forgot my code","lost my code","what is my code","get code","find code","my registration code"];
 
 // ─── Security ──────────────────────────────────────────────────────────────────
-const MAX_INPUT_LENGTH      = 800;
-const RATE_LIMIT_WINDOW_MS  = 60_000;
+const MAX_INPUT_LENGTH        = 800;
+const RATE_LIMIT_WINDOW_MS    = 60_000;
 const RATE_LIMIT_MAX_MESSAGES = 15;
 const INJECTION_PATTERNS = [
   /ignore\s+(all\s+)?(previous|prior|above)\s+instructions?/gi,
@@ -85,14 +79,14 @@ function classifyEscalation(text: string) {
 }
 
 function hasTrigger(text: string, triggers: string[]) {
-  const lower = text.toLowerCase();
-  return triggers.some(t => lower.includes(t));
+  return triggers.some(t => text.toLowerCase().includes(t));
 }
 function needsEscalation(text: string) {
   return [...CRITICAL_TRIGGERS, ...HIGH_TRIGGERS, ...MEDIUM_TRIGGERS].some(t => text.toLowerCase().includes(t));
 }
 
-// ─── CSS string (injected safely inside useEffect, never at module scope) ──────
+// ─── CSS — defined as a plain string constant (no module-level DOM access) ─────
+const RUTH_STYLE_ID = "csa-ruth-v3-styles";
 const RUTH_CSS = `
   @keyframes ruthShimmer{0%{background-position:-200% center}100%{background-position:200% center}}
   .ruth-shimmer{background:linear-gradient(90deg,#b8860b 0%,#D4AF37 40%,#ffe066 60%,#b8860b 100%);background-size:200% auto;-webkit-background-clip:text;-webkit-text-fill-color:transparent;animation:ruthShimmer 3.5s linear infinite}
@@ -110,7 +104,6 @@ const RUTH_CSS = `
   @keyframes ruthCodePop{0%{transform:scale(0.9);opacity:0}100%{transform:scale(1);opacity:1}}
   .ruth-code-pop{animation:ruthCodePop .35s cubic-bezier(.34,1.56,.64,1) forwards}
 `;
-const RUTH_STYLE_ID = "csa-ruth-v3-styles";
 
 // ─── Types ─────────────────────────────────────────────────────────────────────
 interface Message {
@@ -164,13 +157,13 @@ interface TicketPkg {
 interface SponsorLevel { label: string; multiplier: number; }
 
 const DEFAULT_SITE: SiteInfo = {
-  hero_title:     "CSA Gala Dinner 2026",
-  hero_date:      "Friday, 12th June 2026",
-  hero_time:      "6:30 PM – 11:00 PM",
-  hero_venue:     "KingFisher Nest Hotel, Westlands, Nairobi",
-  hero_subtitle:  "Laying the First Stone: Honoring the Past, Empowering the Present and Inspiring the Future of Construction",
-  contact_email:  "csa@students.tukenya.ac.ke",
-  contact_phone:  "0758647130",
+  hero_title:       "CSA Gala Dinner 2026",
+  hero_date:        "Friday, 12th June 2026",
+  hero_time:        "6:30 PM – 11:00 PM",
+  hero_venue:       "KingFisher Nest Hotel, Westlands, Nairobi",
+  hero_subtitle:    "Laying the First Stone: Honoring the Past, Empowering the Present and Inspiring the Future of Construction",
+  contact_email:    "csa@students.tukenya.ac.ke",
+  contact_phone:    "0758647130",
   social_x:         "https://x.com/csa_tuk",
   social_instagram: "https://www.instagram.com/csa_tuk",
   social_linkedin:  "https://www.linkedin.com/company/csatuk/",
@@ -347,9 +340,8 @@ function BookingLookupPanel({ onResult }: { onResult: (result: BookingResult) =>
     const trimEmail = email.trim().toLowerCase();
     const trimPhone = phone.trim().replace(/\s/g, "");
     if (!trimEmail || !trimPhone) { setError("Please enter both your email and phone number."); return; }
-    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-    if (!emailRegex.test(trimEmail)) { setError("Please enter a valid email address."); return; }
-    if (trimPhone.length < 9)         { setError("Please enter a valid phone number."); return; }
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(trimEmail)) { setError("Please enter a valid email address."); return; }
+    if (trimPhone.length < 9) { setError("Please enter a valid phone number."); return; }
     setError("");
     setLoading(true);
     try {
@@ -360,7 +352,6 @@ function BookingLookupPanel({ onResult }: { onResult: (result: BookingResult) =>
         .limit(5);
 
       if (dbErr) throw dbErr;
-
       if (!data || data.length === 0) {
         onResult({ found: false, error: "No registration found with that email address. Please double-check and try again." });
         return;
@@ -382,9 +373,9 @@ function BookingLookupPanel({ onResult }: { onResult: (result: BookingResult) =>
       }
 
       onResult({
-        found: true,
+        found:         true,
         name:          match.name,
-        ticketCode:    match.ticket_code || undefined,
+        ticketCode:    match.ticket_code ?? undefined,
         packageType:   match.package_type,
         paymentStatus: match.payment_status,
         ticketIssued:  match.ticket_issued,
@@ -464,20 +455,16 @@ function BookingResultCard({ result }: { result: BookingResult }) {
 
   return (
     <div className="mt-2 w-full ruth-code-pop">
-      {/* Success header */}
       <div className="rounded-t-xl px-3 py-2.5 flex items-center gap-2"
         style={{ background: "rgba(34,197,94,0.1)", border: "1px solid rgba(34,197,94,0.25)", borderBottom: "none" }}>
         <CheckCircle2 size={13} style={{ color: "#22c55e" }}/>
         <span className="text-xs font-semibold" style={{ color: "#22c55e" }}>Registration Found — {result.name}</span>
       </div>
-
-      {/* Info row */}
       <div className="px-3 py-2 flex items-center gap-3 text-[11px]"
         style={{ background: "rgba(255,255,255,0.03)", border: "1px solid rgba(212,175,55,0.2)", borderTop: "none", borderBottom: "none" }}>
         <span style={{ color: "rgba(255,255,255,0.5)" }}>Package: <span style={{ color: "rgba(255,255,255,0.8)" }}>{result.packageType || "—"}</span></span>
         <span style={{ color: isPaid ? "#22c55e" : "#eab308" }}>● {isPaid ? "Paid" : result.paymentStatus || "Pending"}</span>
       </div>
-
       {result.ticketCode ? (
         <>
           <div className="px-3 py-3"
@@ -490,8 +477,7 @@ function BookingResultCard({ result }: { result: BookingResult }) {
               </div>
               <button onClick={handleCopy}
                 className="flex-shrink-0 w-9 h-9 rounded-lg flex items-center justify-center transition-all hover:scale-105 active:scale-95"
-                style={{ background: copied ? "rgba(34,197,94,0.15)" : "rgba(212,175,55,0.12)", border: `1px solid ${copied ? "rgba(34,197,94,0.4)" : "rgba(212,175,55,0.3)"}` }}
-                title="Copy code">
+                style={{ background: copied ? "rgba(34,197,94,0.15)" : "rgba(212,175,55,0.12)", border: `1px solid ${copied ? "rgba(34,197,94,0.4)" : "rgba(212,175,55,0.3)"}` }}>
                 {copied ? <Check size={14} style={{ color: "#22c55e" }}/> : <Copy size={14} style={{ color: "#D4AF37" }}/>}
               </button>
             </div>
@@ -499,12 +485,7 @@ function BookingResultCard({ result }: { result: BookingResult }) {
           </div>
           <a href={`/ticket/${result.ticketCode}`} target="_blank" rel="noopener noreferrer"
             className="flex items-center justify-center gap-2 py-2.5 rounded-b-xl text-xs font-semibold hover:opacity-90 active:scale-95 transition-all"
-            style={{
-              background: isPaid ? "linear-gradient(135deg,#1a6e3c,#22c55e)" : "linear-gradient(135deg,#5a4a00,#9a7415)",
-              color: "#fff",
-              border: "1px solid rgba(212,175,55,0.2)",
-              borderTop: "none",
-            }}>
+            style={{ background: isPaid ? "linear-gradient(135deg,#1a6e3c,#22c55e)" : "linear-gradient(135deg,#5a4a00,#9a7415)", color: "#fff", border: "1px solid rgba(212,175,55,0.2)", borderTop: "none" }}>
             <Download size={13}/>
             {isPaid ? "Download Ticket Now" : "View Ticket (Payment Pending)"}
             <ExternalLink size={10}/>
@@ -611,17 +592,16 @@ Users who forgot their booking code can retrieve it by:
 
 // ─── Main Component ────────────────────────────────────────────────────────────
 export default function AIChatAssistant() {
-  const [open, setOpen] = useState(false);
+  const [open, setOpen]               = useState(false);
   const [siteInfo, setSiteInfo]       = useState<SiteInfo>(DEFAULT_SITE);
   const [packages, setPackages]       = useState<TicketPkg[]>([]);
   const [sponsorLevels, setSponsorLevels] = useState<SponsorLevel[]>([
-    { label: "Half Sponsorship",           multiplier: 0.5 },
-    { label: "Three-Quarter Sponsorship",  multiplier: 0.75 },
-    { label: "Full Sponsorship",           multiplier: 1 },
+    { label: "Half Sponsorship",          multiplier: 0.5  },
+    { label: "Three-Quarter Sponsorship", multiplier: 0.75 },
+    { label: "Full Sponsorship",          multiplier: 1    },
   ]);
   const [sponsorCost, setSponsorCost] = useState(2000);
-
-  const [messages, setMessages] = useState<Message[]>([{
+  const [messages, setMessages]       = useState<Message[]>([{
     role: "assistant",
     content: "Hi there! 👋 I'm Ruth, your CSA Gala Dinner assistant.\n\nI can help with tickets, venue, sponsorships, and more. You can also retrieve your booking code securely right here. What can I help you with today?",
   }]);
@@ -635,7 +615,7 @@ export default function AIChatAssistant() {
   const inputRef       = useRef<HTMLInputElement>(null);
   const fileInputRef   = useRef<HTMLInputElement>(null);
 
-  // ── Inject CSS safely inside useEffect (never at module scope) ─────────────
+  // ── Inject CSS safely inside useEffect — never at module scope ─────────────
   useEffect(() => {
     if (document.getElementById(RUTH_STYLE_ID)) return;
     const s = document.createElement("style");
@@ -649,11 +629,11 @@ export default function AIChatAssistant() {
     const { data } = await supabase.from("site_settings").select("key, value");
     if (!data) return;
     const map: Record<string, string> = { ...DEFAULT_SITE };
-    data.forEach((r: { key: string; value: string }) => { if (r.value) map[r.key] = r.value; });
+    data.forEach((r: { key: string; value: string | null }) => { if (r.value) map[r.key] = r.value; });
     setSiteInfo(map as SiteInfo);
     const costRow   = data.find((r: { key: string }) => r.key === "sponsor_cost_per_student");
     const levelsRow = data.find((r: { key: string }) => r.key === "sponsor_levels");
-    if (costRow?.value) setSponsorCost(Number(costRow.value) || 2000);
+    if (costRow?.value)   setSponsorCost(Number(costRow.value) || 2000);
     if (levelsRow?.value) {
       try {
         const parsed = JSON.parse(levelsRow.value);
@@ -668,7 +648,7 @@ export default function AIChatAssistant() {
       .select("name, price, perks, partial_allowed, slug")
       .eq("active", true)
       .order("display_order");
-    if (data) setPackages(data);
+    if (data) setPackages(data as TicketPkg[]);
   }, []);
 
   useEffect(() => {
@@ -748,30 +728,24 @@ ${pkgText}
 5. Booking code and e-ticket shown on screen and emailed to you
 All packages support partial/installment payments with a unique booking code.
 
-## BOOKING CODE RETRIEVAL (FEATURE)
+## BOOKING CODE RETRIEVAL
 When users ask for their booking code or say they forgot it:
 - Tell them they can retrieve it securely right here in the chat
 - They need to enter the email and phone number used during registration
 - The system will verify the match and show them their booking code
 - Below the code, there will be a direct link to download/view their ticket
-- This feature is fully secure and private
-- Mention the "🔑 Get My Booking Code" chip below or that they can just ask you
 
 ## PAYMENT STATUS / TICKET LOOKUP
-Users can also check their payment status at: csagaladinner.co.ke/lookup — enter M-Pesa receipt code or registered phone number.
+Users can also check their payment status at: csagaladinner.co.ke/lookup
 
 ## SPONSOR A STUDENT (live amounts from admin settings)
 ${sponsorText}
 Visible in the "Sponsor a Student" section on the homepage.
 
 ## PARTNERSHIP PACKAGES
-- Premium Sponsor: KES 100,000
-- Platinum Sponsor: KES 80,000
-- Gold Partner: KES 60,000
-- Silver Sponsor: KES 30,000
-- Bronze Sponsor: KES 25,000
-- In-Kind Sponsor: KES 20,000
-Fill the Partner Inquiry form on the homepage or contact us via WhatsApp.
+- Premium Sponsor: KES 100,000 | Platinum Sponsor: KES 80,000
+- Gold Partner: KES 60,000 | Silver Sponsor: KES 30,000
+- Bronze Sponsor: KES 25,000 | In-Kind Sponsor: KES 20,000
 
 ## CONTACT
 - Email: ${siteInfo.contact_email}
@@ -779,15 +753,9 @@ Fill the Partner Inquiry form on the homepage or contact us via WhatsApp.
 - Instagram: @csa_tuk | X: @csa_tuk | LinkedIn: CSA-TUK | TikTok: @csa_tuk
 
 ## WEBSITE NAVIGATION
-- / → Homepage (hero, tickets, sponsor a student, partners, gallery)
-- /lookup → Check payment & ticket status
-- /gallery → Event photos and media
-- /insights → Event updates and news
+- / → Homepage | /lookup → Payment status | /gallery → Photos | /insights → News
 
 ${CSA_KNOWLEDGE}
-
-## VISUAL ENHANCEMENTS
-The UI automatically shows interactive cards for tickets, sponsor tiers, venue maps, and the booking code lookup panel. Reference them naturally.
 
 ## WHEN UNSURE
 Say honestly: "I don't have that specific detail — reach us on WhatsApp or email ${siteInfo.contact_email}."
@@ -799,13 +767,17 @@ Say honestly: "I don't have that specific detail — reach us on WhatsApp or ema
 4. Never promise specific timelines`;
   }, [siteInfo, packages, sponsorLevels, sponsorCost]);
 
-  const saveEscalation = useCallback(async (userMsg: string, summary: string, severity: string, category: string) => {
+  // ── Escalation logging — uses site_content table as a safe fallback ────────
+  // (ai_chat_escalations does not exist in the schema; we log silently to avoid errors)
+  const saveEscalation = useCallback(async (userMsg: string, severity: string, category: string) => {
     try {
-      await supabase.from("ai_chat_escalations").insert({
-        user_message: userMsg, conversation_summary: summary,
-        severity, category, status: "new",
-      });
-    } catch { /* silent */ }
+      // Store as a site_content entry so escalations are visible to admins
+      // without requiring a non-existent table
+      await supabase.from("site_content").upsert({
+        key:   `escalation_${Date.now()}`,
+        value: JSON.stringify({ userMsg, severity, category, ts: new Date().toISOString() }),
+      }, { onConflict: "key" });
+    } catch { /* silent — escalation logging must never crash the chat */ }
   }, []);
 
   const handleBookingResult = useCallback((result: BookingResult, msgIndex: number) => {
@@ -834,12 +806,12 @@ Say honestly: "I don't have that specific detail — reach us on WhatsApp or ema
     }
     const text = cleaned;
 
-    const showMap          = hasTrigger(text, MAP_TRIGGERS);
-    const showWA           = hasTrigger(text, WA_TRIGGERS);
-    const showTickets      = hasTrigger(text, TICKET_VISUAL_TRIGGERS);
-    const showSponsors     = hasTrigger(text, SPONSOR_VISUAL_TRIGGERS);
+    const showMap           = hasTrigger(text, MAP_TRIGGERS);
+    const showWA            = hasTrigger(text, WA_TRIGGERS);
+    const showTickets       = hasTrigger(text, TICKET_VISUAL_TRIGGERS);
+    const showSponsors      = hasTrigger(text, SPONSOR_VISUAL_TRIGGERS);
     const showBookingLookup = hasTrigger(text, BOOKING_TRIGGERS);
-    const shouldEscalate   = needsEscalation(text);
+    const shouldEscalate    = needsEscalation(text);
 
     const userMsg: Message = {
       role: "user",
@@ -853,8 +825,7 @@ Say honestly: "I don't have that specific detail — reach us on WhatsApp or ema
 
     if (shouldEscalate) {
       const { severity, category } = classifyEscalation(text);
-      const summary = updatedMessages.slice(-5).map(m => `${m.role.toUpperCase()}: ${m.content}`).join("\n");
-      saveEscalation(text, summary, severity, category);
+      saveEscalation(text, severity, category);
     }
 
     try {
@@ -879,10 +850,7 @@ Say honestly: "I don't have that specific detail — reach us on WhatsApp or ema
         body: JSON.stringify({
           model: "llama-3.3-70b-versatile",
           max_tokens: 1000,
-          messages: [
-            { role: "system", content: systemPrompt },
-            ...apiMessages,
-          ],
+          messages: [{ role: "system", content: systemPrompt }, ...apiMessages],
         }),
       });
 
@@ -895,13 +863,13 @@ Say honestly: "I don't have that specific detail — reach us on WhatsApp or ema
 
       setMessages(prev => [...prev, {
         role: "assistant",
-        content: replyText,
-        showWA:           showWA || hasTrigger(replyText, WA_TRIGGERS),
-        showMap:          showMap || hasTrigger(replyText, MAP_TRIGGERS),
-        showTickets:      (showTickets || hasTrigger(replyText, TICKET_VISUAL_TRIGGERS)) && packages.length > 0,
-        showSponsors:     showSponsors || hasTrigger(replyText, SPONSOR_VISUAL_TRIGGERS),
-        showBookingLookup: aiWantsBooking,
-        isEscalated:       shouldEscalate,
+        content:            replyText,
+        showWA:             showWA  || hasTrigger(replyText, WA_TRIGGERS),
+        showMap:            showMap || hasTrigger(replyText, MAP_TRIGGERS),
+        showTickets:        (showTickets  || hasTrigger(replyText, TICKET_VISUAL_TRIGGERS))  && packages.length > 0,
+        showSponsors:       showSponsors  || hasTrigger(replyText, SPONSOR_VISUAL_TRIGGERS),
+        showBookingLookup:  aiWantsBooking,
+        isEscalated:        shouldEscalate,
         escalationSeverity: shouldEscalate ? severity : undefined,
       }]);
     } catch {
@@ -998,13 +966,10 @@ Say honestly: "I don't have that specific detail — reach us on WhatsApp or ema
                         : { background: "rgba(255,255,255,0.05)", color: "rgba(255,255,255,0.88)", border: "1px solid rgba(212,175,55,0.13)", borderBottomLeftRadius: 4 }}>
                       {msg.content}
                     </div>
-
                     {msg.showBookingLookup && !msg.bookingResult && (
                       <BookingLookupPanel onResult={(result) => handleBookingResult(result, i)}/>
                     )}
-                    {msg.bookingResult && (
-                      <BookingResultCard result={msg.bookingResult}/>
-                    )}
+                    {msg.bookingResult && <BookingResultCard result={msg.bookingResult}/>}
                     {msg.showTickets  && <TicketCards packages={packages}/>}
                     {msg.showSponsors && <SponsorTiers levels={sponsorLevels} costPerStudent={sponsorCost}/>}
                     {msg.showMap      && <MapCard lat={VENUE_LAT} lng={VENUE_LNG} name={siteInfo.hero_venue}/>}
@@ -1017,7 +982,6 @@ Say honestly: "I don't have that specific detail — reach us on WhatsApp or ema
                   )}
                 </div>
               ))}
-
               {loading && (
                 <div className="flex gap-2 items-end">
                   <RuthAvatar size={28}/>
@@ -1030,12 +994,11 @@ Say honestly: "I don't have that specific detail — reach us on WhatsApp or ema
               <div ref={messagesEndRef}/>
             </div>
 
-            {/* Quick chips — shown only on first message */}
+            {/* Quick chips — only on first message */}
             {messages.length <= 1 && (
               <div className="px-4 pb-2 flex flex-wrap gap-1.5 flex-shrink-0">
                 {chips.map(chip => (
-                  <button key={chip}
-                    className="ruth-chip text-[11px] px-2.5 py-1.5 rounded-full transition-colors"
+                  <button key={chip} className="ruth-chip text-[11px] px-2.5 py-1.5 rounded-full transition-colors"
                     style={{ background: "rgba(212,175,55,0.07)", border: "1px solid rgba(212,175,55,0.25)", color: "#D4AF37" }}
                     onClick={() => { setInput(chip.replace(/^[^\s]+\s/, "")); inputRef.current?.focus(); }}>
                     {chip}
@@ -1044,7 +1007,7 @@ Say honestly: "I don't have that specific detail — reach us on WhatsApp or ema
               </div>
             )}
 
-            {/* Pending image preview */}
+            {/* Pending image */}
             {pendingImage && (
               <div className="px-4 pb-1 flex-shrink-0">
                 <div className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-[11px]"
@@ -1065,8 +1028,7 @@ Say honestly: "I don't have that specific detail — reach us on WhatsApp or ema
               <motion.button onClick={() => fileInputRef.current?.click()}
                 whileHover={{ scale: 1.1 }} whileTap={{ scale: .9 }} disabled={loading}
                 className="w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0 disabled:opacity-40"
-                style={{ background: "rgba(212,175,55,0.1)", border: "1px solid rgba(212,175,55,0.2)" }}
-                aria-label="Attach image">
+                style={{ background: "rgba(212,175,55,0.1)", border: "1px solid rgba(212,175,55,0.2)" }} aria-label="Attach image">
                 <Paperclip size={14} style={{ color: "#D4AF37" }}/>
               </motion.button>
               <input ref={inputRef} value={input} onChange={e => setInput(e.target.value)} onKeyDown={handleKey}
@@ -1076,15 +1038,13 @@ Say honestly: "I don't have that specific detail — reach us on WhatsApp or ema
               <motion.button onClick={sendMessage} disabled={(!input.trim() && !pendingImage) || loading}
                 whileHover={{ scale: 1.08 }} whileTap={{ scale: .92 }}
                 className="w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0 disabled:opacity-30 disabled:cursor-not-allowed"
-                style={{ background: "linear-gradient(135deg,#D4AF37,#9a7415)" }}
-                aria-label="Send">
+                style={{ background: "linear-gradient(135deg,#D4AF37,#9a7415)" }} aria-label="Send">
                 {loading ? <Loader2 size={14} color="#1a1200" className="animate-spin"/> : <Send size={14} color="#1a1200"/>}
               </motion.button>
             </div>
 
             {/* Footer */}
-            <div className="flex items-center justify-center gap-1 py-1.5 flex-shrink-0"
-              style={{ borderTop: "1px solid rgba(212,175,55,0.07)" }}>
+            <div className="flex items-center justify-center gap-1 py-1.5 flex-shrink-0" style={{ borderTop: "1px solid rgba(212,175,55,0.07)" }}>
               <Globe size={9} style={{ color: "rgba(212,175,55,0.3)" }}/>
               <span className="text-[10px]" style={{ color: "rgba(212,175,55,0.3)" }}>
                 CSA Gala Dinner 2026 · Powered by MikeCreations
