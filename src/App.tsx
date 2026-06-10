@@ -29,8 +29,16 @@ import AdminPromotions from "./pages/admin/AdminPromotions.tsx";
 import AdminDangerZone from "./pages/admin/AdminDangerZone.tsx";
 import ResetPassword from "./pages/ResetPassword.tsx";
 import NotFound from "./pages/NotFound.tsx";
+import BookingAssistant from "./components/BookingAssistant";
+import { useLocation } from "react-router-dom";
 
 const queryClient = new QueryClient();
+
+const AssistantMount = () => {
+  const { pathname } = useLocation();
+  if (pathname.startsWith("/admin")) return null;
+  return <BookingAssistant />;
+};
 
 const App = () => (
   <QueryClientProvider client={queryClient}>
@@ -67,6 +75,7 @@ const App = () => (
             {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
             <Route path="*" element={<NotFound />} />
           </Routes>
+          <AssistantMount />
         </AuthProvider>
       </BrowserRouter>
     </TooltipProvider>
