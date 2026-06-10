@@ -179,8 +179,7 @@ const BookingAssistant = () => {
                 return (
                   <Message key={m.id} from={m.role as "user" | "assistant"}>
                     <MessageContent
-                      variant={isUser ? "contained" : "flat"}
-                      className={isUser ? "bg-primary text-primary-foreground" : ""}
+                      className={isUser ? "bg-primary text-primary-foreground" : "bg-transparent p-0"}
                     >
                       {textParts.map((p, i) =>
                         isUser ? (
