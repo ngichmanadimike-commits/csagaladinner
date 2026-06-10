@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { motion } from "framer-motion";
-import { Mail, Phone, Linkedin, Instagram } from "lucide-react";
+import { Mail, Phone, Instagram } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 
 const XIcon = () => (
@@ -12,6 +12,12 @@ const XIcon = () => (
 const TikTokIcon = () => (
   <svg viewBox="0 0 24 24" className="w-6 h-6 fill-current" aria-hidden="true">
     <path d="M19.59 6.69a4.83 4.83 0 01-3.77-4.25V2h-3.45v13.67a2.89 2.89 0 01-2.88 2.5 2.89 2.89 0 01-2.89-2.89 2.89 2.89 0 012.89-2.89c.28 0 .54.04.79.1V9.01a6.27 6.27 0 00-.79-.05 6.34 6.34 0 00-6.34 6.34 6.34 6.34 0 006.34 6.34 6.34 6.34 0 006.33-6.34V8.75a8.18 8.18 0 004.77 1.52V6.84a4.84 4.84 0 01-1-.15z" />
+  </svg>
+);
+
+const LinkedinIcon = () => (
+  <svg viewBox="0 0 24 24" className="w-6 h-6 fill-current" aria-hidden="true">
+    <path d="M20.45 20.45h-3.55v-5.57c0-1.33-.02-3.04-1.85-3.04-1.85 0-2.14 1.45-2.14 2.94v5.67H9.36V9h3.41v1.56h.05c.47-.9 1.64-1.85 3.37-1.85 3.6 0 4.27 2.37 4.27 5.45zM5.34 7.43a2.06 2.06 0 11.001-4.121A2.06 2.06 0 015.34 7.43zM7.12 20.45H3.56V9h3.56zM22.22 0H1.77C.79 0 0 .77 0 1.72v20.56C0 23.23.79 24 1.77 24h20.45c.98 0 1.78-.77 1.78-1.72V1.72C24 .77 23.2 0 22.22 0z" />
   </svg>
 );
 
@@ -43,7 +49,7 @@ const SocialSection = () => {
 
   const socials = [
     { label: "X (Twitter)", url: settings.social_x, icon: <XIcon /> },
-    { label: "LinkedIn", url: settings.social_linkedin, icon: <Linkedin className="w-6 h-6" /> },
+    { label: "LinkedIn", url: settings.social_linkedin, icon: <LinkedinIcon /> },
     { label: "Instagram", url: settings.social_instagram, icon: <Instagram className="w-6 h-6" /> },
     { label: "TikTok", url: settings.social_tiktok, icon: <TikTokIcon /> },
   ].filter((s) => s.url);
