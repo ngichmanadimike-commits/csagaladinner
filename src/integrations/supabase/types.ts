@@ -900,6 +900,19 @@ export type Database = {
         }
         Returns: boolean
       }
+      lookup_booking_by_contact: {
+        Args: { _email: string; _phone: string }
+        Returns: {
+          name: string
+          package_type: string
+          payment_status: string
+          secure_ticket_token: string
+          ticket_code: string
+          ticket_issued: boolean
+          total_cost: number
+          total_paid: number
+        }[]
+      }
       lookup_registration_by_code: {
         Args: { _code: string }
         Returns: {
