@@ -1,11 +1,13 @@
 /**
- * AIChatAssistant.tsx — Ruth Edition (v3 — Booking Code Lookup)
+ * AIChatAssistant.tsx — Ruth Edition (v4 — Vercel-Ready)
  * ─────────────────────────────────────────────────────────────────
  * • All CSA organisational knowledge embedded
  * • Live Supabase data: ticket packages, site settings, sponsor settings
  * • Booking code retrieval via email + phone verification
  * • Direct ticket download link after booking code is shown
  * • Real-time subscriptions — reflects admin changes instantly
+ * • Groq API proxied through /api/chat edge function
+ * • Vision support via llama-3.2-11b-vision-preview when image is attached
  */
 
 import { useState, useRef, useEffect, useCallback } from "react";
@@ -85,8 +87,8 @@ function needsEscalation(text: string) {
   return [...CRITICAL_TRIGGERS, ...HIGH_TRIGGERS, ...MEDIUM_TRIGGERS].some(t => text.toLowerCase().includes(t));
 }
 
-// ─── CSS — defined as a plain string constant (no module-level DOM access) ─────
-const RUTH_STYLE_ID = "csa-ruth-v3-styles";
+// ─── CSS ───────────────────────────────────────────────────────────────────────
+const RUTH_STYLE_ID = "csa-ruth-v4-styles";
 const RUTH_CSS = `
   @keyframes ruthShimmer{0%{background-position:-200% center}100%{background-position:200% center}}
   .ruth-shimmer{background:linear-gradient(90deg,#b8860b 0%,#D4AF37 40%,#ffe066 60%,#b8860b 100%);background-size:200% auto;-webkit-background-clip:text;-webkit-text-fill-color:transparent;animation:ruthShimmer 3.5s linear infinite}
@@ -615,7 +617,6 @@ export default function AIChatAssistant() {
   const inputRef       = useRef<HTMLInputElement>(null);
   const fileInputRef   = useRef<HTMLInputElement>(null);
 
-  // ── Inject CSS safely inside useEffect — never at module scope ─────────────
   useEffect(() => {
     if (document.getElementById(RUTH_STYLE_ID)) return;
     const s = document.createElement("style");
@@ -624,7 +625,6 @@ export default function AIChatAssistant() {
     document.head.appendChild(s);
   }, []);
 
-  // ── Load & subscribe to Supabase data ──────────────────────────────────────
   const loadSiteSettings = useCallback(async () => {
     const { data } = await supabase.from("site_settings").select("key, value");
     if (!data) return;
@@ -654,7 +654,7 @@ export default function AIChatAssistant() {
   useEffect(() => {
     loadSiteSettings();
     loadPackages();
-    const ch = supabase.channel("ruth-realtime-v3")
+    const ch = supabase.channel("ruth-realtime-v4")
       .on("postgres_changes", { event: "*", schema: "public", table: "site_settings" },  loadSiteSettings)
       .on("postgres_changes", { event: "*", schema: "public", table: "ticket_packages" }, loadPackages)
       .subscribe();
@@ -767,17 +767,13 @@ Say honestly: "I don't have that specific detail — reach us on WhatsApp or ema
 4. Never promise specific timelines`;
   }, [siteInfo, packages, sponsorLevels, sponsorCost]);
 
-  // ── Escalation logging — uses site_content table as a safe fallback ────────
-  // (ai_chat_escalations does not exist in the schema; we log silently to avoid errors)
   const saveEscalation = useCallback(async (userMsg: string, severity: string, category: string) => {
     try {
-      // Store as a site_content entry so escalations are visible to admins
-      // without requiring a non-existent table
       await supabase.from("site_content").upsert({
         key:   `escalation_${Date.now()}`,
         value: JSON.stringify({ userMsg, severity, category, ts: new Date().toISOString() }),
       }, { onConflict: "key" });
-    } catch { /* silent — escalation logging must never crash the chat */ }
+    } catch { /* silent */ }
   }, []);
 
   const handleBookingResult = useCallback((result: BookingResult, msgIndex: number) => {
@@ -830,29 +826,39 @@ Say honestly: "I don't have that specific detail — reach us on WhatsApp or ema
 
     try {
       const systemPrompt = buildSystemPrompt();
+
+      // Use vision model when an image is present, text model otherwise
+      const hasImage = updatedMessages.some(m => m.role === "user" && m.imageBase64);
+      const model = hasImage ? "llama-3.2-11b-vision-preview" : "llama-3.3-70b-versatile";
+
       const apiMessages = updatedMessages.map(m => {
         if (m.role === "user" && m.imageBase64) {
           return {
             role: "user" as const,
             content: [
-              { type: "image_url", image_url: { url: `data:${m.imageType || "image/jpeg"};base64,${m.imageBase64}` } },
-              { type: "text", text: m.content || "Please analyse this image and help me." },
+              { type: "image_url" as const, image_url: { url: `data:${m.imageType || "image/jpeg"};base64,${m.imageBase64}` } },
+              { type: "text" as const, text: m.content || "Please analyse this image and help me." },
             ],
           };
         }
         return { role: m.role as "user" | "assistant", content: m.content };
       });
 
-      const GROQ_API_KEY = import.meta.env.VITE_GROQ_API_KEY as string;
-      const response = await fetch("https://api.groq.com/openai/v1/chat/completions", {
+      // Call /api/chat — the edge function that holds the Groq key server-side
+      const response = await fetch("/api/chat", {
         method: "POST",
-        headers: { "Content-Type": "application/json", "Authorization": `Bearer ${GROQ_API_KEY}` },
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          model: "llama-3.3-70b-versatile",
+          model,
           max_tokens: 1000,
           messages: [{ role: "system", content: systemPrompt }, ...apiMessages],
         }),
       });
+
+      if (!response.ok) {
+        const errData = await response.json().catch(() => ({}));
+        throw new Error(errData?.error || `HTTP ${response.status}`);
+      }
 
       const data = await response.json();
       const replyText = data?.choices?.[0]?.message?.content
@@ -872,7 +878,8 @@ Say honestly: "I don't have that specific detail — reach us on WhatsApp or ema
         isEscalated:        shouldEscalate,
         escalationSeverity: shouldEscalate ? severity : undefined,
       }]);
-    } catch {
+    } catch (err) {
+      console.error("Ruth AI error:", err);
       setMessages(prev => [...prev, {
         role: "assistant",
         content: `I'm having trouble connecting right now. Please reach out via WhatsApp or email ${siteInfo.contact_email} directly — we'll be happy to help!`,
@@ -887,15 +894,16 @@ Say honestly: "I don't have that specific detail — reach us on WhatsApp or ema
     if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); sendMessage(); }
   }
 
-  const chips = [
-    "🎟️ Ticket prices",
-    "📍 Where's the venue?",
-    "🎓 Sponsor a student",
-    "🔑 Get my booking code",
-    "🔍 Check my booking",
-    "🏗️ About CSA",
-    "🤝 Partner with us",
-    "💬 Talk to support",
+  // Each chip has a visible label and a clean query sent to Ruth
+  const chips: { label: string; query: string }[] = [
+    { label: "🎟️ Ticket prices",      query: "What are the ticket prices and packages?" },
+    { label: "📍 Where's the venue?",  query: "Where is the venue?" },
+    { label: "🎓 Sponsor a student",   query: "How can I sponsor a student?" },
+    { label: "🔑 Get my booking code", query: "I need to get my booking code" },
+    { label: "🔍 Check my booking",    query: "I want to check my booking" },
+    { label: "🏗️ About CSA",          query: "Tell me about CSA" },
+    { label: "🤝 Partner with us",     query: "How can we partner with CSA?" },
+    { label: "💬 Talk to support",     query: "I need to speak to a human agent" },
   ];
 
   const VENUE_LAT = -1.2672;
@@ -998,16 +1006,16 @@ Say honestly: "I don't have that specific detail — reach us on WhatsApp or ema
             {messages.length <= 1 && (
               <div className="px-4 pb-2 flex flex-wrap gap-1.5 flex-shrink-0">
                 {chips.map(chip => (
-                  <button key={chip} className="ruth-chip text-[11px] px-2.5 py-1.5 rounded-full transition-colors"
+                  <button key={chip.label} className="ruth-chip text-[11px] px-2.5 py-1.5 rounded-full transition-colors"
                     style={{ background: "rgba(212,175,55,0.07)", border: "1px solid rgba(212,175,55,0.25)", color: "#D4AF37" }}
-                    onClick={() => { setInput(chip.replace(/^[^\s]+\s/, "")); inputRef.current?.focus(); }}>
-                    {chip}
+                    onClick={() => { setInput(chip.query); inputRef.current?.focus(); }}>
+                    {chip.label}
                   </button>
                 ))}
               </div>
             )}
 
-            {/* Pending image */}
+            {/* Pending image preview */}
             {pendingImage && (
               <div className="px-4 pb-1 flex-shrink-0">
                 <div className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-[11px]"
