@@ -35,32 +35,48 @@ const fmt = (iso: string) =>
 
 /**
  * Extracts the canonical ticket code from whatever the QR contains.
+ * Returns { displayCode, rawToken } where:
+ *   - displayCode  is always uppercased (used for ticket_code lookup, e.g. "CSA-XXXX")
+ *   - rawToken     preserves original casing (used for secure_ticket_token lookup —
+ *                  UUIDs are stored lowercase in Supabase and are case-sensitive)
+ *
  * Handles:
- *  1. JSON payload  {"t":"CSA-XX","b":"CSA-XX","q":"token"}  → uses t (ticket_number)
- *  2. URL           https://…/ticket/CSA-XX?code=CSA-XX      → extracts path / param
- *  3. Plain string  CSA-AS5WDKHP4                            → returned as-is
+ *  1. JSON payload  {"t":"CSA-XX","b":"CSA-XX","q":"uuid-token"} → t/b for code, q for token
+ *  2. URL           https://…/ticket/CSA-XX?token=uuid           → path for code, param for token
+ *  3. Plain string  CSA-AS5WDKHP4  OR  a3f2b1c4-uuid            → same value for both
  */
-function extractCode(raw: string): string {
+function extractCode(raw: string): { displayCode: string; rawToken: string } {
   const trimmed = raw.trim();
 
   // 1. Try JSON
   try {
     const parsed = JSON.parse(trimmed);
-    const candidate = parsed.t || parsed.b || parsed.q || "";
-    if (candidate) return String(candidate).toUpperCase();
+    const codeCandidate  = parsed.t || parsed.b || "";
+    const tokenCandidate = parsed.q || codeCandidate;
+    if (codeCandidate) {
+      return {
+        displayCode: String(codeCandidate).toUpperCase(),
+        rawToken:    String(tokenCandidate), // preserve original casing for UUID tokens
+      };
+    }
   } catch { /* not JSON */ }
 
   // 2. Try URL
   try {
     const url = new URL(trimmed);
-    const param = url.searchParams.get("code");
-    if (param) return param.toUpperCase();
-    const pathMatch = url.pathname.match(/\/ticket\/([A-Z0-9-]+)/i);
-    if (pathMatch) return pathMatch[1].toUpperCase();
+    const tokenParam = url.searchParams.get("token") || url.searchParams.get("code");
+    const pathMatch  = url.pathname.match(/\/ticket\/([A-Za-z0-9-]+)/i);
+    const pathCode   = pathMatch ? pathMatch[1] : null;
+    if (pathCode || tokenParam) {
+      const code  = pathCode || tokenParam!;
+      const token = tokenParam || pathCode!;
+      return { displayCode: code.toUpperCase(), rawToken: token };
+    }
   } catch { /* not a URL */ }
 
-  // 3. Plain code
-  return trimmed.toUpperCase();
+  // 3. Plain string — could be a CSA-XXXX ticket code OR a UUID secure token.
+  //    Uppercase displayCode for ticket_code lookup; keep rawToken as-is for UUID lookup.
+  return { displayCode: trimmed.toUpperCase(), rawToken: trimmed };
 }
 
 const AdminQRScanner = () => {
@@ -118,7 +134,9 @@ const AdminQRScanner = () => {
     if (scanningRef.current) return;
 
     // ── Parse QR payload (JSON, URL, or plain code) ──
-    const code = extractCode(raw);
+    // displayCode is uppercased for ticket_code lookup (e.g. "CSA-XXXX")
+    // rawToken preserves original casing for secure_ticket_token lookup (UUIDs are lowercase)
+    const { displayCode: code, rawToken } = extractCode(raw);
     if (!code) return;
 
     scanningRef.current = true;
@@ -126,7 +144,7 @@ const AdminQRScanner = () => {
     setResult(null);
 
     try {
-      // 1. Look up by ticket_code
+      // 1. Look up by ticket_code (plain CSA-XXXX codes, always uppercase)
       let { data: reg, error: regErr } = await supabase
         .from("registrations")
         .select("id, name, package_type, quantity, payment_status, ticket_code")
@@ -135,24 +153,17 @@ const AdminQRScanner = () => {
 
       if (regErr) { setResult({ status: "error", message: regErr.message }); return; }
 
-      // 2. If not found by ticket_code, try secure_ticket_token
+      // 2. If not found by ticket_code, try secure_ticket_token (UUID, case-sensitive, stored lowercase)
       if (!reg) {
-        // Also try to extract the "q" field from JSON for token lookup
-        let tokenCandidate = code;
-        try {
-          const parsed = JSON.parse(raw.trim());
-          if (parsed.q) tokenCandidate = String(parsed.q).toUpperCase();
-        } catch { /* not JSON */ }
-
         const { data: regByToken, error: tokenErr } = await supabase
           .from("registrations")
           .select("id, name, package_type, quantity, payment_status, ticket_code")
-          .eq("secure_ticket_token", tokenCandidate)
+          .eq("secure_ticket_token", rawToken)
           .maybeSingle();
         if (tokenErr) { setResult({ status: "error", message: tokenErr.message }); return; }
         reg = regByToken;
         if (reg) {
-          // normalise to the real ticket_code for scan record
+          // normalise to the real ticket_code for the scan record
           (reg as any)._useCode = reg.ticket_code ?? code;
         }
       }
@@ -161,8 +172,8 @@ const AdminQRScanner = () => {
 
       const scanCode = (reg as any)._useCode ?? code;
 
-      // 3. Payment check
-      if (reg.payment_status !== "paid" && reg.payment_status !== "partial" && reg.payment_status !== "confirmed") {
+      // 3. Payment check — valid statuses: paid, partial (schema: pending/paid/partial/failed/refunded)
+      if (reg.payment_status !== "paid" && reg.payment_status !== "partial") {
         setResult({ status: "unpaid", name: reg.name, payment_status: reg.payment_status });
         return;
       }
