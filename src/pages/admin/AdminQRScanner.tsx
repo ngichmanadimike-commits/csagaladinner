@@ -5,7 +5,7 @@ import { useAuth } from "@/hooks/useAuth";
 import { toast } from "sonner";
 import {
   QrCode, CheckCircle2, XCircle, AlertTriangle, RefreshCw,
-  Search, List, Clock, User, Ticket, Ban, Camera, CameraOff
+  Search, List, Clock, User, Ticket, Ban, Camera, CameraOff, Users, UserCheck
 } from "lucide-react";
 
 interface ScanRecord {
@@ -13,6 +13,7 @@ interface ScanRecord {
   ticket_code: string;
   scanned_at: string;
   scanned_by: string | null;
+  notes: string | null;
   registrations: {
     name: string;
     email: string;
@@ -24,11 +25,23 @@ interface ScanRecord {
 }
 
 type ScanResult =
-  | { status: "success"; name: string; package_type: string; quantity: number; alreadyScanned: false }
-  | { status: "already_used"; name: string; scanned_at: string; scanned_by: string | null; alreadyScanned: true }
+  | { status: "success"; name: string; package_type: string; totalCapacity: number; admittedCount: number; alreadyScanned: false; admittedNames: string[] }
+  | { status: "capacity_full"; name: string; package_type: string; totalCapacity: number; lastScanned_at: string; lastScanned_by: string | null; admittedNames: string[] }
   | { status: "not_found" }
   | { status: "unpaid"; name: string; payment_status: string }
   | { status: "error"; message: string };
+
+/** Pending admission: QR decoded, capacity available, waiting for attendee name */
+interface PendingAdmission {
+  registrationId: string;
+  scanCode: string;
+  holderName: string;
+  packageType: string;
+  totalCapacity: number;
+  admittedSoFar: number;
+  /** Names already admitted on this ticket (for display) */
+  admittedNames: string[];
+}
 
 const fmt = (iso: string) =>
   new Date(iso).toLocaleString("en-KE", { dateStyle: "medium", timeStyle: "short" });
@@ -99,6 +112,11 @@ const AdminQRScanner = () => {
   const [cameraLoading, setCameraLoading] = useState(false);
   const lastScannedCode = useRef<string | null>(null);
   const [jsQRLoaded, setJsQRLoaded] = useState(false);
+  // For multi-seat tickets: holds decoded ticket info while admin enters the attendee name
+  const [pendingAdmission, setPendingAdmission] = useState<PendingAdmission | null>(null);
+  const [seatName, setSeatName] = useState("");
+  const [admitting, setAdmitting] = useState(false);
+  const seatNameRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     if ((window as any).jsQR) { setJsQRLoaded(true); return; }
@@ -113,7 +131,7 @@ const AdminQRScanner = () => {
     setLoadingScans(true);
     const { data } = await supabase
       .from("ticket_scans")
-      .select(`id, ticket_code, scanned_at, scanned_by,
+      .select(`id, ticket_code, scanned_at, scanned_by, notes,
         registrations ( name, email, phone, package_type, quantity, payment_status )`)
       .order("scanned_at", { ascending: false })
       .limit(200);
@@ -178,30 +196,70 @@ const AdminQRScanner = () => {
         return;
       }
 
-      // 4. Already scanned?
-      const { data: existingScan } = await supabase
+      // 4. Capacity check — count how many have already been admitted on this ticket
+      const totalCapacity = Number(reg.quantity) || 1;
+      const { data: existingScans, error: scanCountErr } = await supabase
         .from("ticket_scans")
         .select("scanned_at, scanned_by")
         .eq("ticket_code", scanCode)
-        .maybeSingle();
+        .order("scanned_at", { ascending: false });
 
-      if (existingScan) {
+      if (scanCountErr) { setResult({ status: "error", message: scanCountErr.message }); return; }
+
+      const admittedSoFar = existingScans?.length ?? 0;
+
+      // Extract names already admitted from notes fields
+      const admittedNames = (existingScans ?? [])
+        .map(s => {
+          // notes format: "Seat N of M · Name" — extract the name after " · "
+          const m = (s as any).notes?.match(/·\s*(.+)$/);
+          return m ? m[1].trim() : null;
+        })
+        .filter(Boolean) as string[];
+
+      if (admittedSoFar >= totalCapacity) {
+        // All seats on this ticket have been used
+        const lastScan = existingScans![0];
         setResult({
-          status: "already_used",
+          status: "capacity_full",
           name: reg.name,
-          scanned_at: existingScan.scanned_at,
-          scanned_by: existingScan.scanned_by,
-          alreadyScanned: true,
+          package_type: reg.package_type,
+          totalCapacity,
+          lastScanned_at: lastScan.scanned_at,
+          lastScanned_by: (lastScan as any).scanned_by,
+          admittedNames,
         });
         return;
       }
 
-      // 5. Record scan
+      // 5a. Multi-seat ticket → pause camera and ask for attendee name before admitting
+      if (totalCapacity > 1) {
+        setPendingAdmission({
+          registrationId: reg.id,
+          scanCode,
+          holderName:     reg.name,
+          packageType:    reg.package_type,
+          totalCapacity,
+          admittedSoFar,
+          admittedNames,
+        });
+        setSeatName("");
+        // Pause camera scanning while name is being entered
+        if (rafRef.current) { cancelAnimationFrame(rafRef.current); rafRef.current = null; }
+        setTimeout(() => seatNameRef.current?.focus(), 50);
+        // Release the scan lock so the form can submit
+        scanningRef.current = false;
+        setScanning(false);
+        return;
+      }
+
+      // 5b. Single-seat ticket → admit immediately (no name needed)
       const { error: insertErr } = await supabase.from("ticket_scans").insert({
         registration_id: reg.id,
         ticket_code: scanCode,
         scanned_by: user?.email ?? null,
         device_info: navigator.userAgent,
+        notes: null,
       });
 
       if (insertErr) { setResult({ status: "error", message: insertErr.message }); return; }
@@ -210,7 +268,9 @@ const AdminQRScanner = () => {
         status: "success",
         name: reg.name,
         package_type: reg.package_type,
-        quantity: reg.quantity,
+        totalCapacity: 1,
+        admittedCount: 1,
+        admittedNames: [],
         alreadyScanned: false,
       });
       toast.success(`✅ Admitted: ${reg.name}`);
@@ -222,6 +282,8 @@ const AdminQRScanner = () => {
       setScanning(false);
     }
   }, [user, fetchScans]);
+
+
 
   const tick = useCallback(() => {
     if (!streamRef.current || scanningRef.current) {
@@ -250,6 +312,66 @@ const AdminQRScanner = () => {
     }
     rafRef.current = requestAnimationFrame(tick);
   }, [processCode]);
+
+  // restartCamera: safe to call from confirm/cancel without circular dep on tick
+  const restartCamera = useCallback(() => {
+    if (streamRef.current && !rafRef.current) {
+      rafRef.current = requestAnimationFrame(tick);
+    }
+  }, [tick]);
+
+  /** Called when admin confirms a name for a multi-seat ticket admission */
+  const confirmSeatAdmission = useCallback(async () => {
+    if (!pendingAdmission || admitting) return;
+    const name = seatName.trim();
+    if (!name) { seatNameRef.current?.focus(); return; }
+
+    setAdmitting(true);
+    const { admittedSoFar, totalCapacity, registrationId, scanCode, holderName, packageType, admittedNames } = pendingAdmission;
+
+    const { error: insertErr } = await supabase.from("ticket_scans").insert({
+      registration_id: registrationId,
+      ticket_code: scanCode,
+      scanned_by: user?.email ?? null,
+      device_info: navigator.userAgent,
+      notes: `Seat ${admittedSoFar + 1} of ${totalCapacity} · ${name}`,
+    });
+
+    setAdmitting(false);
+
+    if (insertErr) {
+      setResult({ status: "error", message: insertErr.message });
+      setPendingAdmission(null);
+      setSeatName("");
+      return;
+    }
+
+    const newAdmittedCount = admittedSoFar + 1;
+    const newAdmittedNames = [...admittedNames, name];
+    setResult({
+      status: "success",
+      name: holderName,
+      package_type: packageType,
+      totalCapacity,
+      admittedCount: newAdmittedCount,
+      admittedNames: newAdmittedNames,
+      alreadyScanned: false,
+    });
+    setPendingAdmission(null);
+    setSeatName("");
+    toast.success(`✅ Admitted: ${name} (seat ${newAdmittedCount}/${totalCapacity} on ${holderName})`);
+    fetchScans();
+
+    restartCamera();
+  }, [pendingAdmission, seatName, admitting, user, fetchScans, restartCamera]);
+
+  const cancelPendingAdmission = useCallback(() => {
+    setPendingAdmission(null);
+    setSeatName("");
+    scanningRef.current = false;
+    lastScannedCode.current = null;
+    restartCamera();
+  }, [restartCamera]);
 
   const startCamera = async () => {
     if (!jsQRLoaded) { setCameraError("QR scanner is still loading. Please wait a moment then try again."); return; }
@@ -320,22 +442,75 @@ const AdminQRScanner = () => {
     if (result.status === "success") return (
       <div className="rounded-xl bg-emerald-500/10 border border-emerald-500/40 p-5 flex items-start gap-4">
         <CheckCircle2 size={32} className="text-emerald-400 shrink-0 mt-0.5" />
-        <div>
+        <div className="flex-1">
           <p className="font-bold text-emerald-300 text-lg">ADMITTED ✓</p>
           <p className="text-foreground font-semibold">{result.name}</p>
-          <p className="text-muted-foreground text-sm">{result.package_type} × {result.quantity}</p>
+          <p className="text-muted-foreground text-sm">{result.package_type}</p>
+          {result.totalCapacity > 1 && (
+            <div className="mt-3 space-y-2">
+              <div className="flex items-center justify-between text-xs">
+                <span className="text-emerald-300 font-semibold">
+                  {result.admittedCount} of {result.totalCapacity} seats admitted
+                </span>
+                {result.admittedCount < result.totalCapacity && (
+                  <span className="text-muted-foreground">
+                    {result.totalCapacity - result.admittedCount} seat{result.totalCapacity - result.admittedCount !== 1 ? "s" : ""} remaining
+                  </span>
+                )}
+              </div>
+              <div className="flex gap-1">
+                {Array.from({ length: result.totalCapacity }).map((_, i) => (
+                  <div key={i} className={`h-2 flex-1 rounded-full ${i < result.admittedCount ? "bg-emerald-400" : "bg-muted"}`} />
+                ))}
+              </div>
+              {result.admittedNames.length > 0 && (
+                <div className="mt-2 space-y-1">
+                  <p className="text-xs text-muted-foreground font-semibold uppercase tracking-wide">Admitted so far</p>
+                  {result.admittedNames.map((n, i) => (
+                    <div key={i} className="flex items-center gap-2 text-sm">
+                      <CheckCircle2 size={13} className="text-emerald-400 shrink-0" />
+                      <span className="text-foreground">{n}</span>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
         </div>
       </div>
     );
 
-    if (result.status === "already_used") return (
+    if (result.status === "capacity_full") return (
       <div className="rounded-xl bg-yellow-500/10 border border-yellow-500/40 p-5 flex items-start gap-4">
         <Ban size={32} className="text-yellow-400 shrink-0 mt-0.5" />
-        <div>
-          <p className="font-bold text-yellow-300 text-lg">TICKET ALREADY USED</p>
+        <div className="flex-1">
+          <p className="font-bold text-yellow-300 text-lg">
+            {result.totalCapacity > 1 ? `ALL ${result.totalCapacity} SEATS USED` : "TICKET ALREADY USED"}
+          </p>
           <p className="text-foreground font-semibold">{result.name}</p>
-          <p className="text-muted-foreground text-sm">
-            First scanned {fmt(result.scanned_at)}{result.scanned_by ? ` by ${result.scanned_by}` : ""}
+          <p className="text-muted-foreground text-sm">{result.package_type}</p>
+          {result.totalCapacity > 1 && (
+            <div className="mt-3 space-y-2">
+              <div className="flex gap-1">
+                {Array.from({ length: result.totalCapacity }).map((_, i) => (
+                  <div key={i} className="h-2 flex-1 rounded-full bg-yellow-400" />
+                ))}
+              </div>
+              {result.admittedNames.length > 0 && (
+                <div className="mt-2 space-y-1">
+                  <p className="text-xs text-muted-foreground font-semibold uppercase tracking-wide">All admitted</p>
+                  {result.admittedNames.map((n, i) => (
+                    <div key={i} className="flex items-center gap-2 text-sm">
+                      <CheckCircle2 size={13} className="text-yellow-400 shrink-0" />
+                      <span className="text-foreground">{n}</span>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
+          <p className="text-muted-foreground text-xs mt-2">
+            Last scan {fmt(result.lastScanned_at)}{result.lastScanned_by ? ` by ${result.lastScanned_by}` : ""}
           </p>
         </div>
       </div>
@@ -449,6 +624,87 @@ const AdminQRScanner = () => {
               </form>
             </div>
 
+            {/* ── Multi-seat name entry prompt ── */}
+            {pendingAdmission && (
+              <div className="rounded-xl bg-blue-500/10 border border-blue-500/40 p-5 space-y-4">
+                <div className="flex items-start gap-3">
+                  <Users size={28} className="text-blue-400 shrink-0 mt-0.5" />
+                  <div className="flex-1">
+                    <p className="font-bold text-blue-300 text-lg">GROUP TICKET — ENTER ATTENDEE NAME</p>
+                    <p className="text-foreground font-semibold">{pendingAdmission.holderName}</p>
+                    <p className="text-muted-foreground text-sm">{pendingAdmission.packageType}</p>
+
+                    {/* Seat progress */}
+                    <div className="mt-2">
+                      <div className="flex items-center justify-between text-xs mb-1">
+                        <span className="text-blue-300 font-semibold">
+                          Admitting seat {pendingAdmission.admittedSoFar + 1} of {pendingAdmission.totalCapacity}
+                        </span>
+                        <span className="text-muted-foreground">
+                          {pendingAdmission.totalCapacity - pendingAdmission.admittedSoFar - 1} remaining after this
+                        </span>
+                      </div>
+                      <div className="flex gap-1">
+                        {Array.from({ length: pendingAdmission.totalCapacity }).map((_, i) => (
+                          <div key={i} className={`h-2 flex-1 rounded-full ${
+                            i < pendingAdmission.admittedSoFar ? "bg-emerald-400"
+                            : i === pendingAdmission.admittedSoFar ? "bg-blue-400 animate-pulse"
+                            : "bg-muted"
+                          }`} />
+                        ))}
+                      </div>
+                    </div>
+
+                    {/* Previously admitted names */}
+                    {pendingAdmission.admittedNames.length > 0 && (
+                      <div className="mt-2 space-y-1">
+                        <p className="text-xs text-muted-foreground font-semibold uppercase tracking-wide">Already admitted</p>
+                        {pendingAdmission.admittedNames.map((n, i) => (
+                          <div key={i} className="flex items-center gap-2 text-xs">
+                            <UserCheck size={12} className="text-emerald-400 shrink-0" />
+                            <span className="text-foreground">{n}</span>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                </div>
+
+                {/* Name input */}
+                <div className="flex gap-2">
+                  <input
+                    ref={seatNameRef}
+                    type="text"
+                    value={seatName}
+                    onChange={(e) => setSeatName(e.target.value)}
+                    onKeyDown={(e) => { if (e.key === "Enter") confirmSeatAdmission(); }}
+                    placeholder="Type attendee's full name…"
+                    className="flex-1 px-3 py-2.5 rounded-lg border border-blue-500/40 bg-background text-sm focus:outline-none focus:border-blue-400"
+                    autoComplete="off"
+                  />
+                </div>
+                <div className="flex gap-2">
+                  <button
+                    onClick={confirmSeatAdmission}
+                    disabled={admitting || !seatName.trim()}
+                    className="flex-1 flex items-center justify-center gap-2 py-2.5 rounded-lg bg-blue-600 text-white font-semibold disabled:opacity-50 text-sm"
+                  >
+                    {admitting
+                      ? <><span className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" /> Admitting…</>
+                      : <><UserCheck size={16} /> Admit — Seat {pendingAdmission.admittedSoFar + 1}</>
+                    }
+                  </button>
+                  <button
+                    onClick={cancelPendingAdmission}
+                    disabled={admitting}
+                    className="px-4 py-2.5 rounded-lg border border-border text-muted-foreground hover:bg-muted text-sm disabled:opacity-50"
+                  >
+                    Cancel
+                  </button>
+                </div>
+              </div>
+            )}
+
             {result && <ResultCard />}
           </div>
 
@@ -482,8 +738,23 @@ const AdminQRScanner = () => {
                         <p className="font-semibold text-foreground truncate">{scan.registrations?.name || "Unknown"}</p>
                         <p className="text-sm text-primary font-mono">{scan.ticket_code}</p>
                         <p className="text-xs text-muted-foreground mt-0.5">
-                          {scan.registrations?.package_type} × {scan.registrations?.quantity}
+                          {scan.registrations?.package_type}
+                          {(scan.registrations?.quantity ?? 1) > 1 && (
+                            <span className="ml-1 font-semibold text-primary">
+                              · capacity {scan.registrations?.quantity}
+                            </span>
+                          )}
                         </p>
+                        {scan.notes && (() => {
+                          const seatMatch = scan.notes.match(/^(Seat \d+ of \d+)\s*·\s*(.+)$/);
+                          return seatMatch ? (
+                            <div className="flex items-center gap-1 mt-0.5">
+                              <UserCheck size={11} className="text-emerald-400 shrink-0" />
+                              <span className="text-xs text-emerald-300 font-medium">{seatMatch[2]}</span>
+                              <span className="text-xs text-muted-foreground">({seatMatch[1]})</span>
+                            </div>
+                          ) : null;
+                        })()}
                       </div>
                       <div className="text-right shrink-0">
                         <p className="text-xs text-muted-foreground flex items-center gap-1 justify-end">
